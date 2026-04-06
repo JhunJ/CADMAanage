@@ -225,7 +225,14 @@ for ($mi = 0; $mi -lt $MigrationRetries; $mi++) {
 
 if (-not $migOk) {
     Write-Host "Migration failed. Check PostgreSQL and DATABASE_URL in .env." -ForegroundColor Red
-    Write-Host "First-time: run .\scripts\init_db.ps1 (enter postgres password). See LOCAL_RUN.md." -ForegroundColor Yellow
+    if ($FromRunBat) {
+        Write-Host "If you see 'password authentication failed' for caduser:" -ForegroundColor Yellow
+        Write-Host "  Double-click setup_db.bat once (enter postgres superuser password)." -ForegroundColor Yellow
+        Write-Host "  Then run run.bat again." -ForegroundColor Yellow
+    } else {
+        Write-Host "First-time or wrong DB password: .\scripts\init_db.ps1 or setup_db.bat (postgres password)." -ForegroundColor Yellow
+        Write-Host "See LOCAL_RUN.md." -ForegroundColor Yellow
+    }
     if ($FromRunBat) {
         exit 1
     }

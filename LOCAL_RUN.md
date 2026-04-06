@@ -8,7 +8,7 @@
 
 - **`.venv`를 같이 복사했다면 삭제**하세요. 다른 PC에서 만든 가상환경은 이 PC에서 깨지기 쉽습니다. 삭제 후 프로젝트 루트에서 `.\scripts\recreate_venv.ps1` 또는 바로 `.\run_local.ps1`(venv 없으면 자동 생성).
 - **`.env`**는 상대 경로(`./data/uploads`)라 보통 그대로 두면 됩니다. DB 비밀번호·호스트가 이 PC와 다르면 `DATABASE_URL`만 수정하세요.
-- **PostgreSQL을 이 PC에 처음 맞출 때**는 `.\scripts\init_db.ps1`로 `caduser` / `cadmanage` / PostGIS를 만듭니다. 이미 `caduser`가 있는데 비밀번호가 다르면 `.env`의 비밀번호를 실제 값에 맞추거나 DB 사용자 비밀번호를 `cadpass`로 맞춥니다.
+- **PostgreSQL을 이 PC에 처음 맞출 때**는 **`setup_db.bat`**(더블클릭) 또는 `.\scripts\init_db.ps1`로 `caduser` / `cadmanage` / PostGIS를 맞춥니다. 스크립트가 **`caduser` 비밀번호를 항상 `cadpass`로 동기화**하므로, 예전에 다른 비밀번호로 만들었어도 한 번 다시 실행하면 `.env`와 맞습니다.
 - **Docker로 DB만 쓸 때**는 [Docker Desktop](https://www.docker.com/products/docker-desktop/)을 **실행한 뒤** `docker compose up -d postgis` 하세요. 데스크톱이 꺼져 있으면 `open //./pipe/dockerDesktopLinuxEngine` 오류가 납니다.
 
 ---
@@ -33,6 +33,8 @@ PostgreSQL 설치가 끝났다면, **프로젝트 폴더**에서:
 cd "D:\CADMAanage"
 .\scripts\init_db.ps1
 ```
+
+또는 프로젝트 루트에서 **`setup_db.bat`** 더블클릭(동일 작업).
 
 - `psql`을 찾을 수 없다고 나오면: PostgreSQL 설치 경로의 `bin` 폴더를 PATH에 추가 (예: `C:\Program Files\PostgreSQL\16\bin`)
 - 비밀번호를 묻면: PostgreSQL 설치 시 정한 **postgres** 사용자 비밀번호 입력

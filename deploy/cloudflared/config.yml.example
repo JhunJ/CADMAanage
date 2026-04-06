@@ -1,0 +1,18 @@
+# cloudflared 설정 예시
+# 사용법:
+#   1) tunnel create 로 터널을 만든 뒤 아래 tunnel UUID 를 실제 ID로 교체
+#   2) credentials-file 경로를 해당 터널의 .json 경로로 교체 (tunnel create 시 안내됨)
+#   3) hostname 을 실제 공개 도메인으로 교체 (예: cadmanager.yeobaekstudio.com)
+#   4) service URL 을 API가_listen 하는 주소로 교체
+#
+#   cloudflared tunnel --config config.yml run
+
+tunnel: REPLACE_WITH_TUNNEL_UUID
+credentials-file: C:\cloudflared\REPLACE_TUNNEL_ID.json
+
+ingress:
+  - hostname: cadmanager.yeobaekstudio.com
+    service: http://127.0.0.1:8000
+    originRequest:
+      noHappyEyeballs: true
+  - service: http_status:404

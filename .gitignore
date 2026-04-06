@@ -1,0 +1,42 @@
+# 가상환경
+.venv/
+venv/
+ENV/
+
+# 비밀·로컬 설정 (GitHub에 절대 올리지 마세요)
+.env
+.env.local
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 테스트·도구 캐시
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 로컬 업로드·변환 산출물 (용량·개인 데이터)
+data/uploads/
+data/oda_check_output/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# 로컬 메모·로그
+_pg_svc.txt
+debug*.log
+*.log

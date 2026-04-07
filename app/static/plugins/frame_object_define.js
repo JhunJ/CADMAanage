@@ -8313,6 +8313,72 @@ function frameDefDrawCorridorCornerPatchesForOpenChain2a(chain, segPack, toScree
   return patchN;
 }
 
+var __frameDef2aOpenStripSegPackCache = null;
+function frameDef2aPairListCacheSig(pairList) {
+  if (!Array.isArray(pairList) || !pairList.length) return '0';
+  var n = pairList.length;
+  var step = Math.max(1, Math.floor(n / 8));
+  var h = 2166136261;
+  for (var i = 0; i < n; i += step) {
+    var p = pairList[i];
+    var a = p && p.a ? (p.a.id != null ? p.a.id : p.a.lineId) : null;
+    var b = p && p.b ? (p.b.id != null ? p.b.id : p.b.lineId) : null;
+    var av = Number(a) || 0;
+    var bv = Number(b) || 0;
+    h ^= (av & 0xffff); h = (h * 16777619) | 0;
+    h ^= (bv & 0xffff); h = (h * 16777619) | 0;
+  }
+  return String(n) + '|' + String(h);
+}
+function frameDef2aOpenChainCacheSig(chain) {
+  if (!Array.isArray(chain) || !chain.length) return '0';
+  var n = chain.length;
+  var f = chain[0], l = chain[n - 1];
+  var fk = typeof frameDef2aSegStableKey === 'function' ? frameDef2aSegStableKey(f) : String(n);
+  var lk = typeof frameDef2aSegStableKey === 'function' ? frameDef2aSegStableKey(l) : String(n);
+  return String(n) + '|' + fk + '|' + lk;
+}
+function frameDef2aOpenStripSegPackCacheFor(pairList, tolJoin, useFullDraw) {
+  var tolKey = Math.round((Number(tolJoin) || 0) * 1000) / 1000;
+  var pairSig = frameDef2aPairListCacheSig(pairList);
+  if (!__frameDef2aOpenStripSegPackCache
+      || __frameDef2aOpenStripSegPackCache.pairSig !== pairSig
+      || __frameDef2aOpenStripSegPackCache.tolKey !== tolKey
+      || __frameDef2aOpenStripSegPackCache.useFullDraw !== !!useFullDraw) {
+    __frameDef2aOpenStripSegPackCache = {
+      pairSig: pairSig,
+      tolKey: tolKey,
+      useFullDraw: !!useFullDraw,
+      map: (typeof Map === 'function') ? new Map() : null,
+      list: []
+    };
+  }
+  return __frameDef2aOpenStripSegPackCache;
+}
+function frameDef2aOpenStripSegPackCacheGet(cache, chain) {
+  if (!cache || !chain) return null;
+  var sig = frameDef2aOpenChainCacheSig(chain);
+  if (cache.map) {
+    var hit = cache.map.get(chain);
+    if (hit && hit.sig === sig) return hit.payload;
+    return null;
+  }
+  for (var i = 0; i < cache.list.length; i++) {
+    var it = cache.list[i];
+    if (it && it.chain === chain && it.sig === sig) return it.payload;
+  }
+  return null;
+}
+function frameDef2aOpenStripSegPackCacheSet(cache, chain, payload) {
+  if (!cache || !chain || !payload) return;
+  var entry = { sig: frameDef2aOpenChainCacheSig(chain), payload: payload };
+  if (cache.map) {
+    cache.map.set(chain, entry);
+    return;
+  }
+  cache.list.push({ chain: chain, sig: entry.sig, payload: payload });
+}
+
 function frameDefDrawOpenChainsStripHatch(openChains, halfW, color, opts, pairs) {
   var pairListPre = Array.isArray(pairs) ? pairs : [];
   if (!Array.isArray(openChains) || !openChains.length || typeof toScreen !== 'function' || typeof frameDefDrawHatchPolygon !== 'function') return;
@@ -8326,6 +8392,8 @@ function frameDefDrawOpenChainsStripHatch(openChains, halfW, color, opts, pairs)
   if (typeof FRAME_DEF_STEP2A_CORRIDOR_MIN_T_CLIP_MM === 'number') {
     minCorHatchSpan = Math.min(minSegCorHatch, Math.max(4, FRAME_DEF_STEP2A_CORRIDOR_MIN_T_CLIP_MM));
   }
+  var useFullDrawGlobal = typeof FRAME_DEF_STEP2A_CORRIDOR_DRAW_FULL_PAIR_OVERLAP === 'boolean' && FRAME_DEF_STEP2A_CORRIDOR_DRAW_FULL_PAIR_OVERLAP;
+  var segPackCache = frameDef2aOpenStripSegPackCacheFor(pairList, tolJoin, useFullDrawGlobal);
   var dbgStripNc = 0, dbgStripMm = 0;
   if (typeof window !== 'undefined') {
     window.__frameDef2aCornerPatchSumDraw = 0;
@@ -8341,32 +8409,36 @@ function frameDefDrawOpenChainsStripHatch(openChains, halfW, color, opts, pairs)
     var segPack = [];
     var anyCorridor = false;
     var si;
-    for (si = 0; si < chain.length; si++) {
-      var sg = chain[si];
-      if (!sg || !sg.p1 || !sg.p2) {
-        segPack.push(null);
-        continue;
+    var cacheHitPack = frameDef2aOpenStripSegPackCacheGet(segPackCache, chain);
+    if (cacheHitPack) {
+      segPack = cacheHitPack.segPack || [];
+      anyCorridor = !!cacheHitPack.anyCorridor;
+    } else {
+      for (si = 0; si < chain.length; si++) {
+        var sg = chain[si];
+        if (!sg || !sg.p1 || !sg.p2) {
+          segPack.push(null);
+          continue;
+        }
+        var prPick = pairList.length ? frameDefBestWallPairForSegCorridor(sg, pairList, { chain: chain, segIndex: si, tolJoin: tolJoin }) : null;
+        var bleedOptDraw = prPick && typeof frameDefCorridorBleedOptForChainSeg2a === 'function'
+          ? frameDefCorridorBleedOptForChainSeg2a(chain, si, sg, prPick, tolJoin) : null;
+        var subs = prPick ? (useFullDrawGlobal ? frameDefSegCorridorOverlapFullPairIntervals2a(sg, prPick) : frameDefSegOverlapSubIntervalsOnPair(sg, prPick, bleedOptDraw)) : [];
+        if (prPick && subs.length) {
+          segPack.push({ pair: prPick, subs: subs });
+          anyCorridor = true;
+        } else {
+          segPack.push(null);
+        }
       }
-      var prPick = pairList.length ? frameDefBestWallPairForSegCorridor(sg, pairList, { chain: chain, segIndex: si, tolJoin: tolJoin }) : null;
-      var useFullDraw = typeof FRAME_DEF_STEP2A_CORRIDOR_DRAW_FULL_PAIR_OVERLAP === 'boolean' && FRAME_DEF_STEP2A_CORRIDOR_DRAW_FULL_PAIR_OVERLAP;
-      var bleedOptDraw = prPick && typeof frameDefCorridorBleedOptForChainSeg2a === 'function'
-        ? frameDefCorridorBleedOptForChainSeg2a(chain, si, sg, prPick, tolJoin) : null;
-      var subs = prPick ? (useFullDraw ? frameDefSegCorridorOverlapFullPairIntervals2a(sg, prPick) : frameDefSegOverlapSubIntervalsOnPair(sg, prPick, bleedOptDraw)) : [];
-      if (prPick && subs.length) {
-        segPack.push({ pair: prPick, subs: subs });
-        anyCorridor = true;
-      } else {
-        segPack.push(null);
+      if (pairList.length && typeof frameDefCorridorSegPackTryNeighborPair2a === 'function') {
+        frameDefCorridorSegPackTryNeighborPair2a(chain, segPack, tolJoin, useFullDrawGlobal);
       }
-    }
-    var nbFillDraw = 0;
-    if (pairList.length && typeof frameDefCorridorSegPackTryNeighborPair2a === 'function') {
-      var useFullNb = typeof FRAME_DEF_STEP2A_CORRIDOR_DRAW_FULL_PAIR_OVERLAP === 'boolean' && FRAME_DEF_STEP2A_CORRIDOR_DRAW_FULL_PAIR_OVERLAP;
-      nbFillDraw = frameDefCorridorSegPackTryNeighborPair2a(chain, segPack, tolJoin, useFullNb);
-    }
-    anyCorridor = false;
-    for (var aj = 0; aj < segPack.length; aj++) {
-      if (segPack[aj] && segPack[aj].subs && segPack[aj].subs.length) { anyCorridor = true; break; }
+      anyCorridor = false;
+      for (var aj = 0; aj < segPack.length; aj++) {
+        if (segPack[aj] && segPack[aj].subs && segPack[aj].subs.length) { anyCorridor = true; break; }
+      }
+      frameDef2aOpenStripSegPackCacheSet(segPackCache, chain, { segPack: segPack, anyCorridor: anyCorridor });
     }
     if (!pairList.length || !anyCorridor) {
       var stripNoCorD = typeof FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR === 'boolean' && FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR && !anyCorridor && pairList.length;
@@ -20176,15 +20248,17 @@ function frameDefDrawChainsAsHatch(chains, color, opts) {
   }
 }
 /** 2a-②: 내곽(구멍)이 있는 닫힌 루프는 even-odd로 **도넛 링**만 채움 */
-function frameDefDraw2aClosedChainsCompoundHatch(closedList, color, opts, tol, precomputedNest) {
+function frameDefDraw2aClosedChainsCompoundHatch(closedList, color, opts, tol, precomputedNest, visibleMap) {
   if (!Array.isArray(closedList) || !closedList.length || typeof toScreen !== 'function') return;
   var t = Math.max(1, Number(tol) || 25);
   var opt = opts || { fillAlpha: 0.28, hatchAlpha: 0.35, step: FRAME_DEF_DEBUG_HATCH_STEP_PX };
   var nest;
+  var vis = (arguments.length >= 6 && visibleMap) ? visibleMap : null;
   if (arguments.length >= 5) nest = precomputedNest;
   else nest = typeof frameDefClassify2aNestedClosedChains === 'function' ? frameDefClassify2aNestedClosedChains(closedList, t) : null;
   if (!nest) {
     for (var _ni = 0; _ni < closedList.length; _ni++) {
+      if (vis && vis[_ni] !== true) continue;
       if (typeof frameDef2aDrawSingleClosedChainStep2Hatch === 'function') frameDef2aDrawSingleClosedChainStep2Hatch(closedList[_ni], color, opt, t);
     }
     return;
@@ -20193,6 +20267,7 @@ function frameDefDraw2aClosedChainsCompoundHatch(closedList, color, opts, tol, p
   var drawnAsHole = [];
   for (var d = 0; d < n; d++) drawnAsHole[d] = false;
   for (var ci = 0; ci < n; ci++) {
+    if (vis && vis[ci] !== true) continue;
     if (!nest.hasHoleChild[ci]) continue;
     var rings = [];
     var outerV = nest.verts[ci];
@@ -20205,6 +20280,7 @@ function frameDefDraw2aClosedChainsCompoundHatch(closedList, color, opts, tol, p
     if (screenOuter.length >= 3) rings.push(screenOuter);
     for (var hj = 0; hj < n; hj++) {
       if (nest.parentIdx[hj] !== ci) continue;
+      if (vis && vis[hj] !== true) continue;
       var innerV = nest.verts[hj];
       if (!innerV || innerV.length < 3) continue;
       var screenInner = [];
@@ -20225,6 +20301,7 @@ function frameDefDraw2aClosedChainsCompoundHatch(closedList, color, opts, tol, p
     }
   }
   for (var ck = 0; ck < n; ck++) {
+    if (vis && vis[ck] !== true) continue;
     if (nest.hasHoleChild[ck]) continue;
     if (nest.isHole[ck] && drawnAsHole[ck]) continue;
     if (nest.isHole[ck]) continue;
@@ -21162,6 +21239,29 @@ function frameDef2aChainSegsBBoxWorld(chain) {
   if (!isFinite(minX) || !isFinite(maxX)) return null;
   return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
 }
+function frameDef2aVertsBBoxWorld(verts) {
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  if (!Array.isArray(verts)) return null;
+  for (var i = 0; i < verts.length; i++) {
+    var p = verts[i];
+    if (!p) continue;
+    var x = Number(p.x) || 0, y = Number(p.y) || 0;
+    if (x < minX) minX = x; if (x > maxX) maxX = x;
+    if (y < minY) minY = y; if (y > maxY) maxY = y;
+  }
+  if (!isFinite(minX) || !isFinite(maxX)) return null;
+  return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+}
+function frameDef2aClosedBBoxesFromClosedAndNest(closed, nest) {
+  var out = [];
+  var vertsList = nest && Array.isArray(nest.verts) ? nest.verts : null;
+  for (var i = 0; i < closed.length; i++) {
+    var bx = vertsList ? frameDef2aVertsBBoxWorld(vertsList[i]) : null;
+    if (!bx) bx = frameDef2aChainSegsBBoxWorld(closed[i]);
+    out.push(bx);
+  }
+  return out;
+}
 function frameDef2aWorldBBoxIntersectsView(b, padMm) {
   if (!b) return true;
   var pad = Math.max(0, Number(padMm) || 0);
@@ -21222,7 +21322,7 @@ function frameDefDrawDebugStep2aClosedLoopHatches() {
   var noEpJoin = !!(typeof FRAME_DEF_STEP2A_NO_ENDPOINT_CHAIN_JOIN === 'boolean' && FRAME_DEF_STEP2A_NO_ENDPOINT_CHAIN_JOIN);
   var cache = (typeof window !== 'undefined' && window.__frameDef2aClosedLoopDrawCache) ? window.__frameDef2aClosedLoopDrawCache : null;
   var cacheHit = !!(cache && cache.segsRef === segsRaw && cache.segsLen === segsRaw.length && cache.tol === tol && cache.step11Sig === step11Sig && cache.noEpJoin === noEpJoin);
-  var closed, open, nestPre, _nestHasDonut;
+  var closed, open, nestPre, _nestHasDonut, closedBBoxes;
   var excludedStep11Closed = 0;
   var pitlikeRemovedDraw = 0;
   if (cacheHit) {
@@ -21230,6 +21330,7 @@ function frameDefDrawDebugStep2aClosedLoopHatches() {
     open = cache.open;
     nestPre = cache.nest;
     _nestHasDonut = !!cache.nestHasDonut;
+    closedBBoxes = Array.isArray(cache.closedBBoxes) ? cache.closedBBoxes : null;
   } else {
     var joinCand = typeof frameDefGetSegsForStep2aChainJoin === 'function' ? frameDefGetSegsForStep2aChainJoin(segs, {}, tol) : segs;
     if ((typeof FRAME_DEF_STEP2A_PREMERGE_COLLINEAR_SOURCE !== 'boolean' || FRAME_DEF_STEP2A_PREMERGE_COLLINEAR_SOURCE)
@@ -21295,6 +21396,7 @@ function frameDefDrawDebugStep2aClosedLoopHatches() {
         }
       }
     }
+    closedBBoxes = frameDef2aClosedBBoxesFromClosedAndNest(closed, nestPre);
     if (typeof window !== 'undefined') {
       window.__frameDef2aClosedLoopDrawCache = {
         segsRef: segsRaw,
@@ -21305,6 +21407,7 @@ function frameDefDrawDebugStep2aClosedLoopHatches() {
         closed: closed,
         open: open,
         nest: nestPre,
+        closedBBoxes: closedBBoxes,
         nestHasDonut: _nestHasDonut,
         excludedStep11Closed: typeof excludedStep11Closed === 'number' ? excludedStep11Closed : 0,
         pitlikeRemovedDraw: pitlikeRemovedDraw
@@ -21318,7 +21421,18 @@ function frameDefDrawDebugStep2aClosedLoopHatches() {
   var openDrawSel = frameDef2aSampleChainsForPerf(openDrawRaw, maxOpenDraw);
   var openDraw = openDrawSel.list;
   var openDrawStride = openDrawSel.stride;
-  if (closed.length && typeof frameDefDraw2aClosedChainsCompoundHatch === 'function') frameDefDraw2aClosedChainsCompoundHatch(closed, color114, opts, tol, nestPre);
+  if (!closedBBoxes || closedBBoxes.length !== closed.length) closedBBoxes = frameDef2aClosedBBoxesFromClosedAndNest(closed, nestPre);
+  var closedVisibleMap = null;
+  var closedVisible = 0;
+  if (closed.length) {
+    closedVisibleMap = [];
+    for (var cvi = 0; cvi < closed.length; cvi++) {
+      var vis = frameDef2aWorldBBoxIntersectsView(closedBBoxes[cvi], cullPad);
+      closedVisibleMap[cvi] = vis;
+      if (vis) closedVisible++;
+    }
+  }
+  if (closed.length && typeof frameDefDraw2aClosedChainsCompoundHatch === 'function') frameDefDraw2aClosedChainsCompoundHatch(closed, color114, opts, tol, nestPre, closedVisibleMap);
   else if (closed.length && typeof frameDefDrawChainsAsHatch === 'function') frameDefDrawChainsAsHatch(frameDef2aCullChainsToView(closed, cullPad), color114, opts);
   if (openDraw.length && typeof frameDefDrawOpenChainsStripHatch === 'function') {
     var pairs2aDraw = typeof frameDefGetStep2aCorridorPairList === 'function' ? frameDefGetStep2aCorridorPairList(st) : (Array.isArray(st.wallPairs) ? st.wallPairs : []);
@@ -21329,7 +21443,7 @@ function frameDefDrawDebugStep2aClosedLoopHatches() {
     var _tn = Date.now();
     if ((_tn - __frameDef2aPerfLastLogTs) > 1500) {
       __frameDef2aPerfLastLogTs = _tn;
-      fetch('http://127.0.0.1:7246/ingest/ed3d586f-4e6e-4d59-afb3-4db05628884f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '45010c' }, body: JSON.stringify({ sessionId: '45010c', runId: 'step2a-perf-v2', hypothesisId: 'H_perfDraw', location: 'frame_object_define.js:frameDefDrawDebugStep2aClosedLoopHatches', message: '2a step2 draw perf snapshot', data: { ms: _tn - _t0Step2a, cacheHit: cacheHit, segs: segsRaw.length, closed: closed.length, open: open.length, openDrawRaw: openDrawRaw.length, openDraw: openDraw.length, openDrawStride: openDrawStride, maxOpenDraw: maxOpenDraw, hatchStep: hatchStep, noHatch: !!opts.noHatch, noEpJoin: noEpJoin }, timestamp: _tn }) }).catch(function () {});
+      fetch('http://127.0.0.1:7246/ingest/ed3d586f-4e6e-4d59-afb3-4db05628884f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '45010c' }, body: JSON.stringify({ sessionId: '45010c', runId: 'step2a-perf-v2', hypothesisId: 'H_perfDraw', location: 'frame_object_define.js:frameDefDrawDebugStep2aClosedLoopHatches', message: '2a step2 draw perf snapshot', data: { ms: _tn - _t0Step2a, cacheHit: cacheHit, segs: segsRaw.length, closed: closed.length, closedVisible: closedVisible, open: open.length, openDrawRaw: openDrawRaw.length, openDraw: openDraw.length, openDrawStride: openDrawStride, maxOpenDraw: maxOpenDraw, hatchStep: hatchStep, noHatch: !!opts.noHatch, noEpJoin: noEpJoin }, timestamp: _tn }) }).catch(function () {});
     }
   }
   // #endregion

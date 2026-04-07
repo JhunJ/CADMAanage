@@ -4,6 +4,15 @@
 
 ---
 
+## 0. 다른 PC에서 이 폴더를 통째로 옮긴 경우
+
+- **`.venv`를 같이 복사했다면 삭제**하세요. 다른 PC에서 만든 가상환경은 이 PC에서 깨지기 쉽습니다. 삭제 후 프로젝트 루트에서 `.\scripts\recreate_venv.ps1` 또는 바로 `.\run_local.ps1`(venv 없으면 자동 생성).
+- **`.env`**는 상대 경로(`./data/uploads`)라 보통 그대로 두면 됩니다. DB 비밀번호·호스트가 이 PC와 다르면 `DATABASE_URL`만 수정하세요.
+- **PostgreSQL을 이 PC에 처음 맞출 때**는 **`setup_db.bat`**(더블클릭) 또는 `.\scripts\init_db.ps1`로 `caduser` / `cadmanage` / PostGIS를 맞춥니다. 스크립트가 **`caduser` 비밀번호를 항상 `cadpass`로 동기화**하므로, 예전에 다른 비밀번호로 만들었어도 한 번 다시 실행하면 `.env`와 맞습니다.
+- **Docker로 DB만 쓸 때**는 [Docker Desktop](https://www.docker.com/products/docker-desktop/)을 **실행한 뒤** `docker compose up -d postgis` 하세요. 데스크톱이 꺼져 있으면 `open //./pipe/dockerDesktopLinuxEngine` 오류가 납니다.
+
+---
+
 ## 1. 사전 준비 (최초 1회)
 
 - **Python 3.11 이상**  
@@ -21,9 +30,11 @@
 PostgreSQL 설치가 끝났다면, **프로젝트 폴더**에서:
 
 ```powershell
-cd "d:\정헌재 선임_2025\건축_BIM\마감_팀내 개발\6_캐드기반 관리 활용 모델링 프로젝트\CADManage"
+cd "<CADManage 프로젝트 폴더 경로>"
 .\scripts\init_db.ps1
 ```
+
+또는 프로젝트 루트에서 **`setup_db.bat`** 더블클릭(동일 작업).
 
 - `psql`을 찾을 수 없다고 나오면: PostgreSQL 설치 경로의 `bin` 폴더를 PATH에 추가 (예: `C:\Program Files\PostgreSQL\16\bin`)
 - 비밀번호를 묻면: PostgreSQL 설치 시 정한 **postgres** 사용자 비밀번호 입력
@@ -72,7 +83,7 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 프로젝트 루트의 **`.env`** 파일을 열어서 수정합니다.
 
 ```ini
-DATABASE_URL=postgresql+psycopg2://caduser:원하는비밀번호@localhost:5432/cadmanage
+DATABASE_URL=postgresql+psycopg://caduser:원하는비밀번호@127.0.0.1:5432/cadmanage
 ```
 
 `run_local.ps1`은 `.env`를 읽어서 사용합니다.
@@ -100,7 +111,7 @@ ODA가 없어도 **DXF 파일**은 그대로 업로드·파싱·뷰어까지 사
 서버가 떠 있는 상태에서 **다른 터미널**을 열고:
 
 ```powershell
-cd "동일한\CADManage\경로"
+cd "<CADManage 프로젝트 폴더 경로>"
 .\.venv\Scripts\Activate.ps1
 Invoke-RestMethod -Uri "http://localhost:8000/health" -Method Get
 Invoke-RestMethod -Uri "http://localhost:8000/api/users" -Method Post -ContentType "application/json" -Body '{"name":"테스트","email":"test@example.com"}'
@@ -120,8 +131,8 @@ Invoke-RestMethod -Uri "http://localhost:8000/api/projects/1/uploads" -Method Po
 ## 요약 (복사용)
 
 ```powershell
-# 최초 1회: PostgreSQL+PostGIS 설치 후
-cd "d:\정헌재 선임_2025\건축_BIM\마감_팀내 개발\6_캐드기반 관리 활용 모델링 프로젝트\CADManage"
+# 최초 1회: PostgreSQL+PostGIS 설치 후 (프로젝트 루트로 이동)
+cd "<CADManage 프로젝트 폴더 경로>"
 .\scripts\init_db.ps1
 
 # 매번 실행

@@ -1,13 +1,45 @@
+﻿# Virtual environments
 .venv/
+venv/
+ENV/
+
+# Secrets and local config (never commit)
+.env
+.env.local
+*.pem
+
+# Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+
+# Test and tool caches
 .pytest_cache/
 .coverage
 htmlcov/
-.env
-data/
-*.dxf
-*.dwg
-*.log
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
 .vscode/
+*.swp
+*.swo
+
+# Local uploads and converter output (size / personal data)
+data/uploads/
+data/oda_check_output/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Local notes and logs
+_pg_svc.txt
+debug*.log
+*.log
+
+# Cursor (local AI state)
 .cursor/

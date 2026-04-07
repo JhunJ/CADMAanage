@@ -46,7 +46,7 @@ curl http://localhost:8000/health
 # PostGIS만 띄우기
 docker compose up -d postgis
 # 마이그레이션 (로컬 Python)
-export DATABASE_URL=postgresql+psycopg2://caduser:cadpass@localhost:5432/cadmanage
+export DATABASE_URL=postgresql+psycopg://caduser:cadpass@127.0.0.1:5432/cadmanage
 alembic upgrade head
 
 # 가상환경 및 의존성
@@ -62,7 +62,7 @@ uvicorn app.main:app --reload --port 8000
 
 | 변수 | 설명 | 기본값 |
 |------|------|--------|
-| `DATABASE_URL` | PostgreSQL 연결 문자열 | `postgresql+psycopg2://caduser:cadpass@localhost:5432/cadmanage` |
+| `DATABASE_URL` | PostgreSQL 연결 문자열 | `postgresql+psycopg://caduser:cadpass@127.0.0.1:5432/cadmanage` |
 | `UPLOAD_ROOT` | 업로드 파일 루트 | `./data/uploads` |
 | `ODA_FC_PATH` | ODA File Converter 실행 파일 경로 | 없음 (없으면 DXF만 허용 가능) |
 | `DEV_ALLOW_DXF_UPLOAD` | DXF 직접 업로드 허용 | `true` |

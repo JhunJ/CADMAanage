@@ -1,10 +1,15 @@
 import os
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
+
 from alembic import context
-from app.db.base import Base
-from app.models import *  # noqa: F401
+from sqlalchemy import create_engine, pool
+
 from app.config import get_settings
+from app.db.base import Base
+from app.db.pg_connect import PG_CONNECT_KWARGS, normalize_sync_postgresql_url
+from app.models import *  # noqa: F401
+
+os.environ.setdefault("PGCLIENTENCODING", "UTF8")
 
 config = context.config
 if config.config_file_name is not None:
@@ -12,7 +17,8 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("+asyncpg", "+psycopg2"))
+_sync_url = normalize_sync_postgresql_url(settings.database_url)
+config.set_main_option("sqlalchemy.url", _sync_url)
 
 
 def run_migrations_offline() -> None:
@@ -23,10 +29,10 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    connectable = create_engine(
+        _sync_url,
         poolclass=pool.NullPool,
+        connect_args=PG_CONNECT_KWARGS,
     )
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)

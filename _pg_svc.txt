@@ -1,0 +1,3 @@
+postgresql-x64-16
+postgresql-x64-17
+postgresql-x64-18

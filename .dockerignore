@@ -1,0 +1,11 @@
+.venv
+__pycache__
+*.pyc
+.git
+.env
+data/
+*.dxf
+*.dwg
+.pytest_cache
+.coverage
+htmlcov

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CAD Manage - 뷰어</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #1e1e2e;
+      color: #e0e0e0;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 16px 0; color: #8ab4f8; }
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    select {
+      padding: 8px 12px;
+      border: 1px solid #444;
+      border-radius: 6px;
+      background: #2d2d3d;
+      color: #e0e0e0;
+      font-size: 0.9rem;
+    }
+    .info {
+      font-size: 0.85rem;
+      color: #888;
+      margin-left: auto;
+    }
+    #canvasWrap {
+      background: #252536;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #333;
+      min-height: 420px;
+      width: 100%;
+    }
+    canvas { display: block; width: 100%; }
+    #canvas { touch-action: none; }
+    .links { margin-top: 12px; font-size: 0.9rem; }
+    .links a { color: #8ab4f8; margin-right: 12px; }
+  </style>
+</head>
+<body>
+  <h1>CAD 뷰어</h1>
+  <div class="toolbar">
+    <label>프로젝트</label>
+    <select id="project">
+      <option value="">선택</option>
+    </select>
+    <label>커밋 (버전)</label>
+    <select id="commit">
+      <option value="">먼저 프로젝트 선택</option>
+    </select>
+    <span class="info" id="info"></span>
+  </div>
+  <div id="canvasWrap">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div class="links">
+    <a href="/upload">파일 업로드</a>
+    <a href="/view">뷰어 (현재)</a>
+    <a href="/manage">관리</a>
+    <a href="/">처음으로</a>
+  </div>
+
+  <script>
+    const projectSelect = document.getElementById('project');
+    const commitSelect = document.getElementById('commit');
+    const canvas = document.getElementById('canvas');
+    const infoEl = document.getElementById('info');
+    const ctx = canvas.getContext('2d');
+
+    // WKT 파싱: LINESTRING (x y, x y) 또는 LINESTRING Z (...), POINT (x y)
+    function parseWktPoints(wkt) {
+      if (!wkt || typeof wkt !== 'string') return [];
+      const m = wkt.match(/\(([^)]+)\)/);
+      if (!m) return [];
+      const parts = m[1].split(',');
+      return parts.map(p => {
+        const t = p.trim().split(/\s+/);
+        return { x: parseFloat(t[0]) || 0, y: parseFloat(t[1]) || 0 };
+      });
+    }
+
+    function parseWktPoint(wkt) {
+      const pts = parseWktPoints(wkt);
+      return pts.length ? pts[0] : null;
+    }
+    function parseWktPolygonPoints(wkt) {
+      if (!wkt || typeof wkt !== 'string') return [];
+      const s = wkt.replace(/^SRID=\d+;\s*/i, '').trim();
+      const pm = s.match(/POLYGON\s*(?:Z\s*)?\(\(([^)]+)\)\)/i);
+      if (pm) {
+        return pm[1].split(',').map(p => {
+          const t = p.trim().split(/\s+/);
+          return { x: parseFloat(t[0]) || 0, y: parseFloat(t[1]) || 0 };
+        });
+      }
+      return parseWktPoints(wkt);
+    }
+
+    // ACI 1-255 전체 팔레트 (AutoCAD Color Index)
+    const ACI_HEX = ['000000','ff0000','ffff00','00ff00','00ffff','0000ff','ff00ff','ffffff','414141','808080','ff0000','ffaaaa','bd0000','bd7e7e','810000','815656','680000','684545','4f0000','4f3535','ff3f00','ffbfaa','bd2e00','bd8d7e','811f00','816056','681900','684e45','4f1300','4f3b35','ff7f00','ffd4aa','bd5e00','bd9d7e','814000','816b56','683400','685645','4f2700','4f4235','ffbf00','ffeaaa','bd8d00','bdad7e','816000','817656','684e00','685f45','4f3b00','4f4935','ffff00','ffffaa','bdbd00','bdbd7e','818100','818156','686800','686845','4f4f00','4f4f35','bfff00','eaffaa','8dbd00','adbd7e','608100','768156','4e6800','5f6845','3b4f00','494f35','7fff00','d4ffaa','5ebd00','9dbd7e','408100','6b8156','346800','566845','274f00','424f35','3fff00','bfffaa','2ebd00','8dbd7e','1f8100','608156','196800','4e6845','134f00','3b4f35','00ff00','aaffaa','00bd00','7ebd7e','008100','568156','006800','456845','004f00','354f35','00ff3f','aaffbf','00bd2e','7ebd8d','00811f','568160','006819','45684e','004f13','354f3b','00ff7f','aaffd4','00bd5e','7ebd9d','008140','56816b','006834','456856','004f27','354f42','00ffbf','aaffea','00bd8d','7ebdad','008160','568176','00684e','45685f','004f3b','354f49','00ffff','aaffff','00bdbd','7ebdbd','008181','568181','006868','456868','004f4f','354f4f','00bfff','aaeaff','008dbd','7eadbd','006081','567681','004e68','455f68','003b4f','35494f','007fff','aad4ff','005ebd','7e9dbd','004081','566b81','003468','455668','00274f','35424f','003fff','aabfff','002ebd','7e8dbd','001f81','566081','001968','454e68','00134f','353b4f','0000ff','aaaaff','0000bd','7e7ebd','000081','565681','000068','454568','00004f','35354f','3f00ff','bfaaff','2e00bd','8d7ebd','1f0081','605681','190068','4e4568','13004f','3b354f','7f00ff','d4aaff','5e00bd','9d7ebd','400081','6b5681','340068','564568','27004f','42354f','bf00ff','eaaaff','8d00bd','ad7ebd','600081','765681','4e0068','5f4568','3b004f','49354f','ff00ff','ffaaff','bd00bd','bd7ebd','810081','815681','680068','684568','4f004f','4f354f','ff00bf','ffaaea','bd008d','bd7ead','810060','815676','68004e','68455f','4f003b','4f3549','ff007f','ffaad4','bd005e','bd7e9d','810040','81566b','680034','684556','4f0027','4f3542','ff003f','ffaabf','bd002e','bd7e8d','81001f','815660','680019','68454e','4f0013','4f353b','333333','505050','696969','828282','bebebe','ffffff'];
+    function getColor(aci) {
+      // null/0/256(ByLayer): 서버에서 해석된 color 사용. 예외 시 폴백 회색
+      if (aci == null || aci === 0 || aci === 256) return '#e0e0e0';
+      if (aci >= 1 && aci <= 255 && ACI_HEX[aci]) return '#' + ACI_HEX[aci];
+      if (aci > 255) {
+        const r = (aci >> 16) & 255, g = (aci >> 8) & 255, b = aci & 255;
+        return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
+      }
+      return '#e0e0e0';
+    }
+
+    let allEntities = [];
+    let layerColors = {};
+    let view = { minX: 0, minY: 0, maxX: 100, maxY: 100, padding: 40 };
+
+    function displayColor(e) {
+      // ByLayer이거나 color_bylayer 미저장 시: layer_colors 우선 사용 (CAD 뷰어 색상 반영)
+      const useLayer = (e.props == null || e.props.color_bylayer !== false) && layerColors && e.layer != null && layerColors[e.layer] != null;
+      if (useLayer) return getColor(layerColors[e.layer]);
+      return getColor(e.color);
+    }
+    let logicalWidth = 800, logicalHeight = 420;
+    let pan = { active: false, lastX: 0, lastY: 0 };
+    let touchGesture = null;
+
+    function fitView() {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const e of allEntities) {
+        const pts = e.points || (e.point ? [e.point] : []);
+        for (const p of pts) {
+          minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+        }
+        if (e.point && e.text && (e.height != null || e.text.length > 0)) {
+          const h = e.height || 2.5, w = (e.text.length || 0) * h * 0.6;
+          minX = Math.min(minX, e.point.x); maxX = Math.max(maxX, e.point.x + w);
+          minY = Math.min(minY, e.point.y - h); maxY = Math.max(maxY, e.point.y);
+        }
+      }
+      if (minX === Infinity) { minX = 0; minY = 0; maxX = 100; maxY = 100; }
+      const pad = view.padding;
+      const dataRangeX = Math.max(maxX - minX, 1) + 2 * pad;
+      const dataRangeY = Math.max(maxY - minY, 1) + 2 * pad;
+      const centerX = (minX + maxX) / 2, centerY = (minY + maxY) / 2;
+      const canvasAspect = logicalWidth / logicalHeight;
+      let rangeX, rangeY;
+      if (dataRangeX / dataRangeY > canvasAspect) {
+        rangeX = dataRangeX;
+        rangeY = rangeX / canvasAspect;
+      } else {
+        rangeY = dataRangeY;
+        rangeX = rangeY * canvasAspect;
+      }
+      view = {
+        minX: centerX - rangeX / 2, maxX: centerX + rangeX / 2,
+        minY: centerY - rangeY / 2, maxY: centerY + rangeY / 2,
+        padding: view.padding
+      };
+    }
+
+    function applyViewAspect() {
+      const rangeX = Math.max(view.maxX - view.minX, 1);
+      const rangeY = Math.max(view.maxY - view.minY, 1);
+      const centerX = (view.minX + view.maxX) / 2, centerY = (view.minY + view.maxY) / 2;
+      const canvasAspect = logicalWidth / logicalHeight;
+      let newRangeX, newRangeY;
+      if (rangeY * canvasAspect >= rangeX) {
+        newRangeX = rangeY * canvasAspect;
+        newRangeY = rangeY;
+      } else {
+        newRangeX = rangeX;
+        newRangeY = rangeX / canvasAspect;
+      }
+      view.minX = centerX - newRangeX / 2; view.maxX = centerX + newRangeX / 2;
+      view.minY = centerY - newRangeY / 2; view.maxY = centerY + newRangeY / 2;
+    }
+
+    function panView(screenDx, screenDy) {
+      const rangeX = Math.max(view.maxX - view.minX, 1);
+      const rangeY = Math.max(view.maxY - view.minY, 1);
+      view.minX -= (screenDx / logicalWidth) * rangeX;
+      view.maxX -= (screenDx / logicalWidth) * rangeX;
+      view.minY += (screenDy / logicalHeight) * rangeY;
+      view.maxY += (screenDy / logicalHeight) * rangeY;
+    }
+
+    function zoomView(screenX, screenY, factor) {
+      const w = logicalWidth, h = logicalHeight;
+      const rangeX = Math.max(view.maxX - view.minX, 1);
+      const rangeY = Math.max(view.maxY - view.minY, 1);
+      const worldX = view.minX + (screenX / w) * rangeX;
+      const worldY = view.minY + (1 - screenY / h) * rangeY;
+      const newRangeX = rangeX / factor;
+      const newRangeY = rangeY / factor;
+      view.minX = worldX - (screenX / w) * newRangeX;
+      view.maxX = worldX + (1 - screenX / w) * newRangeX;
+      view.minY = worldY - (1 - screenY / h) * newRangeY;
+      view.maxY = worldY + (screenY / h) * newRangeY;
+    }
+
+    function toScreen(x, y) {
+      const w = logicalWidth, h = logicalHeight;
+      const sx = ((x - view.minX) / (view.maxX - view.minX)) * w;
+      const sy = h - ((y - view.minY) / (view.maxY - view.minY)) * h; // Y 뒤집기
+      return { x: sx, y: sy };
+    }
+
+    function draw() {
+      const w = logicalWidth, h = logicalHeight;
+      ctx.fillStyle = '#252536';
+      ctx.fillRect(0, 0, w, h);
+
+      if (allEntities.length === 0) {
+        ctx.fillStyle = '#666';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('엔티티가 없거나 커밋을 선택하세요.', w/2, h/2);
+        return;
+      }
+
+      for (const e of allEntities) {
+        const c = displayColor(e);
+        ctx.strokeStyle = c;
+        ctx.fillStyle = c;
+        ctx.lineWidth = 1.2;
+
+        if (e.points && e.points.length >= 2) {
+          const p0 = toScreen(e.points[0].x, e.points[0].y);
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y);
+          for (let i = 1; i < e.points.length; i++) {
+            const p = toScreen(e.points[i].x, e.points[i].y);
+            ctx.lineTo(p.x, p.y);
+          }
+          if (e.points.length >= 3) {
+            const last = e.points[e.points.length - 1], first = e.points[0];
+            if (Math.abs(last.x - first.x) < 1e-9 && Math.abs(last.y - first.y) < 1e-9) ctx.closePath();
+          }
+          if (e.fill && e.points.length >= 3) { ctx.closePath(); ctx.fill(); }
+          ctx.stroke();
+        } else if (e.point) {
+          const p = toScreen(e.point.x, e.point.y);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+          if (e.text) {
+            const rangeY = Math.max(view.maxY - view.minY, 1);
+            const fontSize = Math.max(8, Math.min(48, (e.height || 2.5) * (logicalHeight / rangeY)));
+            ctx.font = fontSize + 'px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(e.text.substring(0, 20), p.x + 4, p.y + 4);
+          }
+        }
+      }
+    }
+
+    function resize() {
+      const wrap = document.getElementById('canvasWrap');
+      const dpr = window.devicePixelRatio || 1;
+      logicalWidth = wrap.clientWidth || 800;
+      logicalHeight = wrap.clientHeight || 420;
+      if (allEntities.length > 0) applyViewAspect();
+      canvas.width = logicalWidth * dpr;
+      canvas.height = logicalHeight * dpr;
+      canvas.style.width = logicalWidth + 'px';
+      canvas.style.height = logicalHeight + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw();
+    }
+
+    async function loadProjects() {
+      try {
+        const res = await fetch('/api/projects');
+        const list = await res.json();
+        projectSelect.innerHTML = '<option value="">선택</option>' +
+          list.map(p => `<option value="${p.id}">${p.name} (${p.code})</option>`).join('');
+      } catch (e) {
+        projectSelect.innerHTML = '<option value="">불러오기 실패</option>';
+      }
+    }
+
+    async function loadCommits() {
+      const pid = projectSelect.value;
+      commitSelect.innerHTML = '<option value="">선택</option>';
+      if (!pid) return;
+      try {
+        const res = await fetch('/api/projects/' + pid + '/commits');
+        const data = await res.json();
+        const list = data.commits || data || [];
+        commitSelect.innerHTML = '<option value="">선택</option>' +
+          list.map(c => `<option value="${c.id}">#${c.id} ${c.version_label || ''} (${c.status})</option>`).join('');
+      } catch (e) {
+        commitSelect.innerHTML = '<option value="">불러오기 실패</option>';
+      }
+    }
+
+    // 블록 내부 점을 삽입점/스케일/회전으로 월드 좌표 변환 (CAD 규칙: base가 insert에 오도록)
+    async function loadEntities() {
+      const cid = commitSelect.value;
+      allEntities = [];
+      infoEl.textContent = '';
+      if (!cid) { draw(); return; }
+      try {
+        const res = await fetch('/api/commits/' + cid + '/entities');
+        const data = await res.json();
+        layerColors = data.layer_colors || {};
+        const list = data.entities || data || [];
+        infoEl.textContent = '엔티티 ' + list.length + '개';
+
+        for (const e of list) {
+          const wkt = e.geom;
+          if (!wkt) continue;
+          const type = (e.entity_type || '').toUpperCase();
+          const color = e.color;
+          const layer = e.layer;
+          const props = e.props || {};
+
+          if (type === 'LINE' || type === 'LWPOLYLINE' || type === 'POLYLINE' || type === 'ARC' || type === 'CIRCLE') {
+            const points = parseWktPoints(wkt);
+            if (points.length >= 1) allEntities.push({ points, color, layer, props });
+          } else if (type === 'HATCH') {
+            const pts = parseWktPolygonPoints(wkt);
+            if (pts.length >= 3) allEntities.push({ points: pts, color, fill: true, layer, props });
+          } else if (type === 'TEXT' || type === 'MTEXT' || type === 'ATTRIB' || type === 'POINT') {
+            const point = parseWktPoint(wkt);
+            if (point) {
+              const h = e.props && (e.props.height != null ? e.props.height : e.props.char_height);
+              allEntities.push({ point, color, text: (e.props && e.props.text) || '', height: h, layer, props });
+            }
+          } else {
+            const points = parseWktPoints(wkt);
+            if (points.length >= 1) allEntities.push({ points, color, layer, props });
+          }
+        }
+      } catch (e) {
+        infoEl.textContent = '로드 실패: ' + (e && e.message ? e.message : String(e));
+      }
+      fitView();
+      draw();
+    }
+
+    canvas.addEventListener('mousedown', function(e) {
+      if (e.button === 1) { e.preventDefault(); pan.active = true; pan.lastX = e.clientX; pan.lastY = e.clientY; }
+    });
+    canvas.addEventListener('mousemove', function(e) {
+      if (!pan.active) return;
+      const dx = e.clientX - pan.lastX, dy = e.clientY - pan.lastY;
+      pan.lastX = e.clientX; pan.lastY = e.clientY;
+      panView(dx, dy);
+      draw();
+    });
+    canvas.addEventListener('mouseup', function(e) { if (e.button === 1) { pan.active = false; } });
+    canvas.addEventListener('mouseleave', function() { pan.active = false; });
+    canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+    canvas.addEventListener('wheel', function(e) {
+      if (allEntities.length === 0) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const factor = e.deltaY > 0 ? 1 / 1.15 : 1.15;
+      zoomView(sx, sy, factor);
+      draw();
+    }, { passive: false });
+
+    function touchPinchMetrics(t0, t1) {
+      var midX = (t0.clientX + t1.clientX) * 0.5, midY = (t0.clientY + t1.clientY) * 0.5;
+      var dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      return { midX: midX, midY: midY, dist: dist };
+    }
+    canvas.addEventListener('touchstart', function(e) {
+      var t = e.touches;
+      if (t.length === 2) {
+        e.preventDefault();
+        var m = touchPinchMetrics(t[0], t[1]);
+        touchGesture = { type: 'pinch', lmx: m.midX, lmy: m.midY, ld: Math.max(m.dist, 1e-6) };
+        return;
+      }
+      if (t.length !== 1) return;
+      if (allEntities.length === 0) return;
+      e.preventDefault();
+      touchGesture = { type: 'pan', lx: t[0].clientX, ly: t[0].clientY };
+    }, { passive: false });
+    canvas.addEventListener('touchmove', function(e) {
+      if (!touchGesture) return;
+      var g = touchGesture, t = e.touches;
+      if (g.type === 'pinch' && t.length >= 2) {
+        e.preventDefault();
+        var m = touchPinchMetrics(t[0], t[1]);
+        var dx = m.midX - g.lmx, dy = m.midY - g.lmy;
+        panView(dx, dy);
+        var ld = g.ld, d = Math.max(m.dist, 1e-6);
+        if (ld > 8 && d > 8) {
+          var z = d / ld;
+          if (Math.abs(z - 1) > 0.002) {
+            var rect = canvas.getBoundingClientRect();
+            zoomView(m.midX - rect.left, m.midY - rect.top, z);
+          }
+        }
+        g.lmx = m.midX; g.lmy = m.midY; g.ld = d;
+        draw();
+        return;
+      }
+      if (g.type === 'pan' && t.length === 1) {
+        e.preventDefault();
+        var x = t[0].clientX, y = t[0].clientY;
+        panView(x - g.lx, y - g.ly);
+        g.lx = x; g.ly = y;
+        draw();
+      }
+    }, { passive: false });
+    canvas.addEventListener('touchend', function(e) {
+      if (!touchGesture) return;
+      if (e.touches.length === 0) touchGesture = null;
+      else if (touchGesture.type === 'pinch' && e.touches.length < 2) touchGesture = null;
+    });
+    canvas.addEventListener('touchcancel', function() { touchGesture = null; });
+
+    projectSelect.addEventListener('change', loadCommits);
+    commitSelect.addEventListener('change', loadEntities);
+    window.addEventListener('resize', resize);
+
+    loadProjects().then(() => resize());
+  </script>
+</body>
+</html>

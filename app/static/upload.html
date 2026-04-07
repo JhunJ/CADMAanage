@@ -1,0 +1,1723 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CAD Manage - 업로드 & 뷰어</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f0f2f5;
+      color: #1a1d21;
+    }
+    .topnav {
+      background: #fff;
+      border-bottom: 1px solid #e1e4e8;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .topnav a {
+      color: #0969da;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .topnav a:hover { text-decoration: underline; }
+    .topnav .brand { font-size: 1.2rem; font-weight: 700; color: #1a1d21; }
+    .main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+    h1 { font-size: 1.25rem; margin: 0 0 8px 0; color: #1a1d21; }
+    .sub { color: #57606a; font-size: 0.875rem; margin-bottom: 20px; }
+    .section {
+      background: #fff;
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      border: 1px solid #d0d7de;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .section h2 {
+      font-size: 1rem;
+      margin: 0 0 16px 0;
+      color: #24292f;
+      font-weight: 600;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #d0d7de;
+    }
+    label { display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.875rem; color: #24292f; }
+    select, input[type="text"], input[type="number"], input[type="email"], textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      background: #fff;
+      color: #1a1d21;
+      font-size: 0.9rem;
+    }
+    select:focus, input:focus, textarea:focus { outline: none; border-color: #0969da; box-shadow: 0 0 0 2px rgba(9,105,218,0.2); }
+    input[type="file"] {
+      padding: 12px;
+      border: 2px dashed #d0d7de;
+      border-radius: 8px;
+      background: #f6f8fa;
+      color: #24292f;
+      cursor: pointer;
+    }
+    input[type="file"]:hover { border-color: #0969da; background: #f0f6ff; }
+    .fieldRow { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 12px; }
+    .fieldRow .field { flex: 0 0 auto; min-width: 180px; }
+    .fieldRow .field label { margin-bottom: 4px; }
+    .btnAdd { padding: 8px 14px; font-size: 0.85rem; font-weight: 600; color: #0969da; background: #fff; border: 1px solid #d0d7de; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+    .btnAdd:hover { background: #f6f8fa; border-color: #0969da; }
+    .addForm { margin-top: 8px; padding: 12px; background: #f6f8fa; border-radius: 8px; border: 1px solid #d0d7de; display: none; }
+    .addForm.visible { display: block; }
+    .addForm .row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .addForm input { flex: 1; min-width: 120px; }
+    .uploadRow { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+    .uploadRow > div { flex: 0 0 auto; }
+    button, .btnPrimary {
+      padding: 10px 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #fff;
+      background: #238636;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover, .btnPrimary:hover { background: #2ea043; }
+    button:disabled { background: #555; cursor: not-allowed; }
+    .msg {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+      max-width: 480px;
+    }
+    .msg.success { display: block; background: #dafbe1; color: #1a7f37; border: 1px solid #2da44e; }
+    .msg.error { display: block; background: #ffebe9; color: #cf222e; border: 1px solid #ff7b72; }
+    .msg.info { display: block; background: #ddf4ff; color: #0969da; border: 1px solid #54aeff; }
+    .viewerToolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .viewerToolbar select {
+      max-width: 200px;
+      margin-bottom: 0;
+    }
+    .compareRow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    #compareToolbar { display: none; }
+    .viewerInfo { font-size: 0.85rem; color: #888; margin-left: auto; }
+    #canvasWrap {
+      position: relative;
+      background: #0d0d0d;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #d0d7de;
+      min-height: 400px;
+      width: 100%;
+    }
+    canvas { display: block; width: 100%; }
+    #canvas { touch-action: none; }
+    #annoOverlay {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+    #annoOverlay.drawMode { pointer-events: auto; }
+    #annoOverlay canvas { position: absolute; top: 0; left: 0; }
+    .annoToolbar {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+      margin-bottom: 8px; padding: 8px 0;
+      border-bottom: 1px solid #333;
+    }
+    .annoToolbar label { margin: 0; }
+    .annoToolbar input[type="color"] { width: 32px; height: 28px; padding: 2px; cursor: pointer; }
+    .links { margin-top: 16px; font-size: 0.9rem; color: #888; }
+    .links a { color: #0969da; margin-right: 16px; text-decoration: none; }
+    .links a:hover { text-decoration: underline; }
+    .hint { font-size: 0.8rem; color: #57606a; margin-top: -4px; margin-bottom: 12px; }
+    .progressWrap {
+      margin-top: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: #ddf4ff;
+      border: 1px solid #54aeff;
+      font-size: 0.9rem;
+      max-width: 480px;
+    }
+    .progressWrap .dot { display: inline-block; animation: dot 1s infinite; }
+    .progressWrap .dot:nth-child(2) { animation-delay: 0.2s; }
+    .progressWrap .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dot { 0%,80%,100% { opacity: 0.3; } 40% { opacity: 1; } }
+  </style>
+</head>
+<body>
+  <nav class="topnav">
+    <span class="brand">CAD Manage</span>
+    <a href="/upload">업로드</a>
+    <a href="/upload#viewer">뷰어</a>
+    <a href="/manage">관리</a>
+    <a href="/docs">API 문서</a>
+  </nav>
+
+  <main class="main">
+  <h1>파일 업로드</h1>
+  <p class="sub">DWG/DXF 파일을 업로드하고 버전을 관리합니다.</p>
+
+  <!-- 업로드 -->
+  <div class="section">
+    <h2>새 버전 업로드</h2>
+    <form id="uploadForm">
+      <div class="fieldRow">
+        <div class="field">
+          <label for="project">프로젝트</label>
+          <select id="project" required style="min-width:220px;">
+            <option value="">불러오는 중…</option>
+          </select>
+        </div>
+        <button type="button" class="btnAdd" id="projectAddBtn">+ 추가</button>
+      </div>
+      <div id="projectAddForm" class="addForm">
+        <div class="row"><input type="text" id="projectAddName" placeholder="프로젝트 이름"><input type="text" id="projectAddCode" placeholder="코드"></div>
+        <div class="row"><button type="button" id="projectAddSave">저장</button><button type="button" id="projectAddCancel">취소</button></div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="field" style="flex:1; min-width:280px;">
+          <label for="file">파일 (DWG / DXF)</label>
+          <input type="file" id="file" accept=".dwg,.dxf" required>
+          <p class="hint">DWG는 ODA 변환 후 처리됩니다. DXF는 직접 업로드 가능.</p>
+        </div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="field">
+          <label for="assigneeSelect">담당자 (역할)</label>
+          <select id="assigneeSelect" style="min-width:220px;">
+            <option value="">선택 (선택)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fieldRow" style="flex-wrap:wrap; gap:12px;">
+        <div class="field"><label for="classPre">구조/건축 분류</label><select id="classPre" style="min-width:120px;"><option value="">선택</option><option value="구조">구조</option><option value="건축">건축</option></select></div>
+        <div class="field"><label for="classMajor">대분류</label><select id="classMajor" style="min-width:140px;"><option value="">선택</option><option value="지하주차장">지하주차장</option><option value="아파트">아파트</option><option value="부대시설">부대시설</option><option value="단위세대">단위세대</option></select></div>
+        <div class="field"><label for="classMid">중분류</label><select id="classMid" style="min-width:100px;"><option value="">선택</option><option value="평면">평면</option><option value="단면">단면</option><option value="일람">일람</option></select></div>
+        <div class="field" style="min-width:140px;">
+          <label for="classMinor">소분류 (선택)</label>
+          <div style="display:flex; gap:4px; align-items:flex-end;">
+            <select id="classMinor" style="flex:1; min-width:100px;"><option value="">선택</option></select>
+            <button type="button" class="btnAdd" id="minorAddBtn" title="소분류 추가">+</button>
+          </div>
+        </div>
+      </div>
+      <div id="minorAddForm" class="addForm">
+        <div class="row"><input type="text" id="minorAddLabel" placeholder="소분류 입력 (예: 특별층)"><button type="button" id="minorAddSave">추가</button><button type="button" id="minorAddCancel">취소</button></div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="field" style="min-width:140px;">
+          <label for="classWorkType">공종 (선택)</label>
+          <div style="display:flex; gap:4px; align-items:flex-end;">
+            <select id="classWorkType" style="flex:1; min-width:100px;"><option value="">선택</option></select>
+            <button type="button" class="btnAdd" id="workTypeAddBtn" title="공종 추가">+</button>
+          </div>
+        </div>
+      </div>
+      <div id="workTypeAddForm" class="addForm">
+        <div class="row"><input type="text" id="workTypeAddLabel" placeholder="공종 입력"><button type="button" id="workTypeAddSave">추가</button><button type="button" id="workTypeAddCancel">취소</button></div>
+      </div>
+
+      <div class="fieldRow">
+        <div class="field"><label for="version">버전 라벨</label><input type="text" id="version" placeholder="v1"></div>
+      </div>
+      <div class="fieldRow">
+        <div class="field" style="flex:1; max-width:480px;">
+          <label for="changeNotes">변화이력</label>
+          <textarea id="changeNotes" rows="2" placeholder="변경 사항을 기록하세요"></textarea>
+        </div>
+        <div style="display:flex; align-items:flex-end;">
+          <button type="submit" id="submitBtn">업로드</button>
+        </div>
+      </div>
+    </form>
+    <div id="msg" class="msg"></div>
+    <div id="progressWrap" class="progressWrap" style="display: none;">
+      <span id="progressLabel">처리 중…</span>
+      <span id="progressDetail"></span>
+    </div>
+  </div>
+
+  <!-- 뷰어 -->
+  <div class="section" id="viewer">
+    <h2>뷰어</h2>
+    <div class="viewerToolbar">
+      <label style="margin-bottom:0;">프로젝트</label>
+      <select id="viewProject">
+        <option value="">선택</option>
+      </select>
+      <label style="margin-bottom:0;">버전 (커밋)</label>
+      <select id="viewCommit">
+        <option value="">프로젝트 선택 후</option>
+      </select>
+      <label style="margin-bottom:0;">현재 사용자</label>
+      <select id="currentUser" style="min-width:160px;">
+        <option value="">선택 (선택)</option>
+      </select>
+      <span class="viewerInfo" id="viewInfo"></span>
+    </div>
+    <div id="versionDetail" style="display:none; margin-top:12px; padding:16px; background:#f6f8fa; border-radius:8px; border:1px solid #d0d7de; font-size:0.875rem;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px 24px;">
+        <div><strong>업로드 파일:</strong><br><span id="detailFilename">-</span></div>
+        <div><strong>버전 라벨:</strong><br><span id="detailVersion">-</span></div>
+        <div><strong>브랜치:</strong><br><span id="detailBranch">-</span></div>
+        <div><strong>담당자:</strong><br><span id="detailAssignee">-</span></div>
+        <div><strong>소속:</strong><br><span id="detailDept">-</span></div>
+        <div><strong>상태:</strong><br><span id="detailStatus">-</span></div>
+        <div><strong>생성일시:</strong><br><span id="detailCreated">-</span></div>
+        <div style="grid-column:1/-1;"><strong>분류:</strong><br><span id="detailClassification">-</span></div>
+        <div style="grid-column:1/-1;"><strong>변화이력:</strong><br><span id="detailChangeNotes">-</span></div>
+        <div style="grid-column:1/-1; display:flex; gap:8px; margin-top:8px;">
+          <button type="button" id="versionEditBtn" style="padding:6px 14px; background:#0969da;">편집</button>
+          <button type="button" id="versionDeleteBtn" style="padding:6px 14px; background:#cf222e;">삭제</button>
+        </div>
+        <div id="versionEditForm" style="grid-column:1/-1; display:none; margin-top:12px; padding:12px; background:#fff; border-radius:8px; border:1px solid #d0d7de;">
+          <strong>버전 수정</strong>
+          <div class="fieldRow" style="margin-top:8px;"><div class="field"><label>버전 라벨</label><input type="text" id="editVersionLabel" placeholder="v1"></div></div>
+          <div class="fieldRow" style="flex-wrap:wrap;"><div class="field"><label>구조/건축 분류</label><select id="editClassPre"><option value="">선택</option><option value="구조">구조</option><option value="건축">건축</option></select></div><div class="field"><label>대분류</label><select id="editClassMajor"><option value="">선택</option><option value="지하주차장">지하주차장</option><option value="아파트">아파트</option><option value="부대시설">부대시설</option><option value="단위세대">단위세대</option></select></div><div class="field"><label>중분류</label><select id="editClassMid"><option value="">선택</option><option value="평면">평면</option><option value="단면">단면</option><option value="일람">일람</option></select></div><div class="field"><label>소분류</label><select id="editClassMinor"><option value="">선택</option></select></div><div class="field"><label>공종</label><select id="editClassWorkType"><option value="">선택</option></select></div></div>
+          <div class="fieldRow"><div class="field"><label>담당자 (역할)</label><select id="editAssignee" style="min-width:200px;"><option value="">선택 (선택)</option></select></div></div>
+          <div class="fieldRow"><div class="field" style="flex:1;"><label>변화이력</label><textarea id="editChangeNotes" rows="2" placeholder="변경 사항"></textarea></div></div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button type="button" id="editSaveBtn" style="padding:6px 14px;">저장</button>
+            <button type="button" id="editCancelBtn" style="padding:6px 14px; background:#6e7681;">취소</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="annoToolbar">
+      <label><input type="checkbox" id="annoDrawMode"> 스케치 모드</label>
+      <label><input type="checkbox" id="annoPickEntity"> 객체 선택</label>
+      <label><input type="checkbox" id="annoPickPosition"> 위치 지정</label>
+      <label>색상 <input type="color" id="annoColor" value="#ff0000"></label>
+      <label>굵기 <input type="number" id="annoWidth" value="2" min="1" max="10" style="width:50px;"></label>
+      <button type="button" id="annoSaveBtn" style="padding:6px 12px;">주석 저장</button>
+      <button type="button" id="annoTextBtn" style="padding:6px 12px;">텍스트 코멘트</button>
+      <button type="button" id="annoListBtn" style="padding:6px 12px;">주석 목록</button>
+      <label><input type="checkbox" id="annoVisible" checked> 주석 표시</label>
+    </div>
+    <div id="annoFormPanel" style="margin-bottom:12px; padding:12px; background:#f6f8fa; border-radius:8px; border:1px solid #d0d7de;">
+      <strong>주석/코멘트</strong>
+      <div class="fieldRow" style="margin-top:8px;"><div class="field"><label>제목</label><input type="text" id="annoTitle" placeholder="제목"></div></div>
+      <div class="fieldRow"><div class="field" style="flex:1;"><label>내용</label><textarea id="annoContent" rows="2" placeholder="내용"></textarea></div></div>
+      <div class="fieldRow"><div class="field"><label>이미지</label><input type="file" id="annoImages" accept="image/*" multiple></div></div>
+      <p class="hint" style="margin:0; font-size:0.8rem;">객체 선택 또는 위치 지정 모드에서 캔버스 클릭 시 연결됨. 스케치 모드로 그린 뒤 저장하면 스케치+코멘트 함께 저장.</p>
+    </div>
+    <div id="annoListPanel" style="display:none; margin-bottom:8px; padding:12px; background:#f6f8fa; border-radius:8px; max-height:120px; overflow-y:auto; border:1px solid #d0d7de;">
+      <strong>주석 목록</strong>
+      <ul id="annoListUl" style="margin:8px 0 0 0; padding-left:20px;"></ul>
+    </div>
+    <div id="canvasWrap">
+      <canvas id="canvas"></canvas>
+      <div id="annoOverlay">
+        <canvas id="annoCanvas"></canvas>
+      </div>
+    </div>
+    <div class="compareRow" style="margin-top:12px; padding-top:12px; border-top:1px solid #333;">
+      <label style="margin-bottom:0; margin-right:8px;">보기 모드</label>
+      <label style="margin-bottom:0; margin-right:16px;"><input type="radio" name="viewMode" value="single" checked> 일반 보기</label>
+      <label style="margin-bottom:0;"><input type="radio" name="viewMode" value="compare"> 버전 비교</label>
+      <div id="compareToolbar" style="display:none; margin-top:10px; flex-wrap:wrap; gap:12px; align-items:center;">
+        <label style="margin-bottom:0;">이전 버전 (전)</label>
+        <select id="compareBase" style="max-width:200px; margin-bottom:0;"><option value="">선택</option></select>
+        <label style="margin-bottom:0;">이후 버전 (후)</label>
+        <select id="compareTarget" style="max-width:200px; margin-bottom:0;"><option value="">선택</option></select>
+        <button type="button" id="compareBtn" style="padding:6px 14px;">비교 보기</button>
+        <span class="compareLegend" style="font-size:0.8rem; color:#888; margin-left:8px;">
+          <span style="color:#6b8e6b;">■ 전에만 있음</span>
+          <span style="color:#c66; margin-left:10px;">■ 후에만 있음</span>
+          <span style="color:#888; margin-left:10px;">■ 공통</span>
+        </span>
+      </div>
+    </div>
+    <details style="margin-top:12px;">
+      <summary style="cursor:pointer; font-size:0.85rem; color:#57606a;">개발자 도구</summary>
+      <div style="margin-top:8px;">
+        <button type="button" id="debugBtn" style="padding:6px 12px; font-size:0.85rem;">디버그 정보</button>
+        <button type="button" id="odaCheckBtn" style="padding:6px 12px; font-size:0.85rem; margin-left:8px;">ODA 변환 검증</button>
+      <pre id="debugOutput" style="display:none; margin-top:8px; padding:12px; background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; font-size:0.8rem; max-height:320px; overflow:auto; white-space:pre-wrap;"></pre>
+      <div id="odaCheckResult" style="display:none; margin-top:8px; padding:12px; background:#f6f8fa; border:1px solid #d0d7de; border-radius:8px; font-size:0.85rem;"></div>
+      </div>
+    </details>
+  </div>
+
+  <!-- 라이노 연동 (DB ↔ Rhino) -->
+  <div class="section">
+    <h2>3. 라이노 연동</h2>
+    <p class="hint" style="margin-bottom:8px;"><strong>라이노 열기</strong>: 웹 버튼 또는 아래에서 받은 BAT 실행 → 라이노가 뜨면 메뉴에서 <strong>가져오기</strong>로 DB 불러오기, <strong>저장</strong>으로 DB에 올리기. (최초 1회: 설치_및_라이노_실행.bat)</p>
+    <div class="viewerToolbar" style="margin-bottom:10px;">
+      <label style="margin-bottom:0;">프로젝트</label>
+      <select id="rhinoProject">
+        <option value="">선택</option>
+      </select>
+      <label style="margin-bottom:0;">버전 (커밋)</label>
+      <select id="rhinoCommit">
+        <option value="">프로젝트 선택 후</option>
+      </select>
+      <a href="#" id="rhinoOpenBtn" role="button" style="display:inline-block; padding:10px 20px; font-size:0.95rem; font-weight:700; color:#fff; background:#1565c0; border-radius:8px; text-decoration:none; cursor:pointer;">라이노 열기</a>
+      <button type="button" id="rhinoBatBtn" style="background:#2e7d32;">라이노 열기 BAT 받기</button>
+      <button type="button" id="rhinoCopyBtn">연동 정보 복사</button>
+      <button type="button" id="rhinoDownloadBtn">DXF만 내려받기</button>
+    </div>
+    <p class="hint" style="margin:0 0 6px 0; font-size:0.85rem;">최초 1회: <code>설치_및_라이노_실행.bat</code> 실행. 이후엔 웹 「라이노 열기」나 받은 BAT으로 라이노만 띄우면 되고, 라이노에서 가져오기/저장 사용.</p>
+    <p class="hint" style="margin:8px 0 0 0; font-size:0.85rem;">반응 없으면 BAT 받아 더블클릭하거나 <code>설치_및_라이노_실행.bat</code>을 한 번 실행하세요. <a href="#" id="rhinoProtocolLink" style="color:#0969da;">연동 테스트</a></p>
+  </div>
+
+  <div class="links" style="margin-top:24px; padding-top:16px; border-top:1px solid #d0d7de;">
+    <a href="/manage">등록자·프로젝트 관리</a>
+    <a href="/docs">API 문서</a>
+  </div>
+  </main>
+
+  <script>
+    const projectSelect = document.getElementById('project');
+    const viewProjectSelect = document.getElementById('viewProject');
+    const viewCommitSelect = document.getElementById('viewCommit');
+    const form = document.getElementById('uploadForm');
+    const msgEl = document.getElementById('msg');
+    const submitBtn = document.getElementById('submitBtn');
+    const canvas = document.getElementById('canvas');
+    const viewInfoEl = document.getElementById('viewInfo');
+    const progressWrap = document.getElementById('progressWrap');
+    const progressLabel = document.getElementById('progressLabel');
+    const progressDetail = document.getElementById('progressDetail');
+    const ctx = canvas.getContext('2d');
+
+    let pollTimer = null;
+    let userListCache = [];
+
+    function showMsg(text, type) {
+      msgEl.textContent = text;
+      msgEl.className = 'msg ' + (type || 'info');
+      msgEl.style.display = 'block';
+    }
+
+    function showProgress(label, detail, animate) {
+      progressLabel.innerHTML = label + (animate ? ' <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>' : '');
+      progressDetail.textContent = detail || '';
+      progressWrap.style.display = 'block';
+    }
+    function hideProgress() {
+      progressWrap.style.display = 'none';
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+
+    async function pollCommitStatus(commitId, projectId) {
+      try {
+        const res = await fetch('/api/commits/' + commitId);
+        const c = await res.json();
+        const status = (c.status || '').toUpperCase();
+        if (status === 'PENDING') {
+          showProgress('커밋 #' + commitId + ' 대기 중', '곧 처리됩니다.', true);
+          return false;
+        }
+        if (status === 'PROCESSING') {
+          const detail = (c.progress_message && c.progress_message.trim()) ? c.progress_message.trim() : '변환·파싱·적재 진행 중';
+          showProgress('커밋 #' + commitId + ' 처리 중', detail, true);
+          return false;
+        }
+        if (status === 'READY') {
+          hideProgress();
+          showMsg('커밋 #' + commitId + ' 처리 완료. 아래 뷰어에서 버전을 선택해 보세요.', 'success');
+          if (viewProjectSelect.value === String(projectId)) {
+            loadViewCommits();
+          }
+          viewProjectSelect.value = String(projectId);
+          loadViewCommits().then(() => {
+            viewCommitSelect.value = String(commitId);
+            loadEntities();
+          });
+          return true;
+        }
+        if (status === 'FAILED') {
+          hideProgress();
+          showMsg('처리 실패: ' + (c.error_message || '알 수 없는 오류'), 'error');
+          if (viewProjectSelect.value === String(projectId)) loadViewCommits();
+          return true;
+        }
+        return false;
+      } catch (e) {
+        progressDetail.textContent = '상태 확인 중 오류: ' + e.message;
+        return false;
+      }
+    }
+
+    function startCommitPolling(commitId, projectId) {
+      if (pollTimer) clearInterval(pollTimer);
+      showProgress('커밋 #' + commitId + ' 등록됨', '처리 상태를 확인하는 중', true);
+      const check = async () => {
+        const done = await pollCommitStatus(commitId, projectId);
+        if (done) clearInterval(pollTimer);
+      };
+      check();
+      pollTimer = setInterval(check, 1800);
+    }
+
+    async function loadUsers() {
+      try {
+        const res = await fetch('/api/users');
+        const list = await res.json();
+        userListCache = list;
+        const opt = '<option value="">선택 (선택)</option>' +
+          list.map(u => `<option value="${u.id}">${u.name} (${u.role || '-'})</option>`).join('');
+        document.getElementById('assigneeSelect').innerHTML = opt;
+        const curSel = document.getElementById('currentUser');
+        curSel.innerHTML = opt;
+        const saved = localStorage.getItem('cadmanage_currentUserId');
+        if (saved && list.some(u => String(u.id) === saved)) curSel.value = saved;
+      } catch (e) {
+        document.getElementById('assigneeSelect').innerHTML = '<option value="">불러오기 실패</option>';
+        document.getElementById('currentUser').innerHTML = '<option value="">불러오기 실패</option>';
+      }
+    }
+    document.getElementById('currentUser').addEventListener('change', function() {
+      localStorage.setItem('cadmanage_currentUserId', this.value || '');
+    });
+    async function loadMinorClasses(projectId) {
+      const sel = document.getElementById('classMinor');
+      if (!sel) return;
+      try {
+        const res = await fetch('/api/projects/' + projectId + '/minor-classes');
+        const data = await res.json();
+        const labels = data.labels || [];
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">선택</option>' + labels.map(l => `<option value="${l}">${l}</option>`).join('');
+        if (cur && labels.includes(cur)) sel.value = cur;
+      } catch (e) { sel.innerHTML = '<option value="">선택</option>'; }
+    }
+    async function loadWorkTypes(projectId) {
+      const sel = document.getElementById('classWorkType');
+      if (!sel) return;
+      try {
+        const res = await fetch('/api/projects/' + projectId + '/work-types');
+        const data = await res.json();
+        const labels = data.labels || [];
+        const cur = sel.value;
+        sel.innerHTML = '<option value="">선택</option>' + labels.map(l => `<option value="${l}">${l}</option>`).join('');
+        if (cur && labels.includes(cur)) sel.value = cur;
+      } catch (e) { sel.innerHTML = '<option value="">선택</option>'; }
+    }
+    async function loadProjects() {
+      try {
+        const res = await fetch('/api/projects');
+        const list = await res.json();
+        const opt = '<option value="">프로젝트 선택</option>' +
+          list.map(p => `<option value="${p.id}">${p.name} (${p.code})</option>`).join('');
+        projectSelect.innerHTML = opt;
+        viewProjectSelect.innerHTML = '<option value="">선택</option>' + list.map(p => `<option value="${p.id}">${p.name} (${p.code})</option>`).join('');
+        const rhinoProj = document.getElementById('rhinoProject');
+        rhinoProj.innerHTML = '<option value="">선택</option>' + list.map(p => `<option value="${p.id}">${p.name} (${p.code})</option>`).join('');
+        if (list.length === 0) showMsg('등록된 프로젝트가 없습니다. 아래 [+ 추가]로 프로젝트를 만드세요.', 'info');
+        loadUsers();
+        const pid = projectSelect.value;
+        if (pid) { loadMinorClasses(pid); loadWorkTypes(pid); }
+        if (!projectSelect.dataset.minorListener) {
+          projectSelect.dataset.minorListener = '1';
+          projectSelect.addEventListener('change', function() {
+            const p = this.value;
+            if (p) { loadMinorClasses(p); loadWorkTypes(p); }
+            else {
+              const s = document.getElementById('classMinor'); if (s) s.innerHTML = '<option value="">선택</option>';
+              const wt = document.getElementById('classWorkType'); if (wt) wt.innerHTML = '<option value="">선택</option>';
+            }
+          });
+        }
+      } catch (e) {
+        projectSelect.innerHTML = viewProjectSelect.innerHTML = '<option value="">불러오기 실패</option>';
+        showMsg('프로젝트 목록을 불러올 수 없습니다.', 'error');
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const projectId = projectSelect.value;
+      const fileInput = document.getElementById('file');
+      const version = document.getElementById('version').value.trim() || null;
+      const assigneeSel = document.getElementById('assigneeSelect');
+      const assigneeId = assigneeSel.value || null;
+      const u = userListCache.find(x => String(x.id) === assigneeId);
+      const assigneeName = u ? u.name : null;
+      const assigneeDept = u ? (u.role || null) : null;
+      const changeNotes = document.getElementById('changeNotes').value.trim() || null;
+      if (!projectId) { showMsg('프로젝트를 선택하세요.', 'error'); return; }
+      if (!fileInput.files || fileInput.files.length === 0) { showMsg('파일을 선택하세요.', 'error'); return; }
+      submitBtn.disabled = true;
+      showMsg('업로드 중…', 'info');
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      if (version) formData.append('version_label', version);
+      if (assigneeId) formData.append('created_by', assigneeId);
+      if (assigneeName) formData.append('assignee_name', assigneeName);
+      if (assigneeDept) formData.append('assignee_department', assigneeDept);
+      if (changeNotes) formData.append('change_notes', changeNotes);
+      const classPre = document.getElementById('classPre').value || null;
+      const classMajor = document.getElementById('classMajor').value || null;
+      const classMid = document.getElementById('classMid').value || null;
+      const classMinor = document.getElementById('classMinor').value || null;
+      if (classPre) formData.append('class_pre', classPre);
+      if (classMajor) formData.append('class_major', classMajor);
+      if (classMid) formData.append('class_mid', classMid);
+      if (classMinor) formData.append('class_minor', classMinor);
+      const classWorkType = document.getElementById('classWorkType')?.value || null;
+      if (classWorkType) formData.append('class_work_type', classWorkType);
+      try {
+        const res = await fetch('/api/projects/' + projectId + '/uploads', { method: 'POST', body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          showMsg('업로드 완료. 처리 진행 상황을 아래에서 확인하세요.', 'success');
+          fileInput.value = '';
+          startCommitPolling(data.id, projectId);
+        } else {
+          showMsg('실패: ' + (data.detail || res.statusText), 'error');
+        }
+      } catch (err) { showMsg('오류: ' + err.message, 'error'); }
+      submitBtn.disabled = false;
+    });
+
+    function parseWktPoints(wkt) {
+      if (!wkt || typeof wkt !== 'string') return [];
+      var s = wkt.replace(/^SRID=\d+;\s*/i, '').trim();
+      var m = s.match(/\(([^)]+)\)/);
+      if (!m) return [];
+      return m[1].split(',').map(function(p) {
+        var t = p.trim().split(/\s+/);
+        return { x: parseFloat(t[0]) || 0, y: parseFloat(t[1]) || 0 };
+      });
+    }
+    function parseWktPolygonPoints(wkt) {
+      if (!wkt || typeof wkt !== 'string') return [];
+      var s = wkt.replace(/^SRID=\d+;\s*/i, '').trim();
+      var pm = s.match(/POLYGON\s*(?:Z\s*)?\(\(([^)]+)\)\)/i);
+      if (pm) {
+        return pm[1].split(',').map(function(p) {
+          var t = p.trim().split(/\s+/);
+          return { x: parseFloat(t[0]) || 0, y: parseFloat(t[1]) || 0 };
+        });
+      }
+      return parseWktPoints(wkt);
+    }
+    function parseWktPoint(wkt) {
+      var pts = parseWktPoints(wkt);
+      return pts.length ? pts[0] : null;
+    }
+    const ACI_HEX = ['000000','ff0000','ffff00','00ff00','00ffff','0000ff','ff00ff','ffffff','414141','808080','ff0000','ffaaaa','bd0000','bd7e7e','810000','815656','680000','684545','4f0000','4f3535','ff3f00','ffbfaa','bd2e00','bd8d7e','811f00','816056','681900','684e45','4f1300','4f3b35','ff7f00','ffd4aa','bd5e00','bd9d7e','814000','816b56','683400','685645','4f2700','4f4235','ffbf00','ffeaaa','bd8d00','bdad7e','816000','817656','684e00','685f45','4f3b00','4f4935','ffff00','ffffaa','bdbd00','bdbd7e','818100','818156','686800','686845','4f4f00','4f4f35','bfff00','eaffaa','8dbd00','adbd7e','608100','768156','4e6800','5f6845','3b4f00','494f35','7fff00','d4ffaa','5ebd00','9dbd7e','408100','6b8156','346800','566845','274f00','424f35','3fff00','bfffaa','2ebd00','8dbd7e','1f8100','608156','196800','4e6845','134f00','3b4f35','00ff00','aaffaa','00bd00','7ebd7e','008100','568156','006800','456845','004f00','354f35','00ff3f','aaffbf','00bd2e','7ebd8d','00811f','568160','006819','45684e','004f13','354f3b','00ff7f','aaffd4','00bd5e','7ebd9d','008140','56816b','006834','456856','004f27','354f42','00ffbf','aaffea','00bd8d','7ebdad','008160','568176','00684e','45685f','004f3b','354f49','00ffff','aaffff','00bdbd','7ebdbd','008181','568181','006868','456868','004f4f','354f4f','00bfff','aaeaff','008dbd','7eadbd','006081','567681','004e68','455f68','003b4f','35494f','007fff','aad4ff','005ebd','7e9dbd','004081','566b81','003468','455668','00274f','35424f','003fff','aabfff','002ebd','7e8dbd','001f81','566081','001968','454e68','00134f','353b4f','0000ff','aaaaff','0000bd','7e7ebd','000081','565681','000068','454568','00004f','35354f','3f00ff','bfaaff','2e00bd','8d7ebd','1f0081','605681','190068','4e4568','13004f','3b354f','7f00ff','d4aaff','5e00bd','9d7ebd','400081','6b5681','340068','564568','27004f','42354f','bf00ff','eaaaff','8d00bd','ad7ebd','600081','765681','4e0068','5f4568','3b004f','49354f','ff00ff','ffaaff','bd00bd','bd7ebd','810081','815681','680068','684568','4f004f','4f354f','ff00bf','ffaaea','bd008d','bd7ead','810060','815676','68004e','68455f','4f003b','4f3549','ff007f','ffaad4','bd005e','bd7e9d','810040','81566b','680034','684556','4f0027','4f3542','ff003f','ffaabf','bd002e','bd7e8d','81001f','815660','680019','68454e','4f0013','4f353b','333333','505050','696969','828282','bebebe','ffffff'];
+    function getColor(aci) {
+      // null/0/256(ByLayer): 서버에서 해석된 color 사용. 예외 시 폴백 회색
+      if (aci == null || aci === 0 || aci === 256) return '#e0e0e0';
+      if (aci >= 1 && aci <= 255 && ACI_HEX[aci]) return '#' + ACI_HEX[aci];
+      if (aci > 255) return '#' + [(aci>>16)&255,(aci>>8)&255,aci&255].map(x => x.toString(16).padStart(2,'0')).join('');
+      return '#e0e0e0';
+    }
+    let allEntities = [];
+    let layerColors = {};
+    function displayColor(e) {
+      // ByLayer이거나 color_bylayer 미저장 시: layer_colors 우선 사용 (CAD 뷰어 색상 반영)
+      var useLayer = (e.props == null || e.props.color_bylayer !== false) && layerColors && e.layer != null && layerColors[e.layer] != null;
+      if (useLayer) return getColor(layerColors[e.layer]);
+      return getColor(e.color);
+    }
+    let viewMode = 'single';
+    let compareMode = false;
+    let view = { minX: 0, minY: 0, maxX: 100, maxY: 100, padding: 40 };
+    let logicalWidth = 800, logicalHeight = 400;
+    let pan = { active: false, lastX: 0, lastY: 0 };
+    let touchGesture = null;
+    function fitView() {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const e of allEntities) {
+        const pts = e.points || (e.point ? [e.point] : []);
+        for (const p of pts) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); }
+        if (e.point && e.text && (e.height != null || e.text.length > 0)) {
+          const h = e.height || 2.5, w = (e.text.length || 0) * h * 0.6;
+          minX = Math.min(minX, e.point.x); maxX = Math.max(maxX, e.point.x + w);
+          minY = Math.min(minY, e.point.y - h); maxY = Math.max(maxY, e.point.y);
+        }
+      }
+      if (minX === Infinity) { minX = 0; minY = 0; maxX = 100; maxY = 100; }
+      const pad = view.padding;
+      const dataRangeX = Math.max(maxX - minX, 1) + 2 * pad;
+      const dataRangeY = Math.max(maxY - minY, 1) + 2 * pad;
+      const centerX = (minX + maxX) / 2, centerY = (minY + maxY) / 2;
+      const canvasAspect = logicalWidth / logicalHeight;
+      let rangeX, rangeY;
+      if (dataRangeX / dataRangeY > canvasAspect) {
+        rangeX = dataRangeX;
+        rangeY = rangeX / canvasAspect;
+      } else {
+        rangeY = dataRangeY;
+        rangeX = rangeY * canvasAspect;
+      }
+      view = {
+        minX: centerX - rangeX / 2, maxX: centerX + rangeX / 2,
+        minY: centerY - rangeY / 2, maxY: centerY + rangeY / 2,
+        padding: view.padding
+      };
+    }
+    function applyViewAspect() {
+      const rangeX = Math.max(view.maxX - view.minX, 1);
+      const rangeY = Math.max(view.maxY - view.minY, 1);
+      const centerX = (view.minX + view.maxX) / 2, centerY = (view.minY + view.maxY) / 2;
+      const canvasAspect = logicalWidth / logicalHeight;
+      let newRangeX, newRangeY;
+      if (rangeY * canvasAspect >= rangeX) {
+        newRangeX = rangeY * canvasAspect;
+        newRangeY = rangeY;
+      } else {
+        newRangeX = rangeX;
+        newRangeY = rangeX / canvasAspect;
+      }
+      view.minX = centerX - newRangeX / 2; view.maxX = centerX + newRangeX / 2;
+      view.minY = centerY - newRangeY / 2; view.maxY = centerY + newRangeY / 2;
+    }
+    function panView(screenDx, screenDy) {
+      const rangeX = Math.max(view.maxX - view.minX, 1);
+      const rangeY = Math.max(view.maxY - view.minY, 1);
+      view.minX -= (screenDx / logicalWidth) * rangeX;
+      view.maxX -= (screenDx / logicalWidth) * rangeX;
+      view.minY += (screenDy / logicalHeight) * rangeY;
+      view.maxY += (screenDy / logicalHeight) * rangeY;
+    }
+    function zoomView(screenX, screenY, factor) {
+      const w = logicalWidth, h = logicalHeight;
+      const rangeX = Math.max(view.maxX - view.minX, 1);
+      const rangeY = Math.max(view.maxY - view.minY, 1);
+      const worldX = view.minX + (screenX / w) * rangeX;
+      const worldY = view.minY + (1 - screenY / h) * rangeY;
+      const newRangeX = rangeX / factor;
+      const newRangeY = rangeY / factor;
+      view.minX = worldX - (screenX / w) * newRangeX;
+      view.maxX = worldX + (1 - screenX / w) * newRangeX;
+      view.minY = worldY - (1 - screenY / h) * newRangeY;
+      view.maxY = worldY + (screenY / h) * newRangeY;
+    }
+    function toScreen(x, y) {
+      const w = logicalWidth, h = logicalHeight;
+      const rangeX = Math.max(view.maxX - view.minX, 1);
+      const rangeY = Math.max(view.maxY - view.minY, 1);
+      return {
+        x: ((x - view.minX) / rangeX) * w,
+        y: h - ((y - view.minY) / rangeY) * h
+      };
+    }
+    function toWorld(screenX, screenY) {
+      const w = logicalWidth, h = logicalHeight;
+      const rangeX = Math.max(view.maxX - view.minX, 1);
+      const rangeY = Math.max(view.maxY - view.minY, 1);
+      return {
+        x: view.minX + (screenX / w) * rangeX,
+        y: view.minY + (1 - screenY / h) * rangeY
+      };
+    }
+    let annoCanvas, annoCtx;
+    let annoDrawMode = false;
+    let annoPickEntityMode = false;
+    let annoPickPositionMode = false;
+    let selectedEntityId = null;
+    let selectedPosition = null;
+    let currentStrokes = [];
+    let currentStroke = null;
+    let savedAnnotations = [];
+    let annoVisible = true;
+    function drawAnnotations() {
+      if (!annoCanvas || !annoCtx) return;
+      annoCtx.clearRect(0, 0, logicalWidth, logicalHeight);
+      if (!annoVisible) return;
+      for (const ann of savedAnnotations) {
+        for (const s of (ann.strokes || [])) {
+          const pts = s.points || [];
+          if (pts.length < 2) continue;
+          annoCtx.strokeStyle = s.color || '#ff0000';
+          annoCtx.lineWidth = s.width || 2;
+          annoCtx.lineCap = 'round';
+          annoCtx.beginPath();
+          const p0 = toScreen(pts[0].x, pts[0].y);
+          annoCtx.moveTo(p0.x, p0.y);
+          for (let i = 1; i < pts.length; i++) {
+            const p = toScreen(pts[i].x, pts[i].y);
+            annoCtx.lineTo(p.x, p.y);
+          }
+          annoCtx.stroke();
+        }
+      }
+      for (const s of currentStrokes) {
+        const pts = s.points || [];
+        if (pts.length < 2) continue;
+        annoCtx.strokeStyle = s.color || '#ff0000';
+        annoCtx.lineWidth = s.width || 2;
+        annoCtx.lineCap = 'round';
+        annoCtx.beginPath();
+        const p0 = toScreen(pts[0].x, pts[0].y);
+        annoCtx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < pts.length; i++) {
+          const p = toScreen(pts[i].x, pts[i].y);
+          annoCtx.lineTo(p.x, p.y);
+        }
+        annoCtx.stroke();
+      }
+      if (currentStroke && currentStroke.points.length >= 2) {
+        const pts = currentStroke.points;
+        annoCtx.strokeStyle = currentStroke.color || '#ff0000';
+        annoCtx.lineWidth = currentStroke.width || 2;
+        annoCtx.lineCap = 'round';
+        annoCtx.beginPath();
+        const p0 = toScreen(pts[0].x, pts[0].y);
+        annoCtx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < pts.length; i++) {
+          const p = toScreen(pts[i].x, pts[i].y);
+          annoCtx.lineTo(p.x, p.y);
+        }
+        annoCtx.stroke();
+      }
+    }
+    function setupAnnoCanvas() {
+      annoCanvas = document.getElementById('annoCanvas');
+      if (!annoCanvas) return;
+      annoCtx = annoCanvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      annoCanvas.width = logicalWidth * dpr;
+      annoCanvas.height = logicalHeight * dpr;
+      annoCanvas.style.width = logicalWidth + 'px';
+      annoCanvas.style.height = logicalHeight + 'px';
+      annoCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const overlay = document.getElementById('annoOverlay');
+      function getOffset(e) {
+        const rect = annoCanvas.getBoundingClientRect();
+        return { x: (e.clientX - rect.left) * (logicalWidth / rect.width), y: (e.clientY - rect.top) * (logicalHeight / rect.height) };
+      }
+      annoCanvas.addEventListener('mousedown', function(e) {
+        if (!annoDrawMode || e.button !== 0) return;
+        const pt = getOffset(e);
+        const wp = toWorld(pt.x, pt.y);
+        currentStroke = { points: [wp], color: document.getElementById('annoColor').value, width: parseInt(document.getElementById('annoWidth').value, 10) || 2 };
+      });
+      annoCanvas.addEventListener('mousemove', function(e) {
+        if (!annoDrawMode || !currentStroke || e.buttons !== 1) return;
+        const pt = getOffset(e);
+        const wp = toWorld(pt.x, pt.y);
+        currentStroke.points.push(wp);
+        drawAnnotations();
+      });
+      annoCanvas.addEventListener('mouseup', function(e) {
+        if (!annoDrawMode || e.button !== 0 || !currentStroke) return;
+        if (currentStroke.points.length >= 2) currentStrokes.push(currentStroke);
+        currentStroke = null;
+        drawAnnotations();
+      });
+      annoCanvas.addEventListener('mouseleave', function() {
+        if (currentStroke && currentStroke.points.length >= 2) currentStrokes.push(currentStroke);
+        currentStroke = null;
+        drawAnnotations();
+      });
+    }
+    async function loadAnnotations() {
+      const cid = viewCommitSelect.value;
+      savedAnnotations = [];
+      currentStrokes = [];
+      if (!cid) { drawAnnotations(); return; }
+      try {
+        const res = await fetch('/api/commits/' + cid + '/annotations');
+        savedAnnotations = await res.json();
+      } catch (e) { savedAnnotations = []; }
+      drawAnnotations();
+      refreshAnnoList();
+    }
+    function refreshAnnoList() {
+      const ul = document.getElementById('annoListUl');
+      if (!ul) return;
+      const creatorName = (uid) => { const u = userListCache.find(x => String(x.id) === String(uid)); return u ? u.name : uid ? '#' + uid : '-'; };
+      ul.innerHTML = savedAnnotations.map(a => {
+        const parts = [(a.title || '주석 #' + a.id), a.created_by ? '(' + creatorName(a.created_by) + ')' : '', a.content ? ' - ' + (a.content.length > 30 ? a.content.substring(0,30) + '...' : a.content) : '', a.entity_id ? ' [객체#' + a.entity_id + ']' : '', a.position_x != null ? ' [위치]' : ''];
+        return '<li>' + parts.filter(Boolean).join(' ') + ' <button type="button" data-id="' + a.id + '" class="annoDelBtn" style="margin-left:8px; padding:2px 8px; font-size:0.8rem;">삭제</button></li>';
+      }).join('');
+      ul.querySelectorAll('.annoDelBtn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const cid = viewCommitSelect.value;
+          if (!cid) return;
+          try {
+            await fetch('/api/commits/' + cid + '/annotations/' + btn.dataset.id, { method: 'DELETE' });
+            loadAnnotations();
+          } catch (e) { showMsg('삭제 실패: ' + e.message, 'error'); }
+        });
+      });
+    }
+    async function saveAnnotation() {
+      const cid = viewCommitSelect.value;
+      if (!cid) { showMsg('버전을 먼저 선택하세요.', 'error'); return; }
+      const strokes = currentStrokes.slice();
+      if (currentStroke && currentStroke.points.length >= 2) strokes.push(currentStroke);
+      const title = document.getElementById('annoTitle').value?.trim() || null;
+      const content = document.getElementById('annoContent').value?.trim() || null;
+      if (strokes.length === 0 && !title && !content) { showMsg('스케치를 그리거나 제목/내용을 입력하세요.', 'error'); return; }
+      const curUser = document.getElementById('currentUser').value || null;
+      const entityId = selectedEntityId || null;
+      const pos = selectedPosition;
+      const body = {
+        strokes: strokes,
+        created_by: curUser ? parseInt(curUser, 10) : null,
+        title: title,
+        content: content,
+        entity_id: entityId,
+        position_x: pos ? pos.x : null,
+        position_y: pos ? pos.y : null
+      };
+      try {
+        const res = await fetch('/api/commits/' + cid + '/annotations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+        const data = await res.json();
+        const imgInput = document.getElementById('annoImages');
+        if (imgInput && imgInput.files && imgInput.files.length > 0) {
+          const pid = viewProjectSelect.value;
+          if (pid) {
+            const fd = new FormData();
+            for (let i = 0; i < imgInput.files.length; i++) fd.append('files', imgInput.files[i]);
+            try {
+              await fetch('/api/commits/' + cid + '/annotations/' + data.id + '/images', { method: 'POST', body: fd });
+            } catch (ignored) {}
+          }
+          imgInput.value = '';
+        }
+        currentStrokes = [];
+        currentStroke = null;
+        selectedEntityId = null;
+        selectedPosition = null;
+        document.getElementById('annoTitle').value = '';
+        document.getElementById('annoContent').value = '';
+        loadAnnotations();
+        showMsg('주석이 저장되었습니다.', 'success');
+      } catch (e) { showMsg('저장 실패: ' + e.message, 'error');       }
+    }
+    function initAnno() {
+      setupAnnoCanvas();
+      document.getElementById('annoDrawMode').addEventListener('change', function() {
+        annoDrawMode = this.checked;
+        if (annoDrawMode) { annoPickEntityMode = annoPickPositionMode = false; document.getElementById('annoPickEntity').checked = false; document.getElementById('annoPickPosition').checked = false; }
+        document.getElementById('annoOverlay').classList.toggle('drawMode', annoDrawMode);
+      });
+      document.getElementById('annoPickEntity').addEventListener('change', function() {
+        annoPickEntityMode = this.checked;
+        if (annoPickEntityMode) { annoDrawMode = false; annoPickPositionMode = false; document.getElementById('annoDrawMode').checked = false; document.getElementById('annoPickPosition').checked = false; document.getElementById('annoOverlay').classList.remove('drawMode'); }
+      });
+      document.getElementById('annoPickPosition').addEventListener('change', function() {
+        annoPickPositionMode = this.checked;
+        if (annoPickPositionMode) { annoDrawMode = false; annoPickEntityMode = false; document.getElementById('annoDrawMode').checked = false; document.getElementById('annoPickEntity').checked = false; document.getElementById('annoOverlay').classList.remove('drawMode'); }
+      });
+      document.getElementById('annoSaveBtn').addEventListener('click', saveAnnotation);
+      document.getElementById('annoTextBtn').addEventListener('click', function() {
+        document.getElementById('annoFormPanel').style.display = 'block';
+        document.getElementById('annoTitle').focus();
+      });
+      document.getElementById('annoListBtn').addEventListener('click', function() {
+        const p = document.getElementById('annoListPanel');
+        p.style.display = p.style.display === 'none' ? 'block' : 'none';
+      });
+      document.getElementById('annoVisible').addEventListener('change', function() {
+        annoVisible = this.checked;
+        drawAnnotations();
+      });
+    }
+    function draw() {
+      const w = logicalWidth, h = logicalHeight;
+      ctx.fillStyle = '#0d0d0d';
+      ctx.fillRect(0, 0, w, h);
+      if (allEntities.length === 0) {
+        ctx.fillStyle = '#888';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('프로젝트·버전을 선택하면 도면이 표시됩니다.', w/2, h/2);
+        return;
+      }
+      for (const e of allEntities) {
+        if (compareMode && e.compareRole) {
+          ctx.strokeStyle = e.compareRole === 'only_before' ? '#2e7d32' : e.compareRole === 'only_after' ? '#c62828' : '#888';
+          ctx.fillStyle = ctx.strokeStyle;
+        } else {
+          ctx.strokeStyle = displayColor(e);
+          ctx.fillStyle = displayColor(e);
+        }
+        ctx.lineWidth = 1.2;
+        if (e.points && e.points.length >= 2) {
+          const p0 = toScreen(e.points[0].x, e.points[0].y);
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y);
+          for (let i = 1; i < e.points.length; i++) {
+            const p = toScreen(e.points[i].x, e.points[i].y);
+            ctx.lineTo(p.x, p.y);
+          }
+          if (e.points.length >= 3) {
+            const last = e.points[e.points.length - 1], first = e.points[0];
+            if (Math.abs(last.x - first.x) < 1e-9 && Math.abs(last.y - first.y) < 1e-9) ctx.closePath();
+          }
+          if (e.fill && e.points.length >= 3) { ctx.closePath(); ctx.fill(); }
+          ctx.stroke();
+        } else if (e.point) {
+          const p = toScreen(e.point.x, e.point.y);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, e.text ? 5 : 3, 0, Math.PI * 2);
+          ctx.fill();
+          if (e.text) {
+            const rangeY = Math.max(view.maxY - view.minY, 1);
+            const fontSize = Math.max(8, Math.min(48, (e.height || 2.5) * (logicalHeight / rangeY)));
+            ctx.font = fontSize + 'px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(e.text.substring(0, 24), p.x + 4, p.y + 4);
+          }
+        }
+      }
+    }
+    function resizeAnnoCanvas() {
+      if (!annoCanvas || !annoCtx) return;
+      const dpr = window.devicePixelRatio || 1;
+      annoCanvas.width = logicalWidth * dpr;
+      annoCanvas.height = logicalHeight * dpr;
+      annoCanvas.style.width = logicalWidth + 'px';
+      annoCanvas.style.height = logicalHeight + 'px';
+      annoCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawAnnotations();
+    }
+    function resize() {
+      const wrap = document.getElementById('canvasWrap');
+      const dpr = window.devicePixelRatio || 1;
+      logicalWidth = wrap.clientWidth || 800;
+      logicalHeight = wrap.clientHeight || 400;
+      if (allEntities.length > 0) applyViewAspect();
+      canvas.width = logicalWidth * dpr;
+      canvas.height = logicalHeight * dpr;
+      canvas.style.width = logicalWidth + 'px';
+      canvas.style.height = logicalHeight + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      draw();
+      resizeAnnoCanvas();
+    }
+    let currentCommitList = [];
+    const statusText = { PENDING: '대기', PROCESSING: '처리중', READY: '완료', FAILED: '실패' };
+    function commitOptions(list) {
+      currentCommitList = list || [];
+      return '<option value="">선택</option>' +
+        list.map(c => {
+          const extra = [c.assignee_name, c.branch_name].filter(Boolean).join(' ');
+          return `<option value="${c.id}">#${c.id} ${c.version_label || ''} ${extra ? '(' + extra + ')' : ''} (${statusText[c.status] || c.status})</option>`;
+        }).join('');
+    }
+    function showVersionDetail(commitId) {
+      const wrap = document.getElementById('versionDetail');
+      if (!commitId) { wrap.style.display = 'none'; return; }
+      const c = currentCommitList.find(x => String(x.id) === String(commitId));
+      if (!c) { wrap.style.display = 'block'; return; }
+      wrap.style.display = 'block';
+      document.getElementById('detailFilename').textContent = c.original_filename || '-';
+      document.getElementById('detailVersion').textContent = c.version_label || '-';
+      document.getElementById('detailBranch').textContent = c.branch_name || '-';
+      document.getElementById('detailAssignee').textContent = c.assignee_name || '-';
+      document.getElementById('detailDept').textContent = c.assignee_department || '-';
+      document.getElementById('detailStatus').textContent = (c.status === 'READY' ? '완료' : c.status === 'FAILED' ? '실패' : c.status === 'PROCESSING' ? '처리중' : c.status || '-');
+      document.getElementById('detailCreated').textContent = c.created_at ? new Date(c.created_at).toLocaleString('ko-KR') : '-';
+      const parts = [(c.class_pre ?? c['class_pre']), (c.class_major ?? c['class_major']), (c.class_mid ?? c['class_mid']), (c.class_minor ?? c['class_minor']), (c.class_work_type ?? c['class_work_type'])].filter(Boolean);
+      document.getElementById('detailClassification').textContent = parts.length ? parts.join(' > ') : '-';
+      document.getElementById('detailChangeNotes').textContent = c.change_notes || '-';
+    }
+    document.getElementById('versionDeleteBtn').addEventListener('click', async function() {
+      const commitId = viewCommitSelect.value;
+      if (!commitId) return;
+      if (!confirm('이 버전을 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+      try {
+        const res = await fetch('/api/commits/' + commitId, { method: 'DELETE' });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showMsg('삭제 실패: ' + (data.detail || res.statusText), 'error');
+          return;
+        }
+        showMsg('버전이 삭제되었습니다.', 'success');
+        document.getElementById('versionDetail').style.display = 'none';
+        viewCommitSelect.value = '';
+        loadViewCommits();
+        loadCompareCommits();
+        allEntities = [];
+        fitView();
+        draw();
+      } catch (e) {
+        showMsg('오류: ' + e.message, 'error');
+      }
+    });
+    document.getElementById('versionEditBtn').addEventListener('click', function() {
+      const commitId = viewCommitSelect.value;
+      if (!commitId) return;
+      const c = currentCommitList.find(x => String(x.id) === String(commitId));
+      if (!c) return;
+      document.getElementById('editVersionLabel').value = c.version_label || '';
+      document.getElementById('editClassPre').value = c.class_pre || '';
+      document.getElementById('editClassMajor').value = c.class_major || '';
+      document.getElementById('editClassMid').value = c.class_mid || '';
+      const editAssigneeSel = document.getElementById('editAssignee');
+      editAssigneeSel.innerHTML = '<option value="">선택 (선택)</option>' +
+        (userListCache || []).map(u => `<option value="${u.id}">${u.name} (${u.role || '-'})</option>`).join('');
+      const matchUser = (userListCache || []).find(u => u.name === c.assignee_name && (u.role || '') === (c.assignee_department || ''));
+      editAssigneeSel.value = matchUser ? String(matchUser.id) : '';
+      document.getElementById('editChangeNotes').value = c.change_notes || '';
+      const pid = viewProjectSelect.value;
+      const editMinor = document.getElementById('editClassMinor');
+      const editWorkType = document.getElementById('editClassWorkType');
+      if (pid && editMinor) {
+        fetch('/api/projects/' + pid + '/minor-classes').then(r => r.json()).then(data => {
+          const labels = data.labels || [];
+          editMinor.innerHTML = '<option value="">선택</option>' + labels.map(l => `<option value="${l}">${l}</option>`).join('');
+          if (c.class_minor && labels.includes(c.class_minor)) editMinor.value = c.class_minor;
+          else if (c.class_minor) { const o = new Option(c.class_minor, c.class_minor); editMinor.appendChild(o); editMinor.value = c.class_minor; }
+        }).catch(() => { editMinor.innerHTML = '<option value="">선택</option>'; });
+      }
+      if (pid && editWorkType) {
+        fetch('/api/projects/' + pid + '/work-types').then(r => r.json()).then(data => {
+          const labels = data.labels || [];
+          editWorkType.innerHTML = '<option value="">선택</option>' + labels.map(l => `<option value="${l}">${l}</option>`).join('');
+          if (c.class_work_type && labels.includes(c.class_work_type)) editWorkType.value = c.class_work_type;
+          else if (c.class_work_type) { const o = new Option(c.class_work_type, c.class_work_type); editWorkType.appendChild(o); editWorkType.value = c.class_work_type; }
+        }).catch(() => { editWorkType.innerHTML = '<option value="">선택</option>'; });
+      }
+      document.getElementById('versionEditForm').style.display = 'block';
+    });
+    document.getElementById('editCancelBtn').addEventListener('click', function() {
+      document.getElementById('versionEditForm').style.display = 'none';
+    });
+    document.getElementById('editSaveBtn').addEventListener('click', async function() {
+      const commitId = viewCommitSelect.value;
+      if (!commitId) return;
+      const editAssigneeSel = document.getElementById('editAssignee');
+      const uid = editAssigneeSel.value || null;
+      const editUser = (userListCache || []).find(x => String(x.id) === uid);
+      const body = {
+        version_label: document.getElementById('editVersionLabel').value.trim() || null,
+        assignee_name: editUser ? editUser.name : null,
+        assignee_department: editUser ? (editUser.role || null) : null,
+        change_notes: document.getElementById('editChangeNotes').value.trim() || null,
+        class_pre: document.getElementById('editClassPre').value || null,
+        class_major: document.getElementById('editClassMajor').value || null,
+        class_mid: document.getElementById('editClassMid').value || null,
+        class_minor: document.getElementById('editClassMinor').value || null,
+        class_work_type: document.getElementById('editClassWorkType')?.value || null
+      };
+      try {
+        const res = await fetch('/api/commits/' + commitId, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showMsg('수정 실패: ' + (data.detail || res.statusText), 'error');
+          return;
+        }
+        showMsg('수정되었습니다.', 'success');
+        document.getElementById('versionEditForm').style.display = 'none';
+        loadViewCommits().then(() => {
+          viewCommitSelect.value = commitId;
+          showVersionDetail(commitId);
+        });
+      } catch (e) {
+        showMsg('오류: ' + e.message, 'error');
+      }
+    });
+    document.getElementById('projectAddBtn').addEventListener('click', () => {
+      document.getElementById('projectAddForm').classList.toggle('visible');
+    });
+    document.getElementById('projectAddCancel').addEventListener('click', () => {
+      document.getElementById('projectAddForm').classList.remove('visible');
+    });
+    document.getElementById('projectAddSave').addEventListener('click', async () => {
+      const name = document.getElementById('projectAddName').value.trim();
+      const code = document.getElementById('projectAddCode').value.trim();
+      if (!name || !code) { showMsg('이름과 코드를 입력하세요.', 'error'); return; }
+      try {
+        const res = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, code }) });
+        const data = await res.json();
+        if (res.ok) {
+          loadProjects();
+          document.getElementById('projectAddForm').classList.remove('visible');
+          document.getElementById('projectAddName').value = '';
+          document.getElementById('projectAddCode').value = '';
+          projectSelect.value = String(data.id);
+          showMsg('프로젝트 추가됨.', 'success');
+        } else {
+          showMsg('실패: ' + (data.detail || res.statusText), 'error');
+        }
+      } catch (e) { showMsg('오류: ' + e.message, 'error'); }
+    });
+
+    document.getElementById('workTypeAddBtn')?.addEventListener('click', () => {
+      document.getElementById('workTypeAddForm').classList.toggle('visible');
+    });
+    document.getElementById('workTypeAddCancel')?.addEventListener('click', () => {
+      document.getElementById('workTypeAddForm').classList.remove('visible');
+    });
+    document.getElementById('workTypeAddSave')?.addEventListener('click', async () => {
+      const pid = projectSelect.value;
+      if (!pid) { showMsg('프로젝트를 먼저 선택하세요.', 'error'); return; }
+      const label = document.getElementById('workTypeAddLabel').value.trim();
+      if (!label) { showMsg('공종을 입력하세요.', 'error'); return; }
+      try {
+        const res = await fetch('/api/projects/' + pid + '/work-types', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label: label })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          loadWorkTypes(pid);
+          document.getElementById('workTypeAddForm').classList.remove('visible');
+          document.getElementById('workTypeAddLabel').value = '';
+          const sel = document.getElementById('classWorkType');
+          if (sel) sel.value = label;
+          showMsg('공종 추가됨.', 'success');
+        } else {
+          showMsg('실패: ' + (data.detail || res.statusText), 'error');
+        }
+      } catch (e) { showMsg('오류: ' + e.message, 'error'); }
+    });
+    document.getElementById('minorAddBtn')?.addEventListener('click', () => {
+      document.getElementById('minorAddForm').classList.toggle('visible');
+    });
+    document.getElementById('minorAddCancel')?.addEventListener('click', () => {
+      document.getElementById('minorAddForm').classList.remove('visible');
+    });
+    document.getElementById('minorAddSave')?.addEventListener('click', async () => {
+      const pid = projectSelect.value;
+      if (!pid) { showMsg('프로젝트를 먼저 선택하세요.', 'error'); return; }
+      const label = document.getElementById('minorAddLabel').value.trim();
+      if (!label) { showMsg('소분류를 입력하세요.', 'error'); return; }
+      try {
+        const res = await fetch('/api/projects/' + pid + '/minor-classes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label: label })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          loadMinorClasses(pid);
+          document.getElementById('minorAddForm').classList.remove('visible');
+          document.getElementById('minorAddLabel').value = '';
+          const sel = document.getElementById('classMinor');
+          if (sel) sel.value = label;
+          showMsg('소분류 추가됨.', 'success');
+        } else {
+          showMsg('실패: ' + (data.detail || res.statusText), 'error');
+        }
+      } catch (e) { showMsg('오류: ' + e.message, 'error'); }
+    });
+
+    async function loadViewCommits() {
+      const pid = viewProjectSelect.value;
+      viewCommitSelect.innerHTML = '<option value="">선택</option>';
+      if (!pid) return;
+      try {
+        const res = await fetch('/api/projects/' + pid + '/commits');
+        const data = await res.json();
+        const list = data.commits || data || [];
+        viewCommitSelect.innerHTML = commitOptions(list);
+      } catch (e) { viewCommitSelect.innerHTML = '<option value="">불러오기 실패</option>'; }
+    }
+    async function loadRhinoCommits() {
+      const pid = document.getElementById('rhinoProject').value;
+      const sel = document.getElementById('rhinoCommit');
+      sel.innerHTML = '<option value="">선택</option>';
+      if (!pid) return;
+      try {
+        const res = await fetch('/api/projects/' + pid + '/commits');
+        const data = await res.json();
+        const list = data.commits || data || [];
+        sel.innerHTML = commitOptions(list);
+      } catch (e) { sel.innerHTML = '<option value="">불러오기 실패</option>'; }
+    }
+    async function loadCompareCommits() {
+      const pid = viewProjectSelect.value;
+      const baseSel = document.getElementById('compareBase');
+      const targetSel = document.getElementById('compareTarget');
+      baseSel.innerHTML = targetSel.innerHTML = '<option value="">선택</option>';
+      if (!pid) return;
+      try {
+        const res = await fetch('/api/projects/' + pid + '/commits');
+        const data = await res.json();
+        const list = data.commits || data || [];
+        baseSel.innerHTML = targetSel.innerHTML = commitOptions(list);
+      } catch (e) { baseSel.innerHTML = targetSel.innerHTML = '<option value="">불러오기 실패</option>'; }
+    }
+    async function loadEntities() {
+      const cid = viewCommitSelect.value;
+      allEntities = [];
+      viewInfoEl.textContent = '';
+      if (!cid) { draw(); return; }
+      try {
+        const [entRes, insRes] = await Promise.all([
+          fetch('/api/commits/' + cid + '/entities'),
+          fetch('/api/commits/' + cid + '/blocks/inserts')
+        ]);
+        const entData = await entRes.json();
+        layerColors = entData.layer_colors || {};
+        const insData = await insRes.json().catch(function() { return { inserts: [] }; });
+        const list = entData.entities || entData || [];
+        const inserts = insData.inserts || [];
+        viewInfoEl.textContent = '엔티티 ' + list.length + '개, 블록 ' + inserts.length + '개';
+        for (const e of list) {
+          const wkt = e.geom;
+          if (!wkt) continue;
+          const type = (e.entity_type || '').toUpperCase();
+          const color = e.color;
+          const layer = e.layer;
+          const props = e.props || {};
+          if (type === 'LINE' || type === 'LWPOLYLINE' || type === 'POLYLINE' || type === 'ARC' || type === 'CIRCLE') {
+            const points = parseWktPoints(wkt);
+            if (points.length >= 1) allEntities.push({ points: points, color: color, layer, props, id: e.id });
+          } else if (type === 'HATCH') {
+            const pts = parseWktPolygonPoints(wkt);
+            if (pts.length >= 3) allEntities.push({ points: pts, color: color, fill: true, layer, props, id: e.id });
+          } else if (type === 'TEXT' || type === 'MTEXT' || type === 'ATTRIB' || type === 'POINT') {
+            const point = parseWktPoint(wkt);
+            if (point) {
+              const h = e.props && (e.props.height != null ? e.props.height : e.props.char_height);
+              allEntities.push({ point, color, text: (e.props && e.props.text) || '', height: h, layer, props, id: e.id });
+            }
+          } else {
+            const points = parseWktPoints(wkt);
+            if (points.length >= 1) allEntities.push({ points: points, color: color, layer, props, id: e.id });
+          }
+        }
+        for (const bi of inserts) {
+          const ip = bi.insert_point;
+          const ipWkt = (typeof ip === 'string') ? ip : (ip && ip.wkt) || null;
+          const insertPt = parseWktPoint(ipWkt);
+          if (insertPt) allEntities.push({ point: insertPt, color: bi.color, text: bi.block_name ? bi.block_name.substring(0, 12) : '' });
+        }
+      } catch (e) {
+        viewInfoEl.textContent = '로드 실패: ' + (e && e.message ? e.message : String(e));
+        console.error('loadEntities error', e);
+      }
+      compareMode = false;
+      fitView();
+      draw();
+      loadAnnotations();
+      drawAnnotations();
+    }
+    async function loadCompareView() {
+      const baseId = document.getElementById('compareBase').value;
+      const targetId = document.getElementById('compareTarget').value;
+      if (!baseId || !targetId) {
+        viewInfoEl.textContent = '이전·이후 버전을 모두 선택하세요.';
+        return;
+      }
+      if (baseId === targetId) {
+        viewInfoEl.textContent = '서로 다른 두 버전을 선택하세요.';
+        return;
+      }
+      viewInfoEl.textContent = '비교 로딩 중…';
+      try {
+        const [baseEnt, baseIns, targetEnt, targetIns] = await Promise.all([
+          fetch('/api/commits/' + baseId + '/entities').then(r => r.json()),
+          fetch('/api/commits/' + baseId + '/blocks/inserts').then(r => r.json().catch(() => ({ inserts: [] }))),
+          fetch('/api/commits/' + targetId + '/entities').then(r => r.json()),
+          fetch('/api/commits/' + targetId + '/blocks/inserts').then(r => r.json().catch(() => ({ inserts: [] })))
+        ]);
+        const baseList = baseEnt.entities || baseEnt || [];
+        const targetList = targetEnt.entities || targetEnt || [];
+        const fpBase = new Set();
+        const fpTarget = new Set();
+        for (const e of baseList) { if (e.fingerprint) fpBase.add(e.fingerprint); }
+        for (const e of targetList) { if (e.fingerprint) fpTarget.add(e.fingerprint); }
+        allEntities = [];
+        layerColors = targetEnt.layer_colors || {};
+        function addEntity(e, compareRole) {
+          const wkt = e.geom;
+          if (!wkt) return;
+          const type = (e.entity_type || '').toUpperCase();
+          const color = e.color;
+          const layer = e.layer;
+          const props = e.props || {};
+          let points = [], point = null, text = '';
+          if (type === 'LINE' || type === 'LWPOLYLINE' || type === 'POLYLINE' || type === 'ARC' || type === 'CIRCLE') {
+            points = parseWktPoints(wkt);
+            if (points.length >= 1) allEntities.push({ points, color, layer, props, compareRole, id: e.id });
+          } else if (type === 'HATCH') {
+            points = parseWktPolygonPoints(wkt);
+            if (points.length >= 3) allEntities.push({ points, color, fill: true, layer, props, compareRole, id: e.id });
+          } else if (type === 'TEXT' || type === 'MTEXT' || type === 'ATTRIB' || type === 'POINT') {
+            point = parseWktPoint(wkt);
+            if (point) {
+              const h = e.props && (e.props.height != null ? e.props.height : e.props.char_height);
+              allEntities.push({ point, color, text: (e.props && e.props.text) || '', height: h, layer, props, compareRole, id: e.id });
+            }
+          } else {
+            points = parseWktPoints(wkt);
+            if (points.length >= 1) allEntities.push({ points, color, layer, props, compareRole, id: e.id });
+          }
+        }
+        for (const e of baseList) {
+          const role = e.fingerprint && fpTarget.has(e.fingerprint) ? 'common' : 'only_before';
+          addEntity(e, role);
+        }
+        for (const e of targetList) {
+          if (!e.fingerprint || !fpBase.has(e.fingerprint)) addEntity(e, 'only_after');
+        }
+        const baseInserts = baseIns.inserts || [];
+        const targetInserts = targetIns.inserts || [];
+        const key = (bi) => (bi.insert_point || '') + '|' + (bi.block_name || '');
+        const keyBase = new Set(baseInserts.map(key));
+        const keyTarget = new Set(targetInserts.map(key));
+        for (const bi of baseInserts) {
+          const pt = parseWktPoint(bi.insert_point);
+          if (pt) { const k = key(bi); const role = keyTarget.has(k) ? 'common' : 'only_before'; allEntities.push({ point: pt, color: bi.color, text: (bi.block_name || '').substring(0, 12), compareRole: role }); }
+        }
+        for (const bi of targetInserts) {
+          const k = key(bi);
+          if (!keyBase.has(k)) { const pt = parseWktPoint(bi.insert_point); if (pt) allEntities.push({ point: pt, color: bi.color, text: (bi.block_name || '').substring(0, 12), compareRole: 'only_after' }); }
+        }
+        compareMode = true;
+        const onlyB = allEntities.filter(x => x.compareRole === 'only_before').length;
+        const onlyA = allEntities.filter(x => x.compareRole === 'only_after').length;
+        const common = allEntities.filter(x => x.compareRole === 'common').length;
+        viewInfoEl.textContent = '비교: 전에만 ' + onlyB + '개, 후에만 ' + onlyA + '개, 공통 ' + common + '개';
+        fitView();
+        draw();
+      } catch (e) {
+        viewInfoEl.textContent = '비교 로드 실패: ' + e.message;
+      }
+    }
+    function hitTestEntity(wx, wy) {
+      const tol = Math.max((view.maxX - view.minX), (view.maxY - view.minY)) * 0.02;
+      let best = null, bestD = tol;
+      for (const ent of allEntities) {
+        if (!ent.id) continue;
+        if (ent.point) {
+          const d = Math.hypot(ent.point.x - wx, ent.point.y - wy);
+          if (d < bestD) { bestD = d; best = ent; }
+        } else if (ent.points && ent.points.length >= 2) {
+          for (let i = 0; i < ent.points.length - 1; i++) {
+            const a = ent.points[i], b = ent.points[i + 1];
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const t = Math.max(0, Math.min(1, ((wx - a.x) * dx + (wy - a.y) * dy) / (dx * dx + dy * dy + 1e-10)));
+            const px = a.x + t * dx, py = a.y + t * dy;
+            const d = Math.hypot(wx - px, wy - py);
+            if (d < bestD) { bestD = d; best = ent; }
+          }
+          if (ent.points.length === 1) {
+            const d = Math.hypot(ent.points[0].x - wx, ent.points[0].y - wy);
+            if (d < bestD) { bestD = d; best = ent; }
+          }
+        }
+      }
+      return best;
+    }
+    canvas.addEventListener('mousedown', function(e) {
+      if (e.button === 0 && (annoPickEntityMode || annoPickPositionMode)) {
+        const rect = canvas.getBoundingClientRect();
+        const sx = (e.clientX - rect.left) / rect.width * logicalWidth;
+        const sy = logicalHeight - (e.clientY - rect.top) / rect.height * logicalHeight;
+        const wp = toWorld(sx, sy);
+        if (annoPickPositionMode) {
+          selectedPosition = { x: wp.x, y: wp.y };
+          selectedEntityId = null;
+          showMsg('위치 지정됨: ' + wp.x.toFixed(1) + ', ' + wp.y.toFixed(1), 'success');
+          document.getElementById('annoPickPosition').checked = false;
+          annoPickPositionMode = false;
+        } else if (annoPickEntityMode) {
+          const hit = hitTestEntity(wp.x, wp.y);
+          if (hit) {
+            selectedEntityId = hit.id;
+            selectedPosition = null;
+            showMsg('객체 선택됨 #' + hit.id, 'success');
+            document.getElementById('annoPickEntity').checked = false;
+            annoPickEntityMode = false;
+          } else {
+            showMsg('클릭 위치에 객체가 없습니다.', 'info');
+          }
+        }
+        e.preventDefault();
+        return;
+      }
+      if (e.button === 1) { e.preventDefault(); pan.active = true; pan.lastX = e.clientX; pan.lastY = e.clientY; }
+    });
+    canvas.addEventListener('mousemove', function(e) {
+      if (!pan.active) return;
+      const dx = e.clientX - pan.lastX, dy = e.clientY - pan.lastY;
+      pan.lastX = e.clientX; pan.lastY = e.clientY;
+      panView(dx, dy);
+      draw();
+      drawAnnotations();
+    });
+    canvas.addEventListener('mouseup', function(e) { if (e.button === 1) { pan.active = false; } });
+    canvas.addEventListener('mouseleave', function() { pan.active = false; });
+    canvas.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+    canvas.addEventListener('wheel', function(e) {
+      if (allEntities.length === 0) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const factor = e.deltaY > 0 ? 1 / 1.15 : 1.15;
+      zoomView(sx, sy, factor);
+      draw();
+      drawAnnotations();
+    }, { passive: false });
+    function touchPinchMetrics(t0, t1) {
+      var midX = (t0.clientX + t1.clientX) * 0.5, midY = (t0.clientY + t1.clientY) * 0.5;
+      var dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+      return { midX: midX, midY: midY, dist: dist };
+    }
+    function applyTapPickTouch(ch) {
+      var rect = canvas.getBoundingClientRect();
+      var sx = (ch.clientX - rect.left) / rect.width * logicalWidth;
+      var sy = logicalHeight - (ch.clientY - rect.top) / rect.height * logicalHeight;
+      var wp = toWorld(sx, sy);
+      if (annoPickPositionMode) {
+        selectedPosition = { x: wp.x, y: wp.y };
+        selectedEntityId = null;
+        showMsg('위치 지정됨: ' + wp.x.toFixed(1) + ', ' + wp.y.toFixed(1), 'success');
+        document.getElementById('annoPickPosition').checked = false;
+        annoPickPositionMode = false;
+      } else if (annoPickEntityMode) {
+        var hit = hitTestEntity(wp.x, wp.y);
+        if (hit) {
+          selectedEntityId = hit.id;
+          selectedPosition = null;
+          showMsg('객체 선택됨 #' + hit.id, 'success');
+          document.getElementById('annoPickEntity').checked = false;
+          annoPickEntityMode = false;
+        } else {
+          showMsg('클릭 위치에 객체가 없습니다.', 'info');
+        }
+      }
+      draw();
+      drawAnnotations();
+    }
+    canvas.addEventListener('touchstart', function(e) {
+      if (annoDrawMode) return;
+      var t = e.touches;
+      if (t.length === 2) {
+        e.preventDefault();
+        var m = touchPinchMetrics(t[0], t[1]);
+        touchGesture = { type: 'pinch', lmx: m.midX, lmy: m.midY, ld: Math.max(m.dist, 1e-6) };
+        return;
+      }
+      if (t.length !== 1) return;
+      if (annoPickEntityMode || annoPickPositionMode) {
+        e.preventDefault();
+        touchGesture = { type: 'tapPick', sx: t[0].clientX, sy: t[0].clientY, tid: t[0].identifier, moved: false };
+        return;
+      }
+      if (allEntities.length === 0) return;
+      e.preventDefault();
+      touchGesture = { type: 'pan', lx: t[0].clientX, ly: t[0].clientY };
+    }, { passive: false });
+    canvas.addEventListener('touchmove', function(e) {
+      if (!touchGesture) return;
+      var g = touchGesture, t = e.touches;
+      if (g.type === 'pinch' && t.length >= 2) {
+        e.preventDefault();
+        var m = touchPinchMetrics(t[0], t[1]);
+        var dx = m.midX - g.lmx, dy = m.midY - g.lmy;
+        panView(dx, dy);
+        var ld = g.ld, d = Math.max(m.dist, 1e-6);
+        if (ld > 8 && d > 8) {
+          var z = d / ld;
+          if (Math.abs(z - 1) > 0.002) {
+            var rect = canvas.getBoundingClientRect();
+            zoomView(m.midX - rect.left, m.midY - rect.top, z);
+          }
+        }
+        g.lmx = m.midX; g.lmy = m.midY; g.ld = d;
+        draw(); drawAnnotations();
+        return;
+      }
+      if (g.type === 'pan' && t.length === 1) {
+        e.preventDefault();
+        var x = t[0].clientX, y = t[0].clientY;
+        panView(x - g.lx, y - g.ly);
+        g.lx = x; g.ly = y;
+        draw(); drawAnnotations();
+        return;
+      }
+      if (g.type === 'tapPick' && t.length === 1) {
+        var x2 = t[0].clientX, y2 = t[0].clientY;
+        if (Math.hypot(x2 - g.sx, y2 - g.sy) > 14) g.moved = true;
+      }
+    }, { passive: false });
+    canvas.addEventListener('touchend', function(e) {
+      if (!touchGesture) return;
+      var g = touchGesture;
+      if (g.type === 'tapPick' && !g.moved && e.changedTouches.length) {
+        var ch = e.changedTouches[0];
+        if (ch.identifier === g.tid) {
+          e.preventDefault();
+          applyTapPickTouch(ch);
+        }
+      }
+      if (e.touches.length === 0) touchGesture = null;
+      else if (g.type === 'pinch' && e.touches.length < 2) touchGesture = null;
+    }, { passive: false });
+    canvas.addEventListener('touchcancel', function() { touchGesture = null; });
+    document.getElementById('debugBtn').addEventListener('click', async function() {
+      var cid = viewCommitSelect.value;
+      var pre = document.getElementById('debugOutput');
+      var odaDiv = document.getElementById('odaCheckResult');
+      odaDiv.style.display = 'none';
+      if (!cid) { pre.style.display = 'block'; pre.textContent = '버전(커밋)을 먼저 선택하세요.'; return; }
+      pre.style.display = 'block';
+      pre.textContent = '로딩 중...';
+      try {
+        var res = await fetch('/api/debug/commits/' + cid + '/parse');
+        var data = await res.json();
+        pre.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        pre.textContent = '오류: ' + e.message;
+      }
+    });
+    document.getElementById('odaCheckBtn').addEventListener('click', async function() {
+      var cid = viewCommitSelect.value;
+      var pre = document.getElementById('debugOutput');
+      var odaDiv = document.getElementById('odaCheckResult');
+      pre.style.display = 'none';
+      if (!cid) {
+        odaDiv.style.display = 'block';
+        odaDiv.innerHTML = '<span style="color:#c66;">버전(커밋)을 먼저 선택하세요. (DWG 파일인 커밋만 검증 가능)</span>';
+        return;
+      }
+      odaDiv.style.display = 'block';
+      odaDiv.innerHTML = 'ODA 변환 실행 중… (DWG → DXF, 저장까지 수 초 걸릴 수 있음)';
+      try {
+        var res = await fetch('/api/debug/commits/' + cid + '/oda-check?save=1');
+        var data = await res.json();
+        if (data.error || data.message) {
+          odaDiv.innerHTML = '<span style="color:#c66;">' + (data.error || data.message) + '</span>';
+          return;
+        }
+        var s = data.summary || {};
+        var html = '<p style="margin:0 0 8px 0;"><strong>변환기:</strong> ' + (data.converter_used || '-') + ' &nbsp;|&nbsp; <strong>판정:</strong> ' + (s.verdict || '') + '</p>';
+        html += '<p style="margin:0 0 8px 0;">BLOCKS 섹션: ' + (data.has_BLOCKS_section ? '있음' : '없음') + ' &nbsp; ENTITIES: ' + (data.has_ENTITIES_section ? '있음' : '없음') + ' &nbsp; 블록 정의 수: ' + (s.block_def_count ?? '-') + '</p>';
+        if (data.saved_to) {
+          html += '<p style="margin:12px 0 6px 0; font-weight:700; color:#8ab4f8;">저장 위치 (여기서 파일 직접 열기):</p>';
+          html += '<p style="margin:0 0 4px 0; word-break:break-all;"><code style="background:#2d2d3d; padding:6px 8px; border-radius:4px; display:inline-block;">' + data.saved_to + '</code></p>';
+          html += '<p style="margin:0 0 0 0; font-size:0.8rem; color:#888;">' + (data.saved_to_note || '') + '</p>';
+        }
+        html += '<details style="margin-top:12px;"><summary style="cursor:pointer;">상세 JSON</summary><pre style="margin:8px 0 0 0; font-size:0.75rem; max-height:200px; overflow:auto; white-space:pre-wrap;">' + JSON.stringify(data, null, 2) + '</pre></details>';
+        odaDiv.innerHTML = html;
+      } catch (e) {
+        odaDiv.innerHTML = '<span style="color:#c66;">오류: ' + e.message + '</span>';
+      }
+    });
+    document.querySelectorAll('input[name="viewMode"]').forEach(function(radio) {
+      radio.addEventListener('change', function() {
+        viewMode = this.value;
+        const toolbar = document.getElementById('compareToolbar');
+        if (viewMode === 'compare') {
+          toolbar.style.display = 'flex';
+          loadCompareCommits();
+        } else {
+          toolbar.style.display = 'none';
+          compareMode = false;
+          loadEntities();
+        }
+      });
+    });
+    viewProjectSelect.addEventListener('change', function() {
+      loadViewCommits();
+      loadCompareCommits();
+    });
+
+    viewCommitSelect.addEventListener('change', function() {
+      showVersionDetail(viewCommitSelect.value);
+      if (viewMode === 'single') loadEntities();
+      else loadAnnotations();
+    });
+    document.getElementById('compareBtn').addEventListener('click', loadCompareView);
+    function updateRhinoProtocolLink() {
+      var pid = document.getElementById('rhinoProject').value;
+      var cid = document.getElementById('rhinoCommit').value;
+      var url = 'cadmanage://open?api_base=' + encodeURIComponent(window.location.origin);
+      document.getElementById('rhinoProtocolLink').href = url;
+      document.getElementById('rhinoOpenBtn').href = url;
+    }
+    document.getElementById('rhinoProject').addEventListener('change', function() { loadRhinoCommits(); setTimeout(updateRhinoProtocolLink, 100); });
+    document.getElementById('rhinoCommit').addEventListener('change', updateRhinoProtocolLink);
+    document.getElementById('rhinoOpenBtn').addEventListener('click', function(e) {
+      showMsg('라이노를 엽니다. 라이노에서 [가져오기]로 DB 불러오세요.', 'info');
+    });
+    document.getElementById('rhinoCopyBtn').addEventListener('click', function() {
+      const pid = document.getElementById('rhinoProject').value;
+      const cid = document.getElementById('rhinoCommit').value;
+      if (!pid || !cid) { showMsg('프로젝트와 버전을 선택한 뒤 연동 정보를 복사하세요.', 'error'); return; }
+      const apiBase = window.location.origin;
+      const json = JSON.stringify({ api_base: apiBase, project_id: parseInt(pid, 10), commit_id: parseInt(cid, 10) }, null, 0);
+      navigator.clipboard.writeText(json).then(function() {
+        showMsg('연동 정보가 클립보드에 복사되었습니다. 라이노에서 CadManageOpen 실행 후 붙여넣기하세요.', 'success');
+      }).catch(function() {
+        prompt('아래 내용을 복사하세요:', json);
+        showMsg('복사할 수 없어 입력창에 표시했습니다. 수동으로 복사하세요.', 'info');
+      });
+    });
+    document.getElementById('rhinoBatBtn').addEventListener('click', function() {
+      const apiEnc = encodeURIComponent(window.location.origin);
+      const url = 'cadmanage://open?api_base=' + apiEnc;
+      var wrapperPath = '%LOCALAPPDATA%\\CadManageRhino\\launcher_wrapper.bat';
+      var lines = [
+        '@echo off',
+        'set "WRAPPER=' + wrapperPath + '"',
+        'if exist "%WRAPPER%" (',
+        '  call "%WRAPPER%" "' + url.replace(/"/g, '""') + '"',
+        ') else (',
+        '  echo CadManage launcher not installed. Run scripts\\rhino\\install_cadmanage_protocol.ps1 first.',
+        '  pause',
+        ')'
+      ];
+      var batContent = lines.join('\r\n');
+      var blob = new Blob([batContent], { type: 'text/plain;charset=us-ascii' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '라이노_열기.bat';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showMsg('실행 파일을 받은 뒤, 먼저 한 번만 설치_및_라이노_실행.bat 을 실행해 두세요. 그 다음 이 .bat 더블클릭하면 라이노가 실행됩니다.', 'success');
+    });
+    document.getElementById('rhinoDownloadBtn').addEventListener('click', async function() {
+      const cid = document.getElementById('rhinoCommit').value;
+      if (!cid) { showMsg('버전을 선택하세요.', 'error'); return; }
+      try {
+        const res = await fetch('/api/commits/' + cid + '/export/dxf');
+        if (!res.ok) {
+          const err = await res.json().catch(function() { return { detail: res.statusText }; });
+          showMsg('DXF 내려받기 실패: ' + (err.detail || res.status), 'error');
+          return;
+        }
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'commit_' + cid + '.dxf';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showMsg('DXF 파일이 내려받아졌습니다.', 'success');
+      } catch (e) {
+        showMsg('DXF 내려받기 실패: ' + (e && e.message ? e.message : String(e)), 'error');
+      }
+    });
+    window.addEventListener('resize', resize);
+    loadProjects().then(() => { loadRhinoCommits(); initAnno(); resize(); });
+  </script>
+</body>
+</html>

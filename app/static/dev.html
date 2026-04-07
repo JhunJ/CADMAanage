@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CAD Manage - 개발 (플러그인)</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; margin: 0; padding: 0; background: #f0f2f5; color: #1a1d21; }
+    .topnav {
+      background: #fff; border-bottom: 1px solid #e1e4e8; padding: 12px 24px; display: flex; align-items: center; gap: 24px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .topnav a { color: #0969da; text-decoration: none; font-weight: 500; }
+    .topnav a:hover { text-decoration: underline; }
+    .topnav .brand { font-size: 1.2rem; font-weight: 700; color: #1a1d21; }
+    .topnav a.active { color: #24292f; font-weight: 600; }
+    .main { padding: 24px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 1.25rem; margin: 0 0 8px 0; color: #1a1d21; }
+    .sub { color: #57606a; font-size: 0.875rem; margin-bottom: 24px; }
+    .card {
+      background: #fff; border-radius: 12px; padding: 24px 28px; margin-bottom: 24px;
+      border: 1px solid #d0d7de; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .card h2 { font-size: 1rem; color: #24292f; font-weight: 600; margin: 0 0 16px 0; }
+    label { display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem; }
+    input[type="text"], input[type="email"], input[type="number"], textarea {
+      width: 100%; padding: 8px 12px; border: 1px solid #d0d7de; border-radius: 6px; background: #fff; font-size: 0.9rem;
+    }
+    textarea { min-height: 80px; font-family: inherit; resize: vertical; }
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .form-row .field { flex: 1; min-width: 160px; }
+    button {
+      padding: 10px 20px; font-size: 0.9rem; font-weight: 600; color: #fff; background: #238636; border: none; border-radius: 6px; cursor: pointer;
+    }
+    button:hover { background: #2ea043; }
+    button:disabled { background: #90a4ae; cursor: not-allowed; }
+    .btn-secondary { background: #6e7681; }
+    .btn-secondary:hover { background: #57606a; }
+    .btn-danger { background: #cf222e; }
+    .btn-danger:hover { background: #a40e26; }
+    .msg { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 0.9rem; display: none; }
+    .msg.success { display: block; background: #dafbe1; color: #1a7f37; }
+    .msg.error { display: block; background: #ffebe9; color: #cf222e; }
+    .msg.info { display: block; background: #ddf4ff; color: #0969da; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eee; }
+    th { font-weight: 600; color: #555; background: #fafafa; }
+    tr:hover { background: #fafafa; }
+    .empty { color: #888; padding: 20px; text-align: center; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+    .card-header h2 { margin: 0; }
+    .btn-sm { padding: 4px 10px; font-size: 0.8rem; margin-right: 4px; cursor: pointer; border: 1px solid #d0d7de; border-radius: 4px; background: #f6f8fa; color: #24292f; }
+    .btn-sm:hover { background: #eaeef2; }
+    .btn-sm.danger { color: #cf222e; background: #ffebe9; border-color: #ff7b72; }
+    .btn-sm.danger:hover { background: #ffcecb; }
+    .links { margin-top: 24px; padding-top: 16px; border-top: 1px solid #d0d7de; font-size: 0.9rem; }
+    .links a { margin-right: 16px; color: #0969da; text-decoration: none; }
+    .links a:hover { text-decoration: underline; }
+    #pluginForm { display: none; }
+    #pluginForm.visible { display: block; }
+  </style>
+</head>
+<body>
+  <nav class="topnav">
+    <span class="brand">CAD Manage</span>
+    <a href="/">워크스페이스</a>
+    <a href="/manage">관리</a>
+    <a href="/docs">API 문서</a>
+    <a href="/dev" class="active">개발</a>
+  </nav>
+  <main class="main">
+    <h1>개발 - 플러그인(에셋 기능) 관리</h1>
+    <p class="sub">에셋 탭의 기능 리스트에 표시될 플러그인을 추가·수정·삭제합니다. 저장 후 워크스페이스에서 바로 확인할 수 있습니다.</p>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>플러그인 목록</h2>
+        <div>
+          <button type="button" class="btn-sm" id="btnNewPlugin">+ 새로 추가</button>
+          <a href="/" class="btn-sm" style="text-decoration:none; display:inline-block;">워크스페이스에서 보기</a>
+        </div>
+      </div>
+      <div id="pluginMsg" class="msg"></div>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>이름</th><th>활성화 문구</th><th>관리</th></tr>
+        </thead>
+        <tbody id="pluginList">
+          <tr><td colspan="4" class="empty">불러오는 중…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card" id="pluginForm">
+      <h2 id="formTitle">플러그인 추가 / 수정</h2>
+      <div id="formMsg" class="msg"></div>
+      <div class="form-row">
+        <div class="field">
+          <label for="pluginId">ID (영문·숫자·하이픈, 예: my-tool)</label>
+          <input type="text" id="pluginId" placeholder="my-feature" required>
+        </div>
+        <div class="field">
+          <label for="pluginLabel">이름 (리스트에 표시)</label>
+          <input type="text" id="pluginLabel" placeholder="내 기능" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field">
+          <label for="pluginPanelHtmlId">패널 ID (featurePanel-xxx 형태)</label>
+          <input type="text" id="pluginPanelHtmlId" placeholder="featurePanel-my-feature" required>
+        </div>
+        <div class="field">
+          <label for="pluginActivateLabel">활성화 버튼 문구</label>
+          <input type="text" id="pluginActivateLabel" placeholder="활성화">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field" style="flex: 1; min-width: 100%;">
+          <label for="pluginPanelHtml">패널 HTML (우측 기능 탭에 보일 내용)</label>
+          <p class="hint" style="margin: 0 0 4px 0; font-size: 0.8rem; color: #57606a;">입력·버튼 등에는 고유한 id를 사용하세요 (예: my-feature-input1). 다른 기능과 중복되지 않게.</p>
+          <textarea id="pluginPanelHtml" rows="6" placeholder="<p>설명</p>&#10;<div class='fieldRow'>...</div>"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="field" style="flex: 1; min-width: 100%;">
+          <label for="pluginOnActivateBody">활성화 시 실행할 코드 (함수 본문만)</label>
+          <p class="hint" style="margin: 0 0 4px 0; font-size: 0.8rem; color: #57606a;">메시지: CadManagePlugin.showMsg('msg', '내용', 'success'); 뷰어 안내: CadManagePlugin.setViewInfo('텍스트');</p>
+          <textarea id="pluginOnActivateBody" rows="4" placeholder="var el = document.getElementById('...');&#10;if (el) el.click();"></textarea>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button type="button" id="btnSavePlugin">저장</button>
+        <button type="button" id="btnCancelForm" class="btn-secondary">취소</button>
+      </div>
+    </div>
+
+    <div class="links">
+      <a href="/">워크스페이스</a>
+      <a href="/manage">등록자·프로젝트 관리</a>
+      <a href="/docs">API 문서</a>
+    </div>
+  </main>
+
+  <script>
+    (function() {
+      const pluginList = document.getElementById('pluginList');
+      const pluginForm = document.getElementById('pluginForm');
+      const pluginMsg = document.getElementById('pluginMsg');
+      const formMsg = document.getElementById('formMsg');
+      const pluginId = document.getElementById('pluginId');
+      const pluginLabel = document.getElementById('pluginLabel');
+      const pluginPanelHtmlId = document.getElementById('pluginPanelHtmlId');
+      const pluginActivateLabel = document.getElementById('pluginActivateLabel');
+      const pluginPanelHtml = document.getElementById('pluginPanelHtml');
+      const pluginOnActivateBody = document.getElementById('pluginOnActivateBody');
+
+      let editingId = null;
+
+      function showMsg(el, text, type) {
+        el.textContent = text;
+        el.className = 'msg ' + (type || 'info');
+        el.style.display = 'block';
+      }
+      function hideMsg(el) {
+        el.style.display = 'none';
+      }
+
+      async function loadPlugins() {
+        try {
+          const res = await fetch('/api/plugins');
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : (data && data.plugins) || [];
+          if (pluginList) {
+            if (list.length === 0) {
+              pluginList.innerHTML = '<tr><td colspan="4" class="empty">등록된 플러그인이 없습니다. 새로 추가해 보세요.</td></tr>';
+            } else {
+              pluginList.innerHTML = list.map(function(p) {
+                var id = (p.id || '').replace(/</g, '&lt;');
+                var label = (p.label || '').replace(/</g, '&lt;');
+                var act = (p.activateLabel || '활성화').replace(/</g, '&lt;');
+                return '<tr data-id="' + id + '">' +
+                  '<td>' + id + '</td><td>' + label + '</td><td>' + act + '</td>' +
+                  '<td><button type="button" class="btn-sm edit-plugin" data-id="' + id + '">수정</button>' +
+                  '<button type="button" class="btn-sm danger del-plugin" data-id="' + id + '">삭제</button></td></tr>';
+              }).join('');
+            }
+          }
+          pluginList.querySelectorAll('.edit-plugin').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var id = btn.getAttribute('data-id');
+              openFormForEdit(id);
+            });
+          });
+          pluginList.querySelectorAll('.del-plugin').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var id = btn.getAttribute('data-id');
+              if (confirm('플러그인 "' + id + '"을(를) 삭제하시겠습니까?')) deletePlugin(id);
+            });
+          });
+        } catch (e) {
+          if (pluginList) pluginList.innerHTML = '<tr><td colspan="4" class="empty">목록을 불러올 수 없습니다.</td></tr>';
+          showMsg(pluginMsg, '목록 로드 실패: ' + e.message, 'error');
+        }
+      }
+
+      function openFormNew() {
+        editingId = null;
+        document.getElementById('formTitle').textContent = '플러그인 추가';
+        pluginId.value = '';
+        pluginId.disabled = false;
+        pluginLabel.value = '';
+        pluginPanelHtmlId.value = '';
+        pluginActivateLabel.value = '활성화';
+        pluginPanelHtml.value = '';
+        pluginOnActivateBody.value = '';
+        pluginForm.classList.add('visible');
+        hideMsg(formMsg);
+      }
+
+      function openFormForEdit(id) {
+        editingId = id;
+        document.getElementById('formTitle').textContent = '플러그인 수정';
+        pluginId.value = id;
+        pluginId.disabled = true;
+        fetch('/api/plugins').then(function(r) { return r.json(); }).then(function(data) {
+          var list = Array.isArray(data) ? data : (data && data.plugins) || [];
+          var p = list.find(function(x) { return x.id === id; });
+          if (p) {
+            pluginLabel.value = p.label || '';
+            pluginPanelHtmlId.value = p.panelHtmlId || ('featurePanel-' + id);
+            pluginActivateLabel.value = p.activateLabel || '활성화';
+            pluginPanelHtml.value = p.panelHtml || '';
+            pluginOnActivateBody.value = p.onActivateBody || '';
+          }
+          pluginForm.classList.add('visible');
+          hideMsg(formMsg);
+        }).catch(function() { showMsg(formMsg, '불러오기 실패', 'error'); });
+      }
+
+      function closeForm() {
+        pluginForm.classList.remove('visible');
+        editingId = null;
+        hideMsg(formMsg);
+      }
+
+      async function savePlugin() {
+        var id = pluginId.value.trim();
+        var label = pluginLabel.value.trim();
+        var panelHtmlId = pluginPanelHtmlId.value.trim();
+        if (!id) { showMsg(formMsg, 'ID를 입력하세요.', 'error'); return; }
+        if (!label) { showMsg(formMsg, '이름을 입력하세요.', 'error'); return; }
+        if (!panelHtmlId) { showMsg(formMsg, '패널 ID를 입력하세요.', 'error'); return; }
+        hideMsg(formMsg);
+        var body = {
+          id: id,
+          label: label,
+          panel_html_id: panelHtmlId,
+          activate_label: pluginActivateLabel.value.trim() || '활성화',
+          panel_html: pluginPanelHtml.value,
+          on_activate_body: pluginOnActivateBody.value
+        };
+        try {
+          if (editingId) {
+            var res = await fetch('/api/plugins/' + encodeURIComponent(editingId), {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                label: body.label,
+                panel_html_id: body.panel_html_id,
+                activate_label: body.activate_label,
+                panel_html: body.panel_html,
+                on_activate_body: body.on_activate_body
+              })
+            });
+          } else {
+            var res = await fetch('/api/plugins', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            });
+          }
+          var data = await res.json().catch(function() { return {}; });
+          if (res.ok) {
+            showMsg(formMsg, '저장되었습니다.', 'success');
+            loadPlugins();
+            setTimeout(closeForm, 800);
+          } else {
+            showMsg(formMsg, data.detail || res.statusText || '저장 실패', 'error');
+          }
+        } catch (e) {
+          showMsg(formMsg, '저장 실패: ' + e.message, 'error');
+        }
+      }
+
+      async function deletePlugin(id) {
+        try {
+          var res = await fetch('/api/plugins/' + encodeURIComponent(id), { method: 'DELETE' });
+          if (res.ok) {
+            showMsg(pluginMsg, '삭제되었습니다.', 'success');
+            loadPlugins();
+            if (editingId === id) closeForm();
+          } else {
+            var data = await res.json().catch(function() { return {}; });
+            showMsg(pluginMsg, data.detail || '삭제 실패', 'error');
+          }
+        } catch (e) {
+          showMsg(pluginMsg, '삭제 실패: ' + e.message, 'error');
+        }
+      }
+
+      document.getElementById('btnNewPlugin').addEventListener('click', openFormNew);
+      document.getElementById('btnCancelForm').addEventListener('click', closeForm);
+      document.getElementById('btnSavePlugin').addEventListener('click', savePlugin);
+
+      loadPlugins();
+    })();
+  </script>
+</body>
+</html>

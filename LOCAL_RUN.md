@@ -10,6 +10,7 @@
 - **`.env`**는 상대 경로(`./data/uploads`)라 보통 그대로 두면 됩니다. DB 비밀번호·호스트가 이 PC와 다르면 `DATABASE_URL`만 수정하세요.
 - **PostgreSQL을 이 PC에 처음 맞출 때**는 **`setup_db.bat`**(더블클릭) 또는 `.\scripts\init_db.ps1`로 `caduser` / `cadmanage` / PostGIS를 맞춥니다. 스크립트가 **`caduser` 비밀번호를 항상 `cadpass`로 동기화**하므로, 예전에 다른 비밀번호로 만들었어도 한 번 다시 실행하면 `.env`와 맞습니다.
 - **Docker로 DB만 쓸 때**는 [Docker Desktop](https://www.docker.com/products/docker-desktop/)을 **실행한 뒤** `docker compose up -d postgis` 하세요. 데스크톱이 꺼져 있으면 `open //./pipe/dockerDesktopLinuxEngine` 오류가 납니다.
+- **Git으로 여러 PC를 쓸 때**는 작업 시작 전 `.\scripts\sync_from_remote.ps1` 와 `.\scripts\check_dev_env.ps1` 를 권장합니다. 요약은 [docs/MULTI_PC_WORKFLOW.md](docs/MULTI_PC_WORKFLOW.md).
 
 ---
 

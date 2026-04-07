@@ -17,6 +17,10 @@ DWG/DXF 업로드 → ODA 변환 → ezdxf 파싱 → PostgreSQL(PostGIS) 적재
 - Docker, Docker Compose (권장)
 - (선택) ODA File Converter CLI - DWG → DXF 변환용. 없으면 **DXF 직접 업로드** 또는 `DEV_ALLOW_DXF_UPLOAD=true`로 DXF 허용
 
+### 여러 PC에서 작업
+
+작업 시작 전 프로젝트 루트에서 `.\scripts\sync_from_remote.ps1` 로 `git pull` + `pip install` 정도까지 맞추고, `.\scripts\check_dev_env.ps1` 로 `.env` 드라이버·venv 여부를 점검하세요. 자세한 절차는 **[docs/MULTI_PC_WORKFLOW.md](docs/MULTI_PC_WORKFLOW.md)** 를 참고하세요.
+
 ## 설치 및 실행
 
 ### 1) Docker Compose로 한 번에 실행

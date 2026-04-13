@@ -918,6 +918,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#24292f; margin-bottom:4px; cursor:pointer;"><input type="checkbox" id="frameDefDebugStep2aHatchChk" ' + (st.debugStep2aShowHatch ? 'checked' : '') + ' /> ③ 벽체 내부 해치(자홍)</label>');
   html.push('<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#24292f; margin-bottom:4px; cursor:pointer;"><input type="checkbox" id="frameDefDebugStep2aWallSegMidLinksChk" ' + (st.debugStep2aShowWallSegMidLinks ? 'checked' : '') + ' /> ④ 벽체↔원천 중점 연결(시안=원천 매칭, 분홍=가이드 폴백)</label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aHatchOvLblChk" style="margin-top:2px;" ' + (st.debugStep2aShowHatchOverlapLabels ? 'checked' : '') + ' /><span><b>해치 ±겹침(mm²) 라벨</b> — 방향 판정은 <b>양쪽에서 충돌한 해치 중 최대 겹침</b> 기준(+1/-1)이며, Σ 겹침/겹침률(%)은 참고값으로 함께 표시합니다.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualCandidatesChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualCandidates ? 'checked' : '') + ' /><span><b>②-1 방향 비교 후보 해치(+/-) 표시</b> — +후보(파랑), -후보(주황)를 동시에 표시하고, 선택 방향은 진하게/비선택은 옅게 그립니다.</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push('</div>');
@@ -1586,7 +1587,7 @@ function frameDefStateDefaults() {
     autoRotatedWallKeys: {}, editDragState: null, editSnapGuide: null,
     rawSegs: [], descs: [], debugColumns: [],
     wallCandidates: [], wallPairs: [], wallStep2Segs: [], wallStep2aHatchWalls: [], wallStep2aSourceSegs: [], wallStep2aSourcePairs: [], wallStep2aClosedLoopChains: [], wallStep2aClosedLoopDebug: [], wallStep2aSplitChainCounts: { closed: 0, open: 0, openWalls: 0 }, wallCandidatesStep11: [], wallCandidatesStep11Rings: [], wallStep11ClosedChains: [], wallStep11ByCategory: {}, wallStep11Debug: null, wallStep12Walls: { '121': [], '122': [], '123': [], '124': [] },
-    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep11ShowHatch: false,
+    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep11ShowHatch: false,
     debugStep111ShowHatch: false, debugStep112ShowHatch: false, debugStep113ShowHatch: false, debugStep114ShowHatch: false, debugStep115ShowHatch: false, debugStep116ShowHatch: false,
     debugStep121ShowHatch: false, debugStep122ShowHatch: false, debugStep123ShowHatch: false, debugStep123ShowPreSwapHatch: false, debugStep124ShowHatch: false,
     debugStep124ShowSplitCandidates: false,
@@ -23854,43 +23855,13 @@ function frameDefDrawDebugStep2aWallHatches() {
   frameDefDrawDebugWallHatchList(list, '#c026d3', { fillAlpha: 0.2, hatchAlpha: 0.34, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
 }
 
-/** 2a 후보 해치(+/-)를 모두 그려 비교(선택=초록, 비선택=빨강). */
-function frameDefDrawDebugStep2aDualCandidateHatches() {
-  var st = frameDefGetState();
-  if (st.debugStep2aShowDualCandidates !== true) return;
-  var list = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
-  if (!list.length || typeof toScreen !== 'function' || typeof frameDefDrawHatchPolygon !== 'function') return;
-  var optsSel = { fillAlpha: 0.11, hatchAlpha: 0.28, step: FRAME_DEF_DEBUG_HATCH_STEP_PX };
-  var optsOpp = { fillAlpha: 0.08, hatchAlpha: 0.20, step: FRAME_DEF_DEBUG_HATCH_STEP_PX };
-  for (var wi = 0; wi < list.length; wi++) {
-    var wall = list[wi];
-    if (!wall || !wall.seg_a || !wall.seg_a.p1 || !wall.seg_a.p2) continue;
-    var dual = wall.__step2aDualSignEval;
-    if (!dual || dual.enabled !== true) continue;
-    var th = Number(wall.thickness_mm);
-    if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = 170;
-    var qP = frameDefSegToWallBodyQuadOutlineWorld(wall.seg_a.p1, wall.seg_a.p2, th, 1);
-    var qN = frameDefSegToWallBodyQuadOutlineWorld(wall.seg_a.p1, wall.seg_a.p2, th, -1);
-    if (!qP || qP.length < 4 || !qN || qN.length < 4) continue;
-    var cs = typeof wall.__step2aOutlineInwardSign === 'number' ? wall.__step2aOutlineInwardSign : 1;
-    var qSel = cs >= 0 ? qP : qN;
-    var qOpp = cs >= 0 ? qN : qP;
-    var scrSel = [], scrOpp = [];
-    for (var pi = 0; pi < qSel.length; pi++) { var s0 = toScreen(qSel[pi].x, qSel[pi].y); if (s0) scrSel.push(s0); }
-    for (var ni = 0; ni < qOpp.length; ni++) { var s1 = toScreen(qOpp[ni].x, qOpp[ni].y); if (s1) scrOpp.push(s1); }
-    if (scrOpp.length >= 3) frameDefDrawHatchPolygon(scrOpp, '#ef4444', optsOpp);
-    if (scrSel.length >= 3) frameDefDrawHatchPolygon(scrSel, '#22c55e', optsSel);
-  }
-}
-
 /** 2a: +방향/-방향 후보 벽을 둘 다 표시(선택 여부 색 구분). */
 function frameDefDrawDebugStep2aDualCandidateHatches() {
   var st = frameDefGetState();
   if (st.debugStep2aShowDualCandidates !== true) return;
   var list = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
   if (!list.length || typeof frameDefDrawDebugWallHatchList !== 'function') return;
-  var plusWalls = [];
-  var minusWalls = [];
+  var plusSel = [], plusOpp = [], minusSel = [], minusOpp = [];
   for (var i = 0; i < list.length; i++) {
     var w = list[i];
     if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) continue;
@@ -23899,28 +23870,29 @@ function frameDefDrawDebugStep2aDualCandidateHatches() {
     var qP = frameDefSegToWallBodyQuadOutlineWorld(w.seg_a.p1, w.seg_a.p2, th, 1);
     var qN = frameDefSegToWallBodyQuadOutlineWorld(w.seg_a.p1, w.seg_a.p2, th, -1);
     if (!qP || qP.length < 4 || !qN || qN.length < 4) continue;
-    var base = {
-      wall_id: w.wall_id || ('dual-' + String(i)),
+    var pRec = {
+      wall_id: (w.wall_id || ('dual-' + String(i))) + '-p',
       kind: 'wall',
       source: 'step2a-dual-cand',
       seg_a: { p1: qP[0], p2: qP[1] },
       seg_b: { p1: qP[3], p2: qP[2] }
     };
-    var pRec = JSON.parse(JSON.stringify(base));
-    var nRec = JSON.parse(JSON.stringify(base));
-    pRec.seg_a = { p1: qP[0], p2: qP[1] };
-    pRec.seg_b = { p1: qP[3], p2: qP[2] };
-    nRec.seg_a = { p1: qN[0], p2: qN[1] };
-    nRec.seg_b = { p1: qN[3], p2: qN[2] };
+    var nRec = {
+      wall_id: (w.wall_id || ('dual-' + String(i))) + '-n',
+      kind: 'wall',
+      source: 'step2a-dual-cand',
+      seg_a: { p1: qN[0], p2: qN[1] },
+      seg_b: { p1: qN[3], p2: qN[2] }
+    };
     var cs = Number(w.__step2aOutlineInwardSign) < 0 ? -1 : 1;
-    pRec.__dualChosen = (cs === 1);
-    nRec.__dualChosen = (cs === -1);
-    plusWalls.push(pRec);
-    minusWalls.push(nRec);
+    if (cs === 1) { plusSel.push(pRec); minusOpp.push(nRec); }
+    else { plusOpp.push(pRec); minusSel.push(nRec); }
   }
-  // +후보: 파랑, -후보: 주황 (선택된 쪽은 진하게)
-  frameDefDrawDebugWallHatchList(plusWalls, '#2563eb', { fillAlpha: 0.10, hatchAlpha: 0.18, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
-  frameDefDrawDebugWallHatchList(minusWalls, '#f59e0b', { fillAlpha: 0.10, hatchAlpha: 0.18, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
+  // +후보(파랑), -후보(주황) 둘 다 표시. 선택은 진하게, 비선택은 옅게.
+  frameDefDrawDebugWallHatchList(plusOpp, '#60a5fa', { fillAlpha: 0.04, hatchAlpha: 0.10, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
+  frameDefDrawDebugWallHatchList(minusOpp, '#fcd34d', { fillAlpha: 0.04, hatchAlpha: 0.10, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
+  frameDefDrawDebugWallHatchList(plusSel, '#2563eb', { fillAlpha: 0.12, hatchAlpha: 0.24, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
+  frameDefDrawDebugWallHatchList(minusSel, '#f59e0b', { fillAlpha: 0.12, hatchAlpha: 0.24, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
 }
 
 /** 2a: `__step2aHatchOverlapDbg` + `__step2aDualSignEval` — 양방향(+1/-1) 비교 여부, 선택/반대 겹침(mm²·%)과 판정(정상/주의) 표시. */

@@ -167,8 +167,10 @@ var FRAME_DEF_STEP2A_V2_DEBUG_LABEL_INCLUDE_SOURCE_SPAN_FOR_WHITELIST = true;
 /** true: seg_a 라벨 Σ≈0일 때 원천 전장으로 재시도. 기본 false — 표시만 달라져 혼동 시 끔 */
 var FRAME_DEF_STEP2A_V2_DEBUG_LABEL_FALLBACK_SOURCE_WHEN_NEAR_ZERO = false;
 var FRAME_DEF_STEP2A_V2_DEBUG_LABEL_ZERO_FALLBACK_THRESHOLD_MM2 = 0.5;
-/** true: Σ가 매우 작은 벽은 같은 축·가까운 병렬 벽의 비0 라벨 dbg 복제(1대다 짧은 조각). */
-var FRAME_DEF_STEP2A_V2_DEBUG_LABEL_INHERIT_PARALLEL = true;
+/** false 권장: 라벨 상속은 보기 편하지만 실제 계산과 다른 값을 보여 혼동될 수 있음. */
+var FRAME_DEF_STEP2A_V2_DEBUG_LABEL_INHERIT_PARALLEL = false;
+/** true면 2a 방향 판정 시 "최대해치"는 면적 교집합 성공값만 사용(경계 접촉/격자 fallback 제외). */
+var FRAME_DEF_STEP2A_V2_STRICT_AREA_OVERLAP_ONLY = true;
 /** 병렬 스트립 허용 최대 이격(mm) — 한 축에 쌓인 조각·옆 트랙 */
 var FRAME_DEF_STEP2A_V2_DEBUG_LABEL_INHERIT_STRIP_MAX_MM = 1200;
 /** 이 값(mm²) 미만이면 ‘약한’ 라벨로 보고 이웃에서 상속 시도 */
@@ -11173,7 +11175,15 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
             ? FRAME_DEF_STEP2A_V2_DEBUG_LABEL_HATCH_BBOX_PAD_MM : 120;
           var nearIdxQ = (typeof frameDef2aV2HatchIndicesNearSeg === 'function')
             ? frameDef2aV2HatchIndicesNearSeg(p1w0, p2w0, thUse0, hatchBBox2aV2, nearPadQ, sg && sg.p1, sg && sg.p2) : null;
-          var qMax = frameDef2aV2MaxSingleHatchOverlapDbg(p1w0, p2w0, thUse0, hatchBBox2aV2, pgR, nearIdxQ);
+          var qMaxNear = frameDef2aV2MaxSingleHatchOverlapDbg(p1w0, p2w0, thUse0, hatchBBox2aV2, pgR, nearIdxQ);
+          var qMaxAll = (nearIdxQ && nearIdxQ.length)
+            ? frameDef2aV2MaxSingleHatchOverlapDbg(p1w0, p2w0, thUse0, hatchBBox2aV2, pgR, null)
+            : qMaxNear;
+          var minHmQ = typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_MIN_OVERLAP_MM2 === 'number' ? FRAME_DEF_STEP2A_V2_CAD_HATCH_MIN_OVERLAP_MM2 : 5;
+          var nearPeakQ = Math.max(qMaxNear ? (Number(qMaxNear.maxPlusMm2) || 0) : 0, qMaxNear ? (Number(qMaxNear.maxMinusMm2) || 0) : 0);
+          var allPeakQ = Math.max(qMaxAll ? (Number(qMaxAll.maxPlusMm2) || 0) : 0, qMaxAll ? (Number(qMaxAll.maxMinusMm2) || 0) : 0);
+          var useAllQ = (!nearIdxQ || !nearIdxQ.length) || (nearPeakQ < minHmQ && allPeakQ >= minHmQ);
+          var qMax = useAllQ ? qMaxAll : qMaxNear;
           if (qMax) {
             var mPlus = Number(qMax.maxPlusMm2) || 0;
             var mMinus = Number(qMax.maxMinusMm2) || 0;
@@ -23924,6 +23934,10 @@ function frameDefDrawDebugStep2aHatchOverlapLabels() {
     var weakOverlap = scoreChosen < 120 || scoreChosenCov < 0.02;
     var statusTxt = weakOverlap ? '주의(최대해치 겹침 약함)' : (signMismatch ? '주의(방향 불일치)' : '정상');
     var statusCol = weakOverlap || signMismatch ? '#fb923c' : '#34d399';
+    if (dbg.__step2aDbgLabelInherited) {
+      statusTxt += '·라벨상속';
+      statusCol = '#f59e0b';
+    }
     var pickPlusIdx = dualEval && typeof dualEval.overlapPickPlusHatchIdx === 'number' ? dualEval.overlapPickPlusHatchIdx : -1;
     var pickMinusIdx = dualEval && typeof dualEval.overlapPickMinusHatchIdx === 'number' ? dualEval.overlapPickMinusHatchIdx : -1;
     var pickChosenIdx = (cs === -1) ? pickMinusIdx : pickPlusIdx;

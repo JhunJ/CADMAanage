@@ -909,7 +909,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#24292f; margin-bottom:4px; cursor:pointer;"><input type="checkbox" id="frameDefDebugStep2aClosedLoopHatchChk" ' + (st.debugStep2aShowClosedLoopHatch ? 'checked' : '') + ' /> ② 벽체 내부 해치(주황) — <code style="font-size:0.62rem;">wallStep2aHatchWalls</code>와 ③ 동일·색만 다름. 기하 바꾼 뒤엔 「2a 재계산」 또는 골조 탐지 다시 실행.</label>');
   html.push('<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#24292f; margin-bottom:4px; cursor:pointer;"><input type="checkbox" id="frameDefDebugStep2aHatchChk" ' + (st.debugStep2aShowHatch ? 'checked' : '') + ' /> ③ 벽체 내부 해치(자홍)</label>');
   html.push('<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#24292f; margin-bottom:4px; cursor:pointer;"><input type="checkbox" id="frameDefDebugStep2aWallSegMidLinksChk" ' + (st.debugStep2aShowWallSegMidLinks ? 'checked' : '') + ' /> ④ 벽체↔원천 중점 연결(시안=원천 매칭, 분홍=가이드 폴백)</label>');
-  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aHatchOvLblChk" style="margin-top:2px;" ' + (st.debugStep2aShowHatchOverlapLabels ? 'checked' : '') + ' /><span><b>해치 ±겹침(mm²) 라벨</b> — 양방향(+1/-1) 비교 여부, 선택/반대 겹침 면적(mm²), 전체 면적 대비 겹침률(%)과 판정(정상/주의)을 함께 표시합니다.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aHatchOvLblChk" style="margin-top:2px;" ' + (st.debugStep2aShowHatchOverlapLabels ? 'checked' : '') + ' /><span><b>해치 ±겹침(mm²) 라벨</b> — 방향 판정은 <b>양쪽에서 충돌한 해치 중 최대 겹침</b> 기준(+1/-1)이며, Σ 겹침/겹침률(%)은 참고값으로 함께 표시합니다.</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push('</div>');
@@ -10621,6 +10621,73 @@ function frameDef2aV2PerHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBoxList, 
   return out;
 }
 
+/**
+ * 방향 판정 전용: +1/-1 각각에서 **충돌한 해치 중 최대 겹침(mm²)**만 추린다.
+ * - 사용자 요구사항: Σ 합집합이 아니라 "양쪽 방향의 충돌 객체 중 가장 큰 해치" 기준으로 비교.
+ * - `hatchIdxWhitelist`가 있으면 근처 해치만, 없으면 전체 해치에서 최대값 계산.
+ */
+function frameDef2aV2MaxSingleHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBoxList, gridDivOverride, hatchIdxWhitelist) {
+  var out = {
+    maxPlusMm2: 0,
+    maxMinusMm2: 0,
+    maxPlusIdx: -1,
+    maxMinusIdx: -1,
+    quadAreaPlusMm2: 0,
+    quadAreaMinusMm2: 0,
+    coveragePlus: 0,
+    coverageMinus: 0,
+    grid: 3
+  };
+  if (!p1 || !p2 || !Array.isArray(hatchBBoxList) || !hatchBBoxList.length
+      || typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function'
+      || typeof frameDef2aV2QuadGridPerHatchOverlapAreas !== 'function') return out;
+  var thU = Math.max(FRAME_DEF_WALL_MIN_THICKNESS_MM, Math.min(FRAME_DEF_WALL_MAX_THICKNESS_MM, Number(thicknessFullMm) || 170));
+  var gn = (typeof gridDivOverride === 'number' && gridDivOverride >= 2)
+    ? Math.min(16, Math.floor(gridDivOverride))
+    : ((typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_DUAL_COMPARE_GRID === 'number' && FRAME_DEF_STEP2A_V2_CAD_HATCH_DUAL_COMPARE_GRID >= 2)
+      ? Math.min(16, Math.floor(FRAME_DEF_STEP2A_V2_CAD_HATCH_DUAL_COMPARE_GRID)) : 4);
+  out.grid = gn;
+  var qP = frameDefSegToWallBodyQuadOutlineWorld(p1, p2, thU, 1);
+  var qN = frameDefSegToWallBodyQuadOutlineWorld(p1, p2, thU, -1);
+  if (!qP || qP.length < 4 || !qN || qN.length < 4) return out;
+  var cP = frameDef2aV2QuadGridPerHatchOverlapAreas(qP, hatchBBoxList, gn, hatchIdxWhitelist);
+  var cN = frameDef2aV2QuadGridPerHatchOverlapAreas(qN, hatchBBoxList, gn, hatchIdxWhitelist);
+  var nh = hatchBBoxList.length;
+  var idxs = [];
+  if (hatchIdxWhitelist && hatchIdxWhitelist.length) {
+    var seen = {};
+    for (var iw = 0; iw < hatchIdxWhitelist.length; iw++) {
+      var ix = hatchIdxWhitelist[iw];
+      if (typeof ix !== 'number' || ix < 0 || ix >= nh || seen[ix]) continue;
+      seen[ix] = 1;
+      idxs.push(ix);
+    }
+  }
+  if (!idxs.length) for (var ii = 0; ii < nh; ii++) idxs.push(ii);
+  function areaAt(c, idx) {
+    if (!c || !c.tot || !c.areas || idx < 0 || idx >= c.areas.length) return 0;
+    return (Number(c.areas[idx]) || 0) / c.tot * c.aFull;
+  }
+  for (var k = 0; k < idxs.length; k++) {
+    var hidx = idxs[k];
+    var ap = areaAt(cP, hidx);
+    var an = areaAt(cN, hidx);
+    if (ap > out.maxPlusMm2 + 1e-6 || (Math.abs(ap - out.maxPlusMm2) <= 1e-6 && (out.maxPlusIdx < 0 || hidx < out.maxPlusIdx))) {
+      out.maxPlusMm2 = ap;
+      out.maxPlusIdx = hidx;
+    }
+    if (an > out.maxMinusMm2 + 1e-6 || (Math.abs(an - out.maxMinusMm2) <= 1e-6 && (out.maxMinusIdx < 0 || hidx < out.maxMinusIdx))) {
+      out.maxMinusMm2 = an;
+      out.maxMinusIdx = hidx;
+    }
+  }
+  out.quadAreaPlusMm2 = Number(cP && cP.aFull) || 0;
+  out.quadAreaMinusMm2 = Number(cN && cN.aFull) || 0;
+  out.coveragePlus = out.quadAreaPlusMm2 > 1e-9 ? (out.maxPlusMm2 / out.quadAreaPlusMm2) : 0;
+  out.coverageMinus = out.quadAreaMinusMm2 > 1e-9 ? (out.maxMinusMm2 / out.quadAreaMinusMm2) : 0;
+  return out;
+}
+
 /** 원천 세그에 대해 +1 / -1 법선 쪽 평행 맞은편 후보를 **한 번의 원천 스캔**으로 구함(이중 opposite 호출 대비). */
 function frameDef2aV2FindParallelOppositesBothSigns(seg, sourceSegs, segIndex) {
   var out = { bestP: null, bestN: null };
@@ -10810,6 +10877,12 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
     var dbgDualOvNearN = null;
     var dbgDualOvPickP = null;
     var dbgDualOvPickN = null;
+    var dbgDualOvNearPIdx = -1;
+    var dbgDualOvNearNIdx = -1;
+    var dbgDualOvFullPIdx = -1;
+    var dbgDualOvFullNIdx = -1;
+    var dbgDualOvPickPIdx = -1;
+    var dbgDualOvPickNIdx = -1;
     var dbgDualNearCount = 0;
     var dbgDualUsedNear = false;
     var dbgDualUsedGlobalFallback = false;
@@ -10818,7 +10891,7 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
     var dbgHatchSign = null;
     var dbgDualResPath = null;
     if (useCadHatchInward && hatchBBox2aV2.length >= 1 && typeof frameDef2aV2OppositeBoundaryResolved === 'function'
-        && typeof frameDef2aV2PerHatchOverlapDbg === 'function') {
+        && typeof frameDef2aV2MaxSingleHatchOverlapDbg === 'function') {
       var dualGn = (typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_DUAL_COMPARE_GRID === 'number' && FRAME_DEF_STEP2A_V2_CAD_HATCH_DUAL_COMPARE_GRID >= 2)
         ? Math.min(16, Math.floor(FRAME_DEF_STEP2A_V2_CAD_HATCH_DUAL_COMPARE_GRID)) : 5;
       var fb = (typeof frameDef2aV2FindParallelOppositesBothSigns === 'function')
@@ -10842,18 +10915,22 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
       var nearIdx = (typeof frameDef2aV2HatchIndicesNearSeg === 'function')
         ? frameDef2aV2HatchIndicesNearSeg(sg.p1, sg.p2, thFull, hatchBBox2aV2, nearPad) : null;
       dbgDualNearCount = (nearIdx && nearIdx.length) ? nearIdx.length : 0;
-      var dualDbgNear = frameDef2aV2PerHatchOverlapDbg(sg.p1, sg.p2, thFull, hatchBBox2aV2, dualGn, nearIdx);
-      var dualDbgAll = (nearIdx && nearIdx.length)
-        ? frameDef2aV2PerHatchOverlapDbg(sg.p1, sg.p2, thFull, hatchBBox2aV2, dualGn, null)
-        : dualDbgNear;
-      var oPosNear = dualDbgNear ? Number(dualDbgNear.totalP) : NaN;
-      var oNegNear = dualDbgNear ? Number(dualDbgNear.totalN) : NaN;
-      var oPosAll = dualDbgAll ? Number(dualDbgAll.totalP) : NaN;
-      var oNegAll = dualDbgAll ? Number(dualDbgAll.totalN) : NaN;
+      var dualMaxNear = frameDef2aV2MaxSingleHatchOverlapDbg(sg.p1, sg.p2, thFull, hatchBBox2aV2, dualGn, nearIdx);
+      var dualMaxAll = (nearIdx && nearIdx.length)
+        ? frameDef2aV2MaxSingleHatchOverlapDbg(sg.p1, sg.p2, thFull, hatchBBox2aV2, dualGn, null)
+        : dualMaxNear;
+      var oPosNear = dualMaxNear ? Number(dualMaxNear.maxPlusMm2) : NaN;
+      var oNegNear = dualMaxNear ? Number(dualMaxNear.maxMinusMm2) : NaN;
+      var oPosAll = dualMaxAll ? Number(dualMaxAll.maxPlusMm2) : NaN;
+      var oNegAll = dualMaxAll ? Number(dualMaxAll.maxMinusMm2) : NaN;
       dbgDualOvNearP = isFinite(oPosNear) ? oPosNear : null;
       dbgDualOvNearN = isFinite(oNegNear) ? oNegNear : null;
       dbgDualOvFullP = isFinite(oPosAll) ? oPosAll : null;
       dbgDualOvFullN = isFinite(oNegAll) ? oNegAll : null;
+      dbgDualOvNearPIdx = dualMaxNear && typeof dualMaxNear.maxPlusIdx === 'number' ? dualMaxNear.maxPlusIdx : -1;
+      dbgDualOvNearNIdx = dualMaxNear && typeof dualMaxNear.maxMinusIdx === 'number' ? dualMaxNear.maxMinusIdx : -1;
+      dbgDualOvFullPIdx = dualMaxAll && typeof dualMaxAll.maxPlusIdx === 'number' ? dualMaxAll.maxPlusIdx : -1;
+      dbgDualOvFullNIdx = dualMaxAll && typeof dualMaxAll.maxMinusIdx === 'number' ? dualMaxAll.maxMinusIdx : -1;
       var hasNear = !!(nearIdx && nearIdx.length);
       var nearPeak = Math.max(isFinite(oPosNear) ? oPosNear : 0, isFinite(oNegNear) ? oNegNear : 0);
       var allPeak = Math.max(isFinite(oPosAll) ? oPosAll : 0, isFinite(oNegAll) ? oNegAll : 0);
@@ -10862,8 +10939,12 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
       dbgDualUsedNear = hasNear && !useAllFallback;
       var oPos = useAllFallback ? oPosAll : oPosNear;
       var oNeg = useAllFallback ? oNegAll : oNegNear;
+      var oPosIdx = useAllFallback ? dbgDualOvFullPIdx : dbgDualOvNearPIdx;
+      var oNegIdx = useAllFallback ? dbgDualOvFullNIdx : dbgDualOvNearNIdx;
       dbgDualOvPickP = isFinite(oPos) ? oPos : null;
       dbgDualOvPickN = isFinite(oNeg) ? oNeg : null;
+      dbgDualOvPickPIdx = typeof oPosIdx === 'number' ? oPosIdx : -1;
+      dbgDualOvPickNIdx = typeof oNegIdx === 'number' ? oNegIdx : -1;
       var winOvP = isFinite(oPos) && oPos >= minHm;
       var winOvN = isFinite(oNeg) && oNeg >= minHm;
       var hatchSign = null;
@@ -10904,17 +10985,23 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
             dualHatchChosen: !!dualHatchChosen,
             dualOvPos_mm2: dbgDualOvFullP,
             dualOvNeg_mm2: dbgDualOvFullN,
+            dualOvPos_hatchIdx: dbgDualOvFullPIdx,
+            dualOvNeg_hatchIdx: dbgDualOvFullNIdx,
             dualOvNearPos_mm2: dbgDualOvNearP,
             dualOvNearNeg_mm2: dbgDualOvNearN,
+            dualOvNearPos_hatchIdx: dbgDualOvNearPIdx,
+            dualOvNearNeg_hatchIdx: dbgDualOvNearNIdx,
             dualOvPickPos_mm2: dbgDualOvPickP,
             dualOvPickNeg_mm2: dbgDualOvPickN,
+            dualOvPickPos_hatchIdx: dbgDualOvPickPIdx,
+            dualOvPickNeg_hatchIdx: dbgDualOvPickNIdx,
             dualNearCount: dbgDualNearCount,
             dualUsedNear: dbgDualUsedNear,
             dualUsedGlobalFallback: dbgDualUsedGlobalFallback,
             hatchSign: dbgHatchSign,
             dbgDualResPath: dbgDualResPath,
             leftNormalWorld: { nx: _gnx, ny: _gny },
-            note: 'dual 경로: +1/-1 겹침 비교(근처 해치 우선, 부족하면 전체 해치 fallback). hatchSign 1이면 +1 쪽이 우세.'
+            note: 'dual 경로: +1/-1에서 충돌한 해치 중 최대 겹침(mm²) 비교(근처 우선, 부족하면 전체 fallback).'
           };
         }
       } catch (eFd) {}
@@ -11009,11 +11096,32 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
     var oQuadBase = NaN, oQuadAltV = NaN;
     if (useCadHatchInward && hatchBBox2aV2.length >= 1 && typeof frameDefSegToWallBodyQuadOutlineWorld === 'function') {
       var quadAlt = frameDefSegToWallBodyQuadOutlineWorld(p1w0, p2w0, thUse0, -quadSgn0);
-      if (quadAlt && quadAlt.length >= 4 && typeof frameDef2aV2QuadHatchOverlapAreaGrid === 'function') {
+      if (quadAlt && quadAlt.length >= 4) {
         var pgR = (typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_PICK_GRID === 'number' && FRAME_DEF_STEP2A_V2_CAD_HATCH_PICK_GRID >= 2)
           ? Math.min(16, Math.floor(FRAME_DEF_STEP2A_V2_CAD_HATCH_PICK_GRID)) : 6;
-        var oBase = frameDef2aV2QuadHatchOverlapAreaGrid(quad, hatchBBox2aV2, pgR);
-        var oAlt = frameDef2aV2QuadHatchOverlapAreaGrid(quadAlt, hatchBBox2aV2, pgR);
+        var oBase = NaN, oAlt = NaN;
+        if (typeof frameDef2aV2MaxSingleHatchOverlapDbg === 'function') {
+          var nearPadQ = (typeof FRAME_DEF_STEP2A_V2_DEBUG_LABEL_HATCH_BBOX_PAD_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DEBUG_LABEL_HATCH_BBOX_PAD_MM))
+            ? FRAME_DEF_STEP2A_V2_DEBUG_LABEL_HATCH_BBOX_PAD_MM : 120;
+          var nearIdxQ = (typeof frameDef2aV2HatchIndicesNearSeg === 'function')
+            ? frameDef2aV2HatchIndicesNearSeg(p1w0, p2w0, thUse0, hatchBBox2aV2, nearPadQ, sg && sg.p1, sg && sg.p2) : null;
+          var qMax = frameDef2aV2MaxSingleHatchOverlapDbg(p1w0, p2w0, thUse0, hatchBBox2aV2, pgR, nearIdxQ);
+          if (qMax) {
+            var mPlus = Number(qMax.maxPlusMm2) || 0;
+            var mMinus = Number(qMax.maxMinusMm2) || 0;
+            oBase = quadSgn0 >= 0 ? mPlus : mMinus;
+            oAlt = quadSgn0 >= 0 ? mMinus : mPlus;
+          }
+        }
+        if (!isFinite(oBase) || !isFinite(oAlt)) {
+          if (typeof frameDef2aV2QuadHatchOverlapAreaGrid === 'function') {
+            oBase = frameDef2aV2QuadHatchOverlapAreaGrid(quad, hatchBBox2aV2, pgR);
+            oAlt = frameDef2aV2QuadHatchOverlapAreaGrid(quadAlt, hatchBBox2aV2, pgR);
+          } else {
+            oBase = 0;
+            oAlt = 0;
+          }
+        }
         oQuadBase = oBase;
         oQuadAltV = oAlt;
         var mxO = Math.max(oBase, oAlt);
@@ -11042,7 +11150,7 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
             oBase_mm2: oQuadBase,
             oAlt_mm2: oQuadAltV,
             quadSgnFinal: quadSgn0,
-            note: '맞은편 확정 후 쿼드: 격자 해치 겹침 큰 쪽 우선; 동률일 때만 inner-edge 중점이 해치 안에 있는 쪽'
+            note: '맞은편 확정 후 쿼드: 충돌 해치 중 최대 겹침 기준 우선(근처 해치), 동률일 때만 inner-edge 중점 보조'
           };
         }
       } catch (eQr) {}
@@ -11100,6 +11208,7 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
       __step2aOutlineInwardSign: quadSgn0,
       __step2aDualSignEval: {
         enabled: useCadHatchInward && hatchBBox2aV2.length >= 1,
+        scoreRule: 'max-single-hatch',
         posResolvedOk: dbgDualPosOk,
         negResolvedOk: dbgDualNegOk,
         nearHatchCount: dbgDualNearCount,
@@ -11107,10 +11216,16 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
         usedGlobalFallback: dbgDualUsedGlobalFallback,
         overlapPickPlusMm2: dbgDualOvPickP,
         overlapPickMinusMm2: dbgDualOvPickN,
+        overlapPickPlusHatchIdx: dbgDualOvPickPIdx,
+        overlapPickMinusHatchIdx: dbgDualOvPickNIdx,
         overlapNearPlusMm2: dbgDualOvNearP,
         overlapNearMinusMm2: dbgDualOvNearN,
+        overlapNearPlusHatchIdx: dbgDualOvNearPIdx,
+        overlapNearMinusHatchIdx: dbgDualOvNearNIdx,
         overlapAllPlusMm2: dbgDualOvFullP,
         overlapAllMinusMm2: dbgDualOvFullN,
+        overlapAllPlusHatchIdx: dbgDualOvFullPIdx,
+        overlapAllMinusHatchIdx: dbgDualOvFullNIdx,
         hatchSign: dbgHatchSign,
         path: dbgDualResPath
       },
@@ -23723,16 +23838,28 @@ function frameDefDrawDebugStep2aHatchOverlapLabels() {
     var cs = dbg.chosenSign;
     var csTxt = (cs === 1) ? '+1' : (cs === -1 ? '\u22121' : '?');
     var csCol = cs === 1 ? '#5eead4' : (cs === -1 ? '#fcd34d' : '#cbd5e1');
+    var dualEval = wall.__step2aDualSignEval && typeof wall.__step2aDualSignEval === 'object' ? wall.__step2aDualSignEval : null;
     var chosenOv = (cs === -1) ? totN : totP;
     var oppositeOv = (cs === -1) ? totP : totN;
     var chosenCov = (cs === -1) ? covN : covP;
     var oppositeCov = (cs === -1) ? covP : covN;
-    var dom = totP >= totN ? 1 : -1;
-    var signMismatch = (cs === 1 || cs === -1) && cs !== dom && Math.max(totP, totN) > 1e-3;
-    var weakOverlap = chosenOv < 120 || chosenCov < 0.04;
-    var statusTxt = weakOverlap ? '주의(겹침 약함)' : (signMismatch ? '주의(방향 불일치)' : '정상');
+    var scorePlus = (dualEval && dualEval.enabled && isFinite(Number(dualEval.overlapPickPlusMm2))) ? Number(dualEval.overlapPickPlusMm2) : totP;
+    var scoreMinus = (dualEval && dualEval.enabled && isFinite(Number(dualEval.overlapPickMinusMm2))) ? Number(dualEval.overlapPickMinusMm2) : totN;
+    var scoreChosen = (cs === -1) ? scoreMinus : scorePlus;
+    var scoreOpposite = (cs === -1) ? scorePlus : scoreMinus;
+    var scoreChosenCov = (cs === -1)
+      ? (areaN > 1e-9 ? (scoreChosen / areaN) : 0)
+      : (areaP > 1e-9 ? (scoreChosen / areaP) : 0);
+    if (scoreChosenCov < 0) scoreChosenCov = 0; if (scoreChosenCov > 1.2) scoreChosenCov = 1.2;
+    var scoreDom = scorePlus >= scoreMinus ? 1 : -1;
+    var signMismatch = (cs === 1 || cs === -1) && cs !== scoreDom && Math.max(scorePlus, scoreMinus) > 1e-3;
+    var weakOverlap = scoreChosen < 120 || scoreChosenCov < 0.02;
+    var statusTxt = weakOverlap ? '주의(최대해치 겹침 약함)' : (signMismatch ? '주의(방향 불일치)' : '정상');
     var statusCol = weakOverlap || signMismatch ? '#fb923c' : '#34d399';
-    var dualEval = wall.__step2aDualSignEval && typeof wall.__step2aDualSignEval === 'object' ? wall.__step2aDualSignEval : null;
+    var pickPlusIdx = dualEval && typeof dualEval.overlapPickPlusHatchIdx === 'number' ? dualEval.overlapPickPlusHatchIdx : -1;
+    var pickMinusIdx = dualEval && typeof dualEval.overlapPickMinusHatchIdx === 'number' ? dualEval.overlapPickMinusHatchIdx : -1;
+    var pickChosenIdx = (cs === -1) ? pickMinusIdx : pickPlusIdx;
+    var pickOppIdx = (cs === -1) ? pickPlusIdx : pickMinusIdx;
     var dualModeTxt = '미비교';
     var dualModeCol = '#94a3b8';
     if (dualEval && dualEval.enabled) {
@@ -23757,6 +23884,12 @@ function frameDefDrawDebugStep2aHatchOverlapLabels() {
       { t: dualModeTxt, c: dualModeCol },
       { t: ' | 선택 ', c: '#94a3b8' },
       { t: csTxt, c: csCol },
+      { t: ' | 최대해치 선택 ', c: '#94a3b8' },
+      { t: fmtMm2(scoreChosen), c: '#fca5a5' },
+      { t: (pickChosenIdx >= 0 ? ('(#' + String(pickChosenIdx) + ')') : ''), c: '#cbd5e1' },
+      { t: ' | 최대해치 반대 ', c: '#94a3b8' },
+      { t: fmtMm2(scoreOpposite), c: '#94a3b8' },
+      { t: (pickOppIdx >= 0 ? ('(#' + String(pickOppIdx) + ')') : ''), c: '#cbd5e1' },
       { t: ' | \u03a3선택 ', c: '#94a3b8' },
       { t: fmtMm2(chosenOv), c: '#fca5a5' },
       { t: ' (' + fmtPct01(chosenCov) + ')', c: '#cbd5e1' },

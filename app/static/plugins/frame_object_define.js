@@ -10622,8 +10622,39 @@ function frameDef2aV2PerHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBoxList, 
 }
 
 /**
+ * 벽 쿼드와 단일 해치의 교집합 면적(mm²).
+ * - 우선 Sutherland-Hodgman(면적 교집합)으로 계산.
+ * - 해치가 비볼록이면 convex hull 보조 시도.
+ * - 실패 시 0(= 맞닿음/미겹침으로 취급) 반환.
+ */
+function frameDef2aV2QuadSingleHatchOverlapAreaMm2(quad4, hatchEnt) {
+  if (!quad4 || quad4.length < 4 || !hatchEnt || !Array.isArray(hatchEnt.pts) || hatchEnt.pts.length < 3) return -1;
+  if (typeof frameDef2aV2SutherlandHodgman !== 'function' || typeof frameDefPolygonAreaAbs !== 'function') return -1;
+  var raw = hatchEnt.pts;
+  var tryPolys = [raw];
+  if (!frameDef2aV2PolygonConvexByCross(raw) && typeof frameDefConvexHull === 'function') {
+    var hull = frameDefConvexHull(raw);
+    if (hull && hull.length >= 3) tryPolys.push(hull);
+  }
+  var canCompute = false;
+  var best = 0;
+  for (var ti = 0; ti < tryPolys.length; ti++) {
+    var cp = tryPolys[ti];
+    if (!cp || cp.length < 3 || !frameDef2aV2PolygonConvexByCross(cp)) continue;
+    canCompute = true;
+    var out = frameDef2aV2SutherlandHodgman(quad4, cp);
+    if (!out || out.length < 3) continue;
+    var ar = Number(frameDefPolygonAreaAbs(out)) || 0;
+    if (ar > best) best = ar;
+  }
+  if (!canCompute) return -1;
+  return best > 1e-9 ? best : 0;
+}
+
+/**
  * 방향 판정 전용: +1/-1 각각에서 **충돌한 해치 중 최대 겹침(mm²)**만 추린다.
  * - 사용자 요구사항: Σ 합집합이 아니라 "양쪽 방향의 충돌 객체 중 가장 큰 해치" 기준으로 비교.
+ * - 점수는 "맞닿음"이 아닌 **면적 교집합(mm²)**으로 계산.
  * - `hatchIdxWhitelist`가 있으면 근처 해치만, 없으면 전체 해치에서 최대값 계산.
  */
 function frameDef2aV2MaxSingleHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBoxList, gridDivOverride, hatchIdxWhitelist) {
@@ -10664,14 +10695,19 @@ function frameDef2aV2MaxSingleHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBox
     }
   }
   if (!idxs.length) for (var ii = 0; ii < nh; ii++) idxs.push(ii);
-  function areaAt(c, idx) {
+  function areaAtGrid(c, idx) {
     if (!c || !c.tot || !c.areas || idx < 0 || idx >= c.areas.length) return 0;
     return (Number(c.areas[idx]) || 0) / c.tot * c.aFull;
   }
   for (var k = 0; k < idxs.length; k++) {
     var hidx = idxs[k];
-    var ap = areaAt(cP, hidx);
-    var an = areaAt(cN, hidx);
+    var hb = hatchBBoxList[hidx];
+    var apClip = frameDef2aV2QuadSingleHatchOverlapAreaMm2(qP, hb);
+    var anClip = frameDef2aV2QuadSingleHatchOverlapAreaMm2(qN, hb);
+    // 교집합 자체를 우선 사용(면적=0이면 '맞닿음/미겹침'으로 유지).
+    // clip 계산이 불가능한 경우(<0)만 grid 보조값 사용.
+    var ap = apClip >= 0 ? apClip : areaAtGrid(cP, hidx);
+    var an = anClip >= 0 ? anClip : areaAtGrid(cN, hidx);
     if (ap > out.maxPlusMm2 + 1e-6 || (Math.abs(ap - out.maxPlusMm2) <= 1e-6 && (out.maxPlusIdx < 0 || hidx < out.maxPlusIdx))) {
       out.maxPlusMm2 = ap;
       out.maxPlusIdx = hidx;
@@ -10681,8 +10717,8 @@ function frameDef2aV2MaxSingleHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBox
       out.maxMinusIdx = hidx;
     }
   }
-  out.quadAreaPlusMm2 = Number(cP && cP.aFull) || 0;
-  out.quadAreaMinusMm2 = Number(cN && cN.aFull) || 0;
+  out.quadAreaPlusMm2 = Number(cP && cP.aFull) || (typeof frameDefPolygonAreaAbs === 'function' ? Number(frameDefPolygonAreaAbs(qP)) || 0 : 0);
+  out.quadAreaMinusMm2 = Number(cN && cN.aFull) || (typeof frameDefPolygonAreaAbs === 'function' ? Number(frameDefPolygonAreaAbs(qN)) || 0 : 0);
   out.coveragePlus = out.quadAreaPlusMm2 > 1e-9 ? (out.maxPlusMm2 / out.quadAreaPlusMm2) : 0;
   out.coverageMinus = out.quadAreaMinusMm2 > 1e-9 ? (out.maxMinusMm2 / out.quadAreaMinusMm2) : 0;
   return out;

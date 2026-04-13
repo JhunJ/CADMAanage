@@ -171,6 +171,12 @@ var FRAME_DEF_STEP2A_V2_DEBUG_LABEL_ZERO_FALLBACK_THRESHOLD_MM2 = 0.5;
 var FRAME_DEF_STEP2A_V2_DEBUG_LABEL_INHERIT_PARALLEL = false;
 /** true면 2a 방향 판정 시 "최대해치"는 면적 교집합 성공값만 사용(경계 접촉/격자 fallback 제외). */
 var FRAME_DEF_STEP2A_V2_STRICT_AREA_OVERLAP_ONLY = true;
+/** true 권장: 2a 디버그 빠른 모드 기본값(라벨 계산 단순화·근처 해치 우선) */
+var FRAME_DEF_STEP2A_V2_DEBUG_FAST_MODE_DEFAULT = true;
+/** 빠른 모드에서 라벨 격자 분할(작을수록 빠름) */
+var FRAME_DEF_STEP2A_V2_DEBUG_FAST_LABEL_GRID = 4;
+/** 2a 디버그: 양방향(+/-) 후보 해치 미리보기 최대 표시 벽 수(프레임 드랍 방지). */
+var FRAME_DEF_STEP2A_V2_DUAL_DIR_DRAW_MAX_WALLS = 420;
 /** 병렬 스트립 허용 최대 이격(mm) — 한 축에 쌓인 조각·옆 트랙 */
 var FRAME_DEF_STEP2A_V2_DEBUG_LABEL_INHERIT_STRIP_MAX_MM = 1200;
 /** 이 값(mm²) 미만이면 ‘약한’ 라벨로 보고 이웃에서 상속 시도 */
@@ -1416,6 +1422,14 @@ function frameDefRenderDebugPanel() {
       if (typeof draw === 'function') draw();
     };
   }
+  var step2aDualCandChk = document.getElementById('frameDefDebugStep2aDualCandidatesChk');
+  if (step2aDualCandChk) {
+    step2aDualCandChk.onchange = function() {
+      var s = frameDefGetState();
+      s.debugStep2aShowDualCandidates = !!step2aDualCandChk.checked;
+      if (typeof draw === 'function') draw();
+    };
+  }
   var step2bCnnChk = document.getElementById('frameDefDebugStep2bCnnChk');
   if (step2bCnnChk) {
     step2bCnnChk.onchange = function() {
@@ -1639,6 +1653,7 @@ function frameDefGetState() {
   if (window.frameDefState.debugStep2aShowStep2Segs !== true && window.frameDefState.debugStep2aShowStep2Segs !== false) window.frameDefState.debugStep2aShowStep2Segs = false;
   if (window.frameDefState.debugStep2aShowWallSegMidLinks !== true && window.frameDefState.debugStep2aShowWallSegMidLinks !== false) window.frameDefState.debugStep2aShowWallSegMidLinks = false;
   if (window.frameDefState.debugStep2aShowHatchOverlapLabels !== true && window.frameDefState.debugStep2aShowHatchOverlapLabels !== false) window.frameDefState.debugStep2aShowHatchOverlapLabels = false;
+  if (window.frameDefState.debugStep2aShowDualCandidates !== true && window.frameDefState.debugStep2aShowDualCandidates !== false) window.frameDefState.debugStep2aShowDualCandidates = false;
   if (window.frameDefState.debugStep11ShowHatch !== true && window.frameDefState.debugStep11ShowHatch !== false) window.frameDefState.debugStep11ShowHatch = false;
   if (window.frameDefState.debugStep111ShowHatch !== true && window.frameDefState.debugStep111ShowHatch !== false) window.frameDefState.debugStep111ShowHatch = false;
   if (window.frameDefState.debugStep112ShowHatch !== true && window.frameDefState.debugStep112ShowHatch !== false) window.frameDefState.debugStep112ShowHatch = false;
@@ -10629,9 +10644,15 @@ function frameDef2aV2PerHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBoxList, 
  * - 해치가 비볼록이면 convex hull 보조 시도.
  * - 실패 시 0(= 맞닿음/미겹침으로 취급) 반환.
  */
-function frameDef2aV2QuadSingleHatchOverlapAreaMm2(quad4, hatchEnt) {
+function frameDef2aV2QuadSingleHatchOverlapAreaMm2(quad4, hatchEnt, quadBBoxOpt) {
   if (!quad4 || quad4.length < 4 || !hatchEnt || !Array.isArray(hatchEnt.pts) || hatchEnt.pts.length < 3) return -1;
   if (typeof frameDef2aV2SutherlandHodgman !== 'function' || typeof frameDefPolygonAreaAbs !== 'function') return -1;
+  if (typeof frameDef2aV2BBoxIntersects2d === 'function') {
+    var qb = quadBBoxOpt || (typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(quad4) : null);
+    var hb = (hatchEnt.minx != null && hatchEnt.miny != null && hatchEnt.maxx != null && hatchEnt.maxy != null)
+      ? { minx: hatchEnt.minx, miny: hatchEnt.miny, maxx: hatchEnt.maxx, maxy: hatchEnt.maxy } : null;
+    if (qb && hb && !frameDef2aV2BBoxIntersects2d(qb, hb)) return 0;
+  }
   var raw = hatchEnt.pts;
   var tryPolys = [raw];
   if (!frameDef2aV2PolygonConvexByCross(raw) && typeof frameDefConvexHull === 'function') {
@@ -10672,8 +10693,7 @@ function frameDef2aV2MaxSingleHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBox
     grid: 3
   };
   if (!p1 || !p2 || !Array.isArray(hatchBBoxList) || !hatchBBoxList.length
-      || typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function'
-      || typeof frameDef2aV2QuadGridPerHatchOverlapAreas !== 'function') return out;
+      || typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function') return out;
   var thU = Math.max(FRAME_DEF_WALL_MIN_THICKNESS_MM, Math.min(FRAME_DEF_WALL_MAX_THICKNESS_MM, Number(thicknessFullMm) || 170));
   var gn = (typeof gridDivOverride === 'number' && gridDivOverride >= 2)
     ? Math.min(16, Math.floor(gridDivOverride))
@@ -10683,8 +10703,14 @@ function frameDef2aV2MaxSingleHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBox
   var qP = frameDefSegToWallBodyQuadOutlineWorld(p1, p2, thU, 1);
   var qN = frameDefSegToWallBodyQuadOutlineWorld(p1, p2, thU, -1);
   if (!qP || qP.length < 4 || !qN || qN.length < 4) return out;
-  var cP = frameDef2aV2QuadGridPerHatchOverlapAreas(qP, hatchBBoxList, gn, hatchIdxWhitelist);
-  var cN = frameDef2aV2QuadGridPerHatchOverlapAreas(qN, hatchBBoxList, gn, hatchIdxWhitelist);
+  var strictAreaOnly = typeof FRAME_DEF_STEP2A_V2_STRICT_AREA_OVERLAP_ONLY !== 'boolean' || FRAME_DEF_STEP2A_V2_STRICT_AREA_OVERLAP_ONLY;
+  var cP = null, cN = null;
+  if (!strictAreaOnly && typeof frameDef2aV2QuadGridPerHatchOverlapAreas === 'function') {
+    cP = frameDef2aV2QuadGridPerHatchOverlapAreas(qP, hatchBBoxList, gn, hatchIdxWhitelist);
+    cN = frameDef2aV2QuadGridPerHatchOverlapAreas(qN, hatchBBoxList, gn, hatchIdxWhitelist);
+  }
+  var qbP = typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(qP) : null;
+  var qbN = typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(qN) : null;
   var nh = hatchBBoxList.length;
   var idxs = [];
   if (hatchIdxWhitelist && hatchIdxWhitelist.length) {
@@ -10704,12 +10730,19 @@ function frameDef2aV2MaxSingleHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBox
   for (var k = 0; k < idxs.length; k++) {
     var hidx = idxs[k];
     var hb = hatchBBoxList[hidx];
-    var apClip = frameDef2aV2QuadSingleHatchOverlapAreaMm2(qP, hb);
-    var anClip = frameDef2aV2QuadSingleHatchOverlapAreaMm2(qN, hb);
+    var apClip = frameDef2aV2QuadSingleHatchOverlapAreaMm2(qP, hb, qbP);
+    var anClip = frameDef2aV2QuadSingleHatchOverlapAreaMm2(qN, hb, qbN);
     // 교집합 자체를 우선 사용(면적=0이면 '맞닿음/미겹침'으로 유지).
     // clip 계산이 불가능한 경우(<0)만 grid 보조값 사용.
-    var ap = apClip >= 0 ? apClip : areaAtGrid(cP, hidx);
-    var an = anClip >= 0 ? anClip : areaAtGrid(cN, hidx);
+    var ap = apClip;
+    var an = anClip;
+    if (!strictAreaOnly) {
+      if (ap < 0) ap = areaAtGrid(cP, hidx);
+      if (an < 0) an = areaAtGrid(cN, hidx);
+    } else {
+      if (ap < 0) ap = 0;
+      if (an < 0) an = 0;
+    }
     if (ap > out.maxPlusMm2 + 1e-6 || (Math.abs(ap - out.maxPlusMm2) <= 1e-6 && (out.maxPlusIdx < 0 || hidx < out.maxPlusIdx))) {
       out.maxPlusMm2 = ap;
       out.maxPlusIdx = hidx;
@@ -23180,7 +23213,7 @@ function frameDefDrawStep2bTrainLabelOverlays() {
 function frameDefDrawPreviewOverlays() {
   var st = typeof frameDefGetState === 'function' ? frameDefGetState() : {};
   var frameFeatureActive = (typeof selectedFeatureId === 'undefined' || selectedFeatureId === 'frame-object-define');
-  var force2aDebugDraw = st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true;
+  var force2aDebugDraw = st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true;
   /** 미리보기 끔에도 해치 ±겹침 라벨은 표시(캔버스 상단 오버레이와 동일 경로). */
   var allowWhenPreviewOff = st.debugStep2aShowHatchOverlapLabels === true;
   if (st.previewVisible === false && !allowWhenPreviewOff) return;
@@ -23188,7 +23221,7 @@ function frameDefDrawPreviewOverlays() {
   var groups = frameDefPreviewGroups();
   var _lblMap = st.step2bTrainLabelsByWallKey;
   var _hasTrainLbl = _lblMap && typeof _lblMap === 'object' && !Array.isArray(_lblMap) && Object.keys(_lblMap).length > 0;
-  var hasExtras = (st.showGapIssues !== false) || !!st.selectedWallKey || !!st.editSnapGuide || (st.gapIssues && st.gapIssues.length) || st.debugStep2ShowHatch === true || st.debugStep21ShowHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2bShowCnn === true || st.debugStep2bShowXgb === true || st.debugStep2bShowRf === true || st.debugStep2bShowMlp === true || st.debugStep2bShowGnn === true || st.step2bTrainPickMode === true || _hasTrainLbl || st.debugStep11ShowHatch === true || st.debugStep111ShowHatch === true || st.debugStep112ShowHatch === true || st.debugStep113ShowHatch === true || st.debugStep114ShowHatch === true || st.debugStep115ShowHatch === true || st.debugStep116ShowHatch === true || st.debugStep121ShowHatch === true || st.debugStep122ShowHatch === true || st.debugStep123ShowHatch === true || st.debugStep123ShowPreSwapHatch === true || st.debugStep124ShowHatch === true || st.debugStep124ShowSplitCandidates === true || st.debugStep124ShowInteriorStep2 === true || st.debugStep124ShowInteriorStep3 === true || st.debugStep124ShowInteriorStep4 === true || st.debugStep124ShowInteriorStep5 === true || st.debugStep124ShowInteriorStep6 === true || st.debugStep124ShowInteriorStep7 === true || st.debugStep1240Show114Hatch === true;
+  var hasExtras = (st.showGapIssues !== false) || !!st.selectedWallKey || !!st.editSnapGuide || (st.gapIssues && st.gapIssues.length) || st.debugStep2ShowHatch === true || st.debugStep21ShowHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2bShowCnn === true || st.debugStep2bShowXgb === true || st.debugStep2bShowRf === true || st.debugStep2bShowMlp === true || st.debugStep2bShowGnn === true || st.step2bTrainPickMode === true || _hasTrainLbl || st.debugStep11ShowHatch === true || st.debugStep111ShowHatch === true || st.debugStep112ShowHatch === true || st.debugStep113ShowHatch === true || st.debugStep114ShowHatch === true || st.debugStep115ShowHatch === true || st.debugStep116ShowHatch === true || st.debugStep121ShowHatch === true || st.debugStep122ShowHatch === true || st.debugStep123ShowHatch === true || st.debugStep123ShowPreSwapHatch === true || st.debugStep124ShowHatch === true || st.debugStep124ShowSplitCandidates === true || st.debugStep124ShowInteriorStep2 === true || st.debugStep124ShowInteriorStep3 === true || st.debugStep124ShowInteriorStep4 === true || st.debugStep124ShowInteriorStep5 === true || st.debugStep124ShowInteriorStep6 === true || st.debugStep124ShowInteriorStep7 === true || st.debugStep1240Show114Hatch === true;
   if (!groups.length && !hasExtras) return;
   ctx.save(); ctx.font = '11px sans-serif';
   for (var i = 0; i < groups.length; i++) {
@@ -23210,6 +23243,7 @@ function frameDefDrawPreviewOverlays() {
   if (st.debugStep2ShowHatch === true) frameDefDrawDebugStep2PairHatches();
   if (st.debugStep21ShowHatch === true) frameDefDrawDebugStep21PairHatches();
   if (typeof frameDefDrawDebugStep2aWallHatches === 'function') frameDefDrawDebugStep2aWallHatches();
+  if (typeof frameDefDrawDebugStep2aDualCandidateHatches === 'function') frameDefDrawDebugStep2aDualCandidateHatches();
   if (typeof frameDefDrawDebugStep2aHatchOverlapLabels === 'function') frameDefDrawDebugStep2aHatchOverlapLabels();
   if (typeof frameDefDrawDebugStep2bWallHatches === 'function') frameDefDrawDebugStep2bWallHatches();
   if (typeof frameDefDrawDebugStep2aWallSegMidLinks === 'function') frameDefDrawDebugStep2aWallSegMidLinks();
@@ -23820,6 +23854,75 @@ function frameDefDrawDebugStep2aWallHatches() {
   frameDefDrawDebugWallHatchList(list, '#c026d3', { fillAlpha: 0.2, hatchAlpha: 0.34, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
 }
 
+/** 2a 후보 해치(+/-)를 모두 그려 비교(선택=초록, 비선택=빨강). */
+function frameDefDrawDebugStep2aDualCandidateHatches() {
+  var st = frameDefGetState();
+  if (st.debugStep2aShowDualCandidates !== true) return;
+  var list = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
+  if (!list.length || typeof toScreen !== 'function' || typeof frameDefDrawHatchPolygon !== 'function') return;
+  var optsSel = { fillAlpha: 0.11, hatchAlpha: 0.28, step: FRAME_DEF_DEBUG_HATCH_STEP_PX };
+  var optsOpp = { fillAlpha: 0.08, hatchAlpha: 0.20, step: FRAME_DEF_DEBUG_HATCH_STEP_PX };
+  for (var wi = 0; wi < list.length; wi++) {
+    var wall = list[wi];
+    if (!wall || !wall.seg_a || !wall.seg_a.p1 || !wall.seg_a.p2) continue;
+    var dual = wall.__step2aDualSignEval;
+    if (!dual || dual.enabled !== true) continue;
+    var th = Number(wall.thickness_mm);
+    if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = 170;
+    var qP = frameDefSegToWallBodyQuadOutlineWorld(wall.seg_a.p1, wall.seg_a.p2, th, 1);
+    var qN = frameDefSegToWallBodyQuadOutlineWorld(wall.seg_a.p1, wall.seg_a.p2, th, -1);
+    if (!qP || qP.length < 4 || !qN || qN.length < 4) continue;
+    var cs = typeof wall.__step2aOutlineInwardSign === 'number' ? wall.__step2aOutlineInwardSign : 1;
+    var qSel = cs >= 0 ? qP : qN;
+    var qOpp = cs >= 0 ? qN : qP;
+    var scrSel = [], scrOpp = [];
+    for (var pi = 0; pi < qSel.length; pi++) { var s0 = toScreen(qSel[pi].x, qSel[pi].y); if (s0) scrSel.push(s0); }
+    for (var ni = 0; ni < qOpp.length; ni++) { var s1 = toScreen(qOpp[ni].x, qOpp[ni].y); if (s1) scrOpp.push(s1); }
+    if (scrOpp.length >= 3) frameDefDrawHatchPolygon(scrOpp, '#ef4444', optsOpp);
+    if (scrSel.length >= 3) frameDefDrawHatchPolygon(scrSel, '#22c55e', optsSel);
+  }
+}
+
+/** 2a: +방향/-방향 후보 벽을 둘 다 표시(선택 여부 색 구분). */
+function frameDefDrawDebugStep2aDualCandidateHatches() {
+  var st = frameDefGetState();
+  if (st.debugStep2aShowDualCandidates !== true) return;
+  var list = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
+  if (!list.length || typeof frameDefDrawDebugWallHatchList !== 'function') return;
+  var plusWalls = [];
+  var minusWalls = [];
+  for (var i = 0; i < list.length; i++) {
+    var w = list[i];
+    if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) continue;
+    var th = Number(w.thickness_mm);
+    if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = 170;
+    var qP = frameDefSegToWallBodyQuadOutlineWorld(w.seg_a.p1, w.seg_a.p2, th, 1);
+    var qN = frameDefSegToWallBodyQuadOutlineWorld(w.seg_a.p1, w.seg_a.p2, th, -1);
+    if (!qP || qP.length < 4 || !qN || qN.length < 4) continue;
+    var base = {
+      wall_id: w.wall_id || ('dual-' + String(i)),
+      kind: 'wall',
+      source: 'step2a-dual-cand',
+      seg_a: { p1: qP[0], p2: qP[1] },
+      seg_b: { p1: qP[3], p2: qP[2] }
+    };
+    var pRec = JSON.parse(JSON.stringify(base));
+    var nRec = JSON.parse(JSON.stringify(base));
+    pRec.seg_a = { p1: qP[0], p2: qP[1] };
+    pRec.seg_b = { p1: qP[3], p2: qP[2] };
+    nRec.seg_a = { p1: qN[0], p2: qN[1] };
+    nRec.seg_b = { p1: qN[3], p2: qN[2] };
+    var cs = Number(w.__step2aOutlineInwardSign) < 0 ? -1 : 1;
+    pRec.__dualChosen = (cs === 1);
+    nRec.__dualChosen = (cs === -1);
+    plusWalls.push(pRec);
+    minusWalls.push(nRec);
+  }
+  // +후보: 파랑, -후보: 주황 (선택된 쪽은 진하게)
+  frameDefDrawDebugWallHatchList(plusWalls, '#2563eb', { fillAlpha: 0.10, hatchAlpha: 0.18, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
+  frameDefDrawDebugWallHatchList(minusWalls, '#f59e0b', { fillAlpha: 0.10, hatchAlpha: 0.18, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
+}
+
 /** 2a: `__step2aHatchOverlapDbg` + `__step2aDualSignEval` — 양방향(+1/-1) 비교 여부, 선택/반대 겹침(mm²·%)과 판정(정상/주의) 표시. */
 function frameDefDrawDebugStep2aHatchOverlapLabels() {
   var st = frameDefGetState();
@@ -23962,29 +24065,19 @@ function frameDefDrawDebugStep2aHatchOverlapLabels() {
       if (dualEval.usedGlobalFallback && dualEval.usedNearForPick !== true) pickBaseTxt += '(fallback)';
     }
     var sumParts = [
-      { t: '양방향 ', c: '#94a3b8' },
-      { t: dualModeTxt, c: dualModeCol },
-      { t: ' | 선택 ', c: '#94a3b8' },
-      { t: csTxt, c: csCol },
-      { t: ' | 최대해치 선택 ', c: '#94a3b8' },
-      { t: fmtMm2(scoreChosen), c: '#fca5a5' },
+      { t: '[2a판정] ', c: '#94a3b8' },
+      { t: '비교=' + dualModeTxt, c: dualModeCol },
+      { t: ' | 선택=' + csTxt, c: csCol },
+      { t: ' | 선택면적=' + fmtMm2(scoreChosen), c: '#fca5a5' },
       { t: (pickChosenIdx >= 0 ? ('(#' + String(pickChosenIdx) + ')') : ''), c: '#cbd5e1' },
-      { t: ' | 최대해치 반대 ', c: '#94a3b8' },
-      { t: fmtMm2(scoreOpposite), c: '#94a3b8' },
+      { t: ' | 반대면적=' + fmtMm2(scoreOpposite), c: '#94a3b8' },
       { t: (pickOppIdx >= 0 ? ('(#' + String(pickOppIdx) + ')') : ''), c: '#cbd5e1' },
-      { t: ' | \u03a3선택 ', c: '#94a3b8' },
-      { t: fmtMm2(chosenOv), c: '#fca5a5' },
-      { t: ' (' + fmtPct01(chosenCov) + ')', c: '#cbd5e1' },
-      { t: ' | \u03a3반대 ', c: '#94a3b8' },
-      { t: fmtMm2(oppositeOv), c: '#94a3b8' },
-      { t: ' (' + fmtPct01(oppositeCov) + ')', c: '#cbd5e1' }
+      { t: ' | 결과=' + statusTxt, c: statusCol }
     ];
     if (pickBaseTxt) {
       sumParts.push({ t: ' | 기준 ', c: '#94a3b8' });
       sumParts.push({ t: pickBaseTxt, c: '#cbd5e1' });
     }
-    sumParts.push({ t: ' | 판정 ', c: '#94a3b8' });
-    sumParts.push({ t: statusTxt, c: statusCol });
     drawPartsStroke(x0, y0, sumParts);
     var yy = y0 + 13;
     var rows = dbg.rows || [];

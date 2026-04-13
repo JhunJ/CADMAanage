@@ -10912,41 +10912,59 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
       var minHm = typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_MIN_OVERLAP_MM2 === 'number' ? FRAME_DEF_STEP2A_V2_CAD_HATCH_MIN_OVERLAP_MM2 : 5;
       var nearPad = (typeof FRAME_DEF_STEP2A_V2_DEBUG_LABEL_HATCH_BBOX_PAD_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DEBUG_LABEL_HATCH_BBOX_PAD_MM))
         ? FRAME_DEF_STEP2A_V2_DEBUG_LABEL_HATCH_BBOX_PAD_MM : 120;
-      var nearIdx = (typeof frameDef2aV2HatchIndicesNearSeg === 'function')
-        ? frameDef2aV2HatchIndicesNearSeg(sg.p1, sg.p2, thFull, hatchBBox2aV2, nearPad) : null;
-      dbgDualNearCount = (nearIdx && nearIdx.length) ? nearIdx.length : 0;
-      var dualMaxNear = frameDef2aV2MaxSingleHatchOverlapDbg(sg.p1, sg.p2, thFull, hatchBBox2aV2, dualGn, nearIdx);
-      var dualMaxAll = (nearIdx && nearIdx.length)
-        ? frameDef2aV2MaxSingleHatchOverlapDbg(sg.p1, sg.p2, thFull, hatchBBox2aV2, dualGn, null)
-        : dualMaxNear;
-      var oPosNear = dualMaxNear ? Number(dualMaxNear.maxPlusMm2) : NaN;
-      var oNegNear = dualMaxNear ? Number(dualMaxNear.maxMinusMm2) : NaN;
-      var oPosAll = dualMaxAll ? Number(dualMaxAll.maxPlusMm2) : NaN;
-      var oNegAll = dualMaxAll ? Number(dualMaxAll.maxMinusMm2) : NaN;
-      dbgDualOvNearP = isFinite(oPosNear) ? oPosNear : null;
-      dbgDualOvNearN = isFinite(oNegNear) ? oNegNear : null;
-      dbgDualOvFullP = isFinite(oPosAll) ? oPosAll : null;
-      dbgDualOvFullN = isFinite(oNegAll) ? oNegAll : null;
-      dbgDualOvNearPIdx = dualMaxNear && typeof dualMaxNear.maxPlusIdx === 'number' ? dualMaxNear.maxPlusIdx : -1;
-      dbgDualOvNearNIdx = dualMaxNear && typeof dualMaxNear.maxMinusIdx === 'number' ? dualMaxNear.maxMinusIdx : -1;
-      dbgDualOvFullPIdx = dualMaxAll && typeof dualMaxAll.maxPlusIdx === 'number' ? dualMaxAll.maxPlusIdx : -1;
-      dbgDualOvFullNIdx = dualMaxAll && typeof dualMaxAll.maxMinusIdx === 'number' ? dualMaxAll.maxMinusIdx : -1;
-      var hasNear = !!(nearIdx && nearIdx.length);
-      var nearPeak = Math.max(isFinite(oPosNear) ? oPosNear : 0, isFinite(oNegNear) ? oNegNear : 0);
-      var allPeak = Math.max(isFinite(oPosAll) ? oPosAll : 0, isFinite(oNegAll) ? oNegAll : 0);
-      var useAllFallback = (!hasNear) || !isFinite(oPosNear) || !isFinite(oNegNear) || (nearPeak < minHm && allPeak >= minHm);
-      dbgDualUsedGlobalFallback = useAllFallback;
-      dbgDualUsedNear = hasNear && !useAllFallback;
-      var oPos = useAllFallback ? oPosAll : oPosNear;
-      var oNeg = useAllFallback ? oNegAll : oNegNear;
-      var oPosIdx = useAllFallback ? dbgDualOvFullPIdx : dbgDualOvNearPIdx;
-      var oNegIdx = useAllFallback ? dbgDualOvFullNIdx : dbgDualOvNearNIdx;
+      function scoreResolvedByMaxSingleHatch(resolvedCand, candSign) {
+        var empty = {
+          score: NaN, idx: -1,
+          nearScore: NaN, nearIdx: -1,
+          allScore: NaN, allIdx: -1,
+          nearCount: 0, usedNear: false, usedGlobalFallback: false
+        };
+        if (!resolvedCand || !resolvedCand.ok || !resolvedCand.p1 || !resolvedCand.p2) return empty;
+        var thCand = Math.max(FRAME_DEF_WALL_MIN_THICKNESS_MM, Math.min(FRAME_DEF_WALL_MAX_THICKNESS_MM, Number(resolvedCand.thUse) || thFull));
+        var nearIdxCand = (typeof frameDef2aV2HatchIndicesNearSeg === 'function')
+          ? frameDef2aV2HatchIndicesNearSeg(resolvedCand.p1, resolvedCand.p2, thCand, hatchBBox2aV2, nearPad, sg.p1, sg.p2) : null;
+        empty.nearCount = (nearIdxCand && nearIdxCand.length) ? nearIdxCand.length : 0;
+        var mNear = frameDef2aV2MaxSingleHatchOverlapDbg(resolvedCand.p1, resolvedCand.p2, thCand, hatchBBox2aV2, dualGn, nearIdxCand);
+        var mAll = (nearIdxCand && nearIdxCand.length)
+          ? frameDef2aV2MaxSingleHatchOverlapDbg(resolvedCand.p1, resolvedCand.p2, thCand, hatchBBox2aV2, dualGn, null)
+          : mNear;
+        var usePlus = Number(candSign) >= 0;
+        var nearScore = mNear ? Number(usePlus ? mNear.maxPlusMm2 : mNear.maxMinusMm2) : NaN;
+        var allScore = mAll ? Number(usePlus ? mAll.maxPlusMm2 : mAll.maxMinusMm2) : NaN;
+        var nearIdxOut = mNear ? Number(usePlus ? mNear.maxPlusIdx : mNear.maxMinusIdx) : -1;
+        var allIdxOut = mAll ? Number(usePlus ? mAll.maxPlusIdx : mAll.maxMinusIdx) : -1;
+        empty.nearScore = nearScore;
+        empty.nearIdx = isFinite(nearIdxOut) ? nearIdxOut : -1;
+        empty.allScore = allScore;
+        empty.allIdx = isFinite(allIdxOut) ? allIdxOut : -1;
+        var nearPeak = isFinite(nearScore) ? nearScore : 0;
+        var allPeak = isFinite(allScore) ? allScore : 0;
+        var useAllFallback = (!empty.nearCount) || !isFinite(nearScore) || (nearPeak < minHm && allPeak >= minHm);
+        empty.usedGlobalFallback = useAllFallback;
+        empty.usedNear = !!empty.nearCount && !useAllFallback;
+        empty.score = useAllFallback ? allScore : nearScore;
+        empty.idx = useAllFallback ? empty.allIdx : empty.nearIdx;
+        return empty;
+      }
+      var scorePos = scoreResolvedByMaxSingleHatch(rPos, 1);
+      var scoreNeg = scoreResolvedByMaxSingleHatch(rNeg, -1);
+      dbgDualNearCount = Math.max(scorePos.nearCount || 0, scoreNeg.nearCount || 0);
+      dbgDualOvNearP = isFinite(scorePos.nearScore) ? scorePos.nearScore : null;
+      dbgDualOvNearN = isFinite(scoreNeg.nearScore) ? scoreNeg.nearScore : null;
+      dbgDualOvFullP = isFinite(scorePos.allScore) ? scorePos.allScore : null;
+      dbgDualOvFullN = isFinite(scoreNeg.allScore) ? scoreNeg.allScore : null;
+      dbgDualOvNearPIdx = scorePos.nearIdx;
+      dbgDualOvNearNIdx = scoreNeg.nearIdx;
+      dbgDualOvFullPIdx = scorePos.allIdx;
+      dbgDualOvFullNIdx = scoreNeg.allIdx;
+      var oPos = scorePos.score;
+      var oNeg = scoreNeg.score;
       dbgDualOvPickP = isFinite(oPos) ? oPos : null;
       dbgDualOvPickN = isFinite(oNeg) ? oNeg : null;
-      dbgDualOvPickPIdx = typeof oPosIdx === 'number' ? oPosIdx : -1;
-      dbgDualOvPickNIdx = typeof oNegIdx === 'number' ? oNegIdx : -1;
-      var winOvP = isFinite(oPos) && oPos >= minHm;
-      var winOvN = isFinite(oNeg) && oNeg >= minHm;
+      dbgDualOvPickPIdx = scorePos.idx;
+      dbgDualOvPickNIdx = scoreNeg.idx;
+      var winOvP = okP && isFinite(oPos) && oPos >= minHm;
+      var winOvN = okN && isFinite(oNeg) && oNeg >= minHm;
       var hatchSign = null;
       if (winOvP && winOvN) {
         var dOv = oPos - oNeg;
@@ -10956,6 +10974,20 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
         hatchSign = 1;
       } else if (!winOvP && winOvN) {
         hatchSign = -1;
+      }
+      if (hatchSign === 1) {
+        dbgDualUsedNear = !!scorePos.usedNear;
+        dbgDualUsedGlobalFallback = !!scorePos.usedGlobalFallback;
+        dbgDualNearCount = scorePos.nearCount || dbgDualNearCount;
+      } else if (hatchSign === -1) {
+        dbgDualUsedNear = !!scoreNeg.usedNear;
+        dbgDualUsedGlobalFallback = !!scoreNeg.usedGlobalFallback;
+        dbgDualNearCount = scoreNeg.nearCount || dbgDualNearCount;
+      } else {
+        var refScore = (isFinite(oPos) && oPos >= (isFinite(oNeg) ? oNeg : -Infinity)) ? scorePos : scoreNeg;
+        dbgDualUsedNear = !!refScore.usedNear;
+        dbgDualUsedGlobalFallback = !!refScore.usedGlobalFallback;
+        dbgDualNearCount = refScore.nearCount || dbgDualNearCount;
       }
       dbgHatchSign = hatchSign;
       if (hatchSign !== null) {

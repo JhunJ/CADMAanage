@@ -16,3 +16,10 @@ python-dotenv>=1.0.0
 httpx>=0.26.0
 pytest>=7.4.0
 pytest-asyncio>=0.23.0
+
+# frame-step2b ML (optional; infer without models still returns teacher walls)
+numpy>=1.26.0
+scikit-learn>=1.4.0
+joblib>=1.3.0
+xgboost>=2.0.0
+torch>=2.1.0

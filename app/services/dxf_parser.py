@@ -968,7 +968,7 @@ def _hatch_fallback_candidates_from_edge_paths(entity: DXFEntity) -> list[list[t
     return out
 
 
-def _hatch_to_geom_item(entity: DXFEntity, doc=None, layer_name=None) -> dict | None:
+def _hatch_to_geom_items(entity: DXFEntity, doc=None, layer_name=None) -> list[dict]:
     """HATCH ?뷀떚?곕? {entity_type, geom_wkt, color, props} 濡?蹂?? from_hatch濡?寃쎄퀎 異붿텧.
     ?щ윭 寃쎄퀎 以??멸낸(硫댁쟻??媛?????좏슚 寃쎄퀎)留??ъ슜?섍퀬, 鍮꾩젙?곸쟻?쇰줈 ??寃쎄퀎???쒖쇅."""
     try:
@@ -977,8 +977,8 @@ def _hatch_to_geom_item(entity: DXFEntity, doc=None, layer_name=None) -> dict | 
         color = meta["color"]
         paths = list(from_hatch(entity))
         if not paths:
-            logger.debug("_hatch_to_geom_item: no paths (layer=%s)", layer_name or "0")
-            return None
+            logger.debug("_hatch_to_geom_items: no paths (layer=%s)", layer_name or "0")
+            return []
         solid_fill = bool(getattr(entity.dxf, "solid_fill", 1))
         pattern_name = str(getattr(entity.dxf, "pattern_name", "SOLID") or "SOLID")
         candidates: list[tuple[list[tuple[float, ...]], float]] = []
@@ -1027,26 +1027,40 @@ def _hatch_to_geom_item(entity: DXFEntity, doc=None, layer_name=None) -> dict | 
             for points in _hatch_fallback_candidates_from_edge_paths(entity):
                 add_candidate(points)
         if not candidates:
-            logger.debug("_hatch_to_geom_item: no valid candidates (layer=%s, paths=%s)", layer_name or "0", len(paths))
-            return None
-        best_points, _ = max(candidates, key=lambda x: x[1])
-        geom_wkt = polygon_wkt(best_points)
-        return {
-            "entity_type": "HATCH",
-            "geom_wkt": geom_wkt,
-            "color": color,
-            "layer": (layer_name or "0"),
-            "props": {
-                "solid_fill": solid_fill,
-                "pattern_name": pattern_name,
-                "color_raw": meta["color_raw"],
-                "color_bylayer": meta["color_bylayer"],
-            },
+            logger.debug("_hatch_to_geom_items: no valid candidates (layer=%s, paths=%s)", layer_name or "0", len(paths))
+            return []
+
+        candidates_sorted = sorted(candidates, key=lambda x: x[1], reverse=True)
+        n = len(candidates_sorted)
+        base_props = {
+            "solid_fill": solid_fill,
+            "pattern_name": pattern_name,
+            "color_raw": meta["color_raw"],
+            "color_bylayer": meta["color_bylayer"],
+            "hatch_path_count": n,
         }
+        out: list[dict] = []
+        for idx, (points, _area) in enumerate(candidates_sorted):
+            geom_wkt = polygon_wkt(points)
+            out.append(
+                {
+                    "entity_type": "HATCH",
+                    "geom_wkt": geom_wkt,
+                    "color": color,
+                    "layer": (layer_name or "0"),
+                    "props": {**base_props, "hatch_path_index": idx},
+                }
+            )
+        return out
     except Exception as e:
-        logger.debug("_hatch_to_geom_item: exception (layer=%s): %s", layer_name or "0", e)
-        return None
-    return None
+        logger.debug("_hatch_to_geom_items: exception (layer=%s): %s", layer_name or "0", e)
+        return []
+
+
+def _hatch_to_geom_item(entity: DXFEntity, doc=None, layer_name=None) -> dict | None:
+    """하위 호환: 다중 경계 시 면적 큰 순 첫 루프만."""
+    items = _hatch_to_geom_items(entity, doc=doc, layer_name=layer_name)
+    return items[0] if items else None
 
 
 def _wipeout_to_geom_item(entity: DXFEntity, doc=None, layer_name=None) -> dict | None:
@@ -1089,8 +1103,6 @@ def _block_entity_to_geom_item(
     if _is_invisible(entity):
         return None
     dxftype = entity.dxftype()
-    if dxftype == "HATCH":
-        return _hatch_to_geom_item(entity, doc=doc, layer_name=_layer(entity))
     if dxftype == "WIPEOUT":
         return _wipeout_to_geom_item(entity, doc=doc, layer_name=_layer(entity))
     if dxftype not in (
@@ -1294,15 +1306,22 @@ def _block_to_geom_items(
                             item_props = _merge_props_with_block_hierarchy(item_props, full_path)
                             items.append({**item, "geom_wkt": twkt, "props": item_props})
             else:
-                direct = _block_entity_to_geom_item(
-                    ent,
-                    doc=doc,
-                    insert_color_fallback=_insert_color_fallback,
-                    insert_layer=_insert_layer,
-                )
-                if direct:
-                    direct["props"] = _merge_props_with_block_hierarchy(direct.get("props"), None)
-                    items.append(direct)
+                if dxftype == "HATCH":
+                    layer_raw = _layer(ent) or "0"
+                    layer_name = (_insert_layer or "0") if layer_raw == "0" and _insert_layer else layer_raw
+                    for direct in _hatch_to_geom_items(ent, doc=doc, layer_name=layer_name):
+                        direct["props"] = _merge_props_with_block_hierarchy(direct.get("props"), None)
+                        items.append(direct)
+                else:
+                    direct = _block_entity_to_geom_item(
+                        ent,
+                        doc=doc,
+                        insert_color_fallback=_insert_color_fallback,
+                        insert_layer=_insert_layer,
+                    )
+                    if direct:
+                        direct["props"] = _merge_props_with_block_hierarchy(direct.get("props"), None)
+                        items.append(direct)
     finally:
         _seen.discard(block_name)
     return items
@@ -1351,8 +1370,8 @@ def _virtual_entity_to_dict(
     doc=None,
     insert_color_fallback: int | None = None,
     insert_layer: str | None = None,
-) -> dict | None:
-    """INSERT.virtual_entities()濡??섏삩 ?뷀떚???대? WCS)瑜?entities ??ぉ dict濡?蹂??
+) -> dict | list[dict] | None:
+    """INSERT.virtual_entities()濡??섏삩 ?뷀떚???대? WCS)瑜?entities ??ぉ dict濡?蹂?? HATCH 는 다중 경계 시 list[dict].
     insert_color_fallback: ByBlock ?댁꽍??ACI. insert_layer: 釉붾줉 ??layer 0???뷀떚?곗쓽 ByLayer ?댁꽍??INSERT ?덉씠??
     """
     import math
@@ -1484,27 +1503,33 @@ def _virtual_entity_to_dict(
                 text_props["height"] = float(h)
             return {"entity_type": "ATTRIB", "layer": layer, "color": color, "linetype": linetype, "geom_wkt": geom_wkt, "centroid_wkt": geom_wkt, "bbox_wkt": None, "props": text_props, "fingerprint": None}
         if dxftype == "HATCH":
-            item = _hatch_to_geom_item(virtual_entity, doc=doc, layer_name=layer)
-            if not item:
+            hatch_items = _hatch_to_geom_items(virtual_entity, doc=doc, layer_name=layer)
+            if not hatch_items:
                 return None
-            points = wkt_points_to_list(item["geom_wkt"])
-            centroid_wkt = None
-            bbox_wkt = None
-            if points:
-                xs, ys = [p[0] for p in points], [p[1] for p in points]
-                centroid_wkt = point_wkt(sum(xs) / len(xs), sum(ys) / len(ys), 0.0)
-                bbox_wkt = bbox_from_points(points)
-            return {
-                "entity_type": "HATCH",
-                "layer": layer,
-                "color": item.get("color", color),
-                "linetype": linetype,
-                "geom_wkt": item["geom_wkt"],
-                "centroid_wkt": centroid_wkt,
-                "bbox_wkt": bbox_wkt,
-                "props": {**(item.get("props") or {}), **props},
-                "fingerprint": None,
-            }
+
+            def _virtual_hatch_full(item: dict) -> dict:
+                points = wkt_points_to_list(item["geom_wkt"])
+                centroid_wkt = None
+                bbox_wkt = None
+                if points:
+                    xs, ys = [p[0] for p in points], [p[1] for p in points]
+                    centroid_wkt = point_wkt(sum(xs) / len(xs), sum(ys) / len(ys), 0.0)
+                    bbox_wkt = bbox_from_points(points)
+                return {
+                    "entity_type": "HATCH",
+                    "layer": layer,
+                    "color": item.get("color", color),
+                    "linetype": linetype,
+                    "geom_wkt": item["geom_wkt"],
+                    "centroid_wkt": centroid_wkt,
+                    "bbox_wkt": bbox_wkt,
+                    "props": {**(item.get("props") or {}), **props},
+                    "fingerprint": None,
+                }
+
+            if len(hatch_items) == 1:
+                return _virtual_hatch_full(hatch_items[0])
+            return [_virtual_hatch_full(it) for it in hatch_items]
         if dxftype == "WIPEOUT":
             item = _wipeout_to_geom_item(virtual_entity, doc=doc, layer_name=layer)
             if not item:
@@ -1530,6 +1555,13 @@ def _virtual_entity_to_dict(
     except Exception:
         return None
     return None
+
+
+def _virtual_entity_expand_list(ed: dict | list[dict] | None) -> list[dict]:
+    """_virtual_entity_to_dict 가 HATCH 다중 경계일 때 list[dict] 를 반환할 수 있다."""
+    if not ed:
+        return []
+    return list(ed) if isinstance(ed, list) else [ed]
 
 
 def _explode_insert_into_entities(
@@ -1590,8 +1622,9 @@ def _explode_insert_into_entities(
                         count += added
                         nested_processed += added
                     else:
-                        ed = _virtual_entity_to_dict(v2, doc=doc, insert_color_fallback=insert_color, insert_layer=insert_layer)
-                        if ed:
+                        for ed in _virtual_entity_expand_list(
+                            _virtual_entity_to_dict(v2, doc=doc, insert_color_fallback=insert_color, insert_layer=insert_layer)
+                        ):
                             ed["props"] = _merge_props_with_block_hierarchy(ed.get("props"), hierarchy_path)
                             if temp_key is not None:
                                 ed["_temp_insert_key"] = temp_key
@@ -1599,16 +1632,18 @@ def _explode_insert_into_entities(
                             count += 1
                             nested_processed += 1
                 if nested_processed == 0:
-                    ed = _virtual_entity_to_dict(v, doc=doc, insert_color_fallback=insert_color, insert_layer=insert_layer)
-                    if ed:
+                    for ed in _virtual_entity_expand_list(
+                        _virtual_entity_to_dict(v, doc=doc, insert_color_fallback=insert_color, insert_layer=insert_layer)
+                    ):
                         ed["props"] = _merge_props_with_block_hierarchy(ed.get("props"), hierarchy_path)
                         if temp_key is not None:
                             ed["_temp_insert_key"] = temp_key
                         entities.append(ed)
                         count += 1
             else:
-                ed = _virtual_entity_to_dict(v, doc=doc, insert_color_fallback=insert_color, insert_layer=insert_layer)
-                if ed:
+                for ed in _virtual_entity_expand_list(
+                    _virtual_entity_to_dict(v, doc=doc, insert_color_fallback=insert_color, insert_layer=insert_layer)
+                ):
                     ed["props"] = _merge_props_with_block_hierarchy(ed.get("props"), hierarchy_path)
                     if temp_key is not None:
                         ed["_temp_insert_key"] = temp_key
@@ -2016,8 +2051,7 @@ def parse_dxf(
             })
 
         elif dxftype == "HATCH":
-            item = _hatch_to_geom_item(entity, doc=doc, layer_name=layer)
-            if item:
+            for item in _hatch_to_geom_items(entity, doc=doc, layer_name=layer):
                 geom_wkt = item["geom_wkt"]
                 points = wkt_points_to_list(geom_wkt)
                 centroid_wkt = None

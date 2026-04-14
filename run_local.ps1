@@ -122,6 +122,34 @@ Write-Host "Installing packages..." -ForegroundColor Yellow
 & $venvPython -m pip install -q -r (Join-Path $ProjectRoot "requirements.txt")
 Write-Host "OK  Packages ready." -ForegroundColor Green
 
+# 5a) frame-step2b ML: 첫 실행 시 동봉 JSONL로 모델 자동 학습 (rf.joblib 등 없을 때만)
+$step2bRoot = Join-Path $ProjectRoot "data\ml\step2b"
+$step2bRf = Join-Path $step2bRoot "rf.joblib"
+$step2bDatasets = Join-Path $step2bRoot "datasets"
+$step2bSampleJsonl = Join-Path $step2bDatasets "sample_bootstrap.jsonl"
+if (-not (Test-Path $step2bRf)) {
+    if (Test-Path $step2bSampleJsonl) {
+        if ($FromRunBat) {
+            Write-Host "Training frame-step2b ML from bundled sample (sample_bootstrap.jsonl)..." -ForegroundColor Yellow
+        } else {
+            Write-Host "frame-step2b ML: sample_bootstrap.jsonl 로 초기 학습..." -ForegroundColor Yellow
+        }
+        & $venvPython (Join-Path $ProjectRoot "scripts\ml\train_step2b.py") --data-dir $step2bDatasets
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Warning: train_step2b.py exit code $LASTEXITCODE (torch/sklearn missing?). 2b infer still uses teacher fallback." -ForegroundColor Yellow
+        }
+        if (Test-Path $step2bRf) {
+            Write-Host "OK  frame-step2b models saved under data\ml\step2b\" -ForegroundColor Green
+        } else {
+            Write-Host "Warning: no rf.joblib yet. Re-run after: pip install -r requirements.txt" -ForegroundColor Yellow
+        }
+    } else {
+        if ($FromRunBat) {
+            Write-Host "Warning: missing $step2bSampleJsonl — add JSONL or run: python scripts\ml\train_step2b.py" -ForegroundColor Yellow
+        }
+    }
+}
+
 # 5b) PostgreSQL 以鍮?(run.bat ?꾩슜: Docker PostGIS ?먮뒗 濡쒖뺄 ?쒕퉬??
 # run.bat? cmd+Windows PowerShell 5.1 議고빀?먯꽌 ?쒓???源⑥?誘濡?FromRunBat?????곸뼱 硫붿떆吏 ?ъ슜
 if ($PreparePostgres) {

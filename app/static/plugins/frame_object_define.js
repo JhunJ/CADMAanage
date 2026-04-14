@@ -250,9 +250,6 @@ var FRAME_DEF_STEP2A_CORRIDOR_TRACK_PROX_MM = 175;
 var FRAME_DEF_STEP2A_MITER_EXT_MAX_W_MULT = 2.45;
 /** 띠 마이터: 꼭짓점당 연장이 `변장×0.42`만 있으면 긴 변에서 수 m까지 튐 → 절대 상한(mm) */
 var FRAME_DEF_STEP2A_MITER_EXT_PER_VERTEX_MAX_MM = 175;
-// #region agent log
-fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e6e213'},body:JSON.stringify({sessionId:'e6e213',runId:'pre-fix',hypothesisId:'H5',location:'frame_object_define.js:top-level',message:'script loaded',data:{step2aDualOverlapEnabled:FRAME_DEF_STEP2A_V2_INWARD_SIGN_USE_DUAL_CAND_OVERLAP===true},timestamp:Date.now()})}).catch(function(){});
-// #endregion
 /** 꼭짓점 경로 변: minSeg×이 비율 미만이면 띠 조각 생략 → 비율 낮출수록 짧은 변도 생성 */
 var FRAME_DEF_STEP2A_MITER_EDGE_MIN_FRAC = 0.34;
 var FRAME_DEF_WALL_EDIT_HIT_MM = 180;
@@ -11240,14 +11237,8 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
       && typeof frameDef2aV2ApplyDualCandidateOverlapSignPickV2 === 'function'
       && out.length > 1) {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e6e213'},body:JSON.stringify({sessionId:'e6e213',runId:'pre-fix',hypothesisId:'H0',location:'frame_object_define.js:frameDefBuildWallStep2aHatchReviewWalls:before-call',message:'about to call sign-pick-v2',data:{outLen:Array.isArray(out)?out.length:-1},timestamp:Date.now()})}).catch(function(){});
-      // #endregion
       frameDef2aV2ApplyDualCandidateOverlapSignPickV2(out);
     } catch (eDualPick) {
-      // #region agent log
-      fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e6e213'},body:JSON.stringify({sessionId:'e6e213',runId:'pre-fix',hypothesisId:'H0',location:'frame_object_define.js:frameDefBuildWallStep2aHatchReviewWalls:catch',message:'sign-pick-v2 threw error',data:{error:(eDualPick&&eDualPick.message)?eDualPick.message:String(eDualPick)},timestamp:Date.now()})}).catch(function(){});
-      // #endregion
       try { console.warn('[2a-dual-cand-overlap] skipped by error:', eDualPick && eDualPick.message ? eDualPick.message : eDualPick); } catch (_eDualPickLog) {}
     }
   }
@@ -24063,47 +24054,16 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPick(list) {
 
 /** 2a v2: 선분별(+/-) 일대다 비교(평행만)로 최종 부호 재선택. 기존 함수 오류/누락 보완판. */
 function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
-  function frameDef2aDebugLog(runId, hypothesisId, location, message, data) {
-    fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e6e213'},body:JSON.stringify({sessionId:'e6e213',runId:runId,hypothesisId:hypothesisId,location:location,message:message,data:data,timestamp:Date.now()})}).catch(function(){});
-  }
-  var dbgRunId = 'pre-fix';
-  // #region agent log
-  frameDef2aDebugLog(dbgRunId, 'H0', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:entry', 'function entry', {
-    hasArrayList: Array.isArray(list),
-    listLen: Array.isArray(list) ? list.length : -1
-  });
-  // #endregion
   if (!Array.isArray(list) || list.length < 2) {
-    // #region agent log
-    frameDef2aDebugLog(dbgRunId, 'H0', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:early-return', 'early return by list size', {
-      hasArrayList: Array.isArray(list),
-      listLen: Array.isArray(list) ? list.length : -1
-    });
-    // #endregion
     return;
   }
   if (typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function') {
-    // #region agent log
-    frameDef2aDebugLog(dbgRunId, 'H0', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:early-return', 'early return by missing frameDefSegToWallBodyQuadOutlineWorld', {});
-    // #endregion
     return;
   }
   if (typeof frameDef2aV2QuadBBox !== 'function' || typeof frameDef2aV2BBoxIntersects2d !== 'function') {
-    // #region agent log
-    frameDef2aDebugLog(dbgRunId, 'H0', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:early-return', 'early return by missing bbox helpers', {
-      hasQuadBBox: typeof frameDef2aV2QuadBBox === 'function',
-      hasBBoxIntersects: typeof frameDef2aV2BBoxIntersects2d === 'function'
-    });
-    // #endregion
     return;
   }
   if (typeof frameDef2aV2QuadQuadOverlapPoly !== 'function' || typeof frameDefPolygonAreaAbs !== 'function') {
-    // #region agent log
-    frameDef2aDebugLog(dbgRunId, 'H0', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:early-return', 'early return by missing overlap helpers', {
-      hasOverlapPoly: typeof frameDef2aV2QuadQuadOverlapPoly === 'function',
-      hasPolyArea: typeof frameDefPolygonAreaAbs === 'function'
-    });
-    // #endregion
     return;
   }
   var minMm2 = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2))
@@ -24130,23 +24090,6 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
     ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MIN_STRONG_MM2) : 25;
   var unifyMaxSep = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MAX_SEP_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MAX_SEP_MM))
     ? Math.max(120, FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MAX_SEP_MM) : 2200;
-  // #region agent log
-  frameDef2aDebugLog(dbgRunId, 'H1', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:config', 'enter sign-pick-v2', {
-    listLen: Array.isArray(list) ? list.length : -1,
-    minMm2: minMm2,
-    pickMin: pickMin,
-    sumW: sumW,
-    parDotMin: parDotMin,
-    maxWalls: maxWalls,
-    maxPairTests: maxPairTests,
-    enablePropagate: !!enablePropagate,
-    propStrongMin: propStrongMin,
-    propMaxSep: propMaxSep,
-    enableUnify: !!enableUnify,
-    unifyStrongMin: unifyStrongMin,
-    unifyMaxSep: unifyMaxSep
-  });
-  // #endregion
 
   function applyWallSign(wallObj, signVal) {
     if (!wallObj || !wallObj.seg_a || !wallObj.seg_b) return;
@@ -24158,17 +24101,7 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
     if (!isFinite(thW) || thW < FRAME_DEF_WALL_MIN_THICKNESS_MM) thW = Number(wallObj.thickness_mm);
     if (!isFinite(thW) || thW < FRAME_DEF_WALL_MIN_THICKNESS_MM) thW = 170;
     var qSel = frameDefSegToWallBodyQuadOutlineWorld(p1s, p2s, thW, signVal);
-    if (!qSel || qSel.length < 4) {
-      // #region agent log
-      frameDef2aDebugLog(dbgRunId, 'H4', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:applyWallSign', 'applyWallSign skipped due invalid quad', {
-        signVal: signVal,
-        thickness: thW,
-        hasP1: !!p1s,
-        hasP2: !!p2s
-      });
-      // #endregion
-      return;
-    }
+    if (!qSel || qSel.length < 4) return;
     wallObj.__step2aOutlineInwardSign = signVal;
     wallObj.seg_a = { id: wallObj.seg_a.id, ent_id: wallObj.seg_a.ent_id, source_type: wallObj.seg_a.source_type, p1: { x: qSel[0].x, y: qSel[0].y }, p2: { x: qSel[1].x, y: qSel[1].y }, len: Math.hypot((Number(qSel[1].x) || 0) - (Number(qSel[0].x) || 0), (Number(qSel[1].y) || 0) - (Number(qSel[0].y) || 0)), axis_angle: wallObj.seg_a.axis_angle };
     wallObj.seg_b = { id: wallObj.seg_b.id, ent_id: wallObj.seg_b.ent_id, source_type: wallObj.seg_b.source_type, p1: { x: qSel[3].x, y: qSel[3].y }, p2: { x: qSel[2].x, y: qSel[2].y }, len: Math.hypot((Number(qSel[2].x) || 0) - (Number(qSel[3].x) || 0), (Number(qSel[2].y) || 0) - (Number(qSel[3].y) || 0)), axis_angle: wallObj.seg_b.axis_angle };
@@ -24225,12 +24158,6 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
       sourceToWalls[keyS].push(i);
     }
   }
-  // #region agent log
-  frameDef2aDebugLog(dbgRunId, 'H4', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:meta', 'meta build summary', {
-    activeCount: active.length,
-    metaMissingCount: metaMissing
-  });
-  // #endregion
   if (active.length < 2) return;
 
   var score = new Array(list.length);
@@ -24307,16 +24234,6 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
     }
     if (tested > maxPairTests) break;
   }
-  // #region agent log
-  frameDef2aDebugLog(dbgRunId, 'H1', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:pairs', 'pair test summary', {
-    tested: tested,
-    maxPairTests: maxPairTests,
-    hitMaxPairLimit: tested > maxPairTests,
-    parallelPassed: parallelPassed,
-    bboxPassed: bboxPassed,
-    nonZeroOverlapPairs: nonZeroOverlapPairs
-  });
-  // #endregion
 
   function centerSign(w) {
     if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) return null;
@@ -24385,13 +24302,6 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
     w.__step2aDualSignEval.path = cSign ? 'dual-candidate-overlap-center-flip' : 'dual-candidate-overlap-flip';
     w.__step2aDualSignEval.hatchSign = newSign;
   }
-  // #region agent log
-  frameDef2aDebugLog(dbgRunId, 'H3', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:direct', 'direct pick summary', {
-    directSkippedWeak: directSkippedWeak,
-    directChanged: directChanged,
-    directCenterOverride: directCenterOverride
-  });
-  // #endregion
   if (enablePropagate) {
     var weakCount = 0;
     var propagatedCount = 0;
@@ -24439,14 +24349,6 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
       ww.__step2aDualSignEval.path = 'dual-candidate-overlap-propagated';
       ww.__step2aDualSignEval.hatchSign = bestDonor.sign;
     }
-    // #region agent log
-    frameDef2aDebugLog(dbgRunId, 'H2', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:propagate', 'propagate summary', {
-      weakCount: weakCount,
-      propagatedCount: propagatedCount,
-      propStrongMin: propStrongMin,
-      propMaxSep: propMaxSep
-    });
-    // #endregion
   }
   if (enableUnify) {
     var visited = {};
@@ -24507,52 +24409,7 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
         ww2.__step2aDualSignEval.hatchSign = compSign;
       }
     }
-    // #region agent log
-    frameDef2aDebugLog(dbgRunId, 'H2', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:unify', 'component unify summary', {
-      compCount: compCount,
-      singletonCompCount: singletonCompCount,
-      unifyChangedCount: unifyChangedCount,
-      unifyStrongMin: unifyStrongMin,
-      unifyMaxSep: unifyMaxSep
-    });
-    // #endregion
-    // #region agent log
-    try {
-      console.log('[2a-debug]', JSON.stringify({
-        runId: dbgRunId,
-        hypothesisId: 'H2',
-        location: 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:unify-console',
-        message: 'component unify summary',
-        data: {
-          compCount: compCount,
-          singletonCompCount: singletonCompCount,
-          unifyChangedCount: unifyChangedCount,
-          unifyStrongMin: unifyStrongMin,
-          unifyMaxSep: unifyMaxSep
-        },
-        timestamp: Date.now()
-      }));
-    } catch (_e2aDbgConsoleUnify) {}
-    // #endregion
   }
-  // #region agent log
-  try {
-    console.log('[2a-debug]', JSON.stringify({
-      runId: dbgRunId,
-      hypothesisId: 'H3',
-      location: 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:final-console',
-      message: 'pick pipeline summary',
-      data: {
-        directSkippedWeak: directSkippedWeak,
-        directChanged: directChanged,
-        directCenterOverride: directCenterOverride,
-        enablePropagate: !!enablePropagate,
-        enableUnify: !!enableUnify
-      },
-      timestamp: Date.now()
-    }));
-  } catch (_e2aDbgConsoleFinal) {}
-  // #endregion
 }
 
 /** 2a: ②-1에서 만든 양방향 벽 후보(+/−)끼리의 실제 겹침 면적만 별도 표시. */

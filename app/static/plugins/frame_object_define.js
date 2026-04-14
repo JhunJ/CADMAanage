@@ -229,7 +229,7 @@ var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS = 700;
 /** 양방향 후보끼리 비교 시 부호별 최대 쌍 테스트 수(초과 시 중단 후 현재 점수 사용). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN = 120000;
 /** 2a-2-2 보존 전략 버전(화면 반영 확인용). */
-var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v6-lcov';
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v7-ovpoly';
 /** 복도 0개 체인 전체 띠 폴백 — false 유지(광역 오생성). watch 체인만 아래 WATCH_ONLY */
 var FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR = false;
 /** 복도 subs가 한 세그도 없을 때: UI/DEBUG watch 엔티티가 체인에 있을 때만 전체 띠 */
@@ -24688,7 +24688,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (ar < minOverlapAreaMm2) return null;
       return { area: ar, poly: ov };
     }
-    function keepCandidate(mapObj, cand, signVal, ovArea, otherCand) {
+    function keepCandidate(mapObj, cand, signVal, ovArea, ovPoly) {
       if (!cand || !Array.isArray(cand.quad) || cand.quad.length < 4) return;
       var k = String(signVal) + ':' + String(isFinite(Number(cand.wallIdx)) ? Math.floor(Number(cand.wallIdx)) : -1);
       if (!mapObj[k]) {
@@ -24698,32 +24698,36 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           wallIdx: isFinite(Number(cand.wallIdx)) ? Math.floor(Number(cand.wallIdx)) : -1,
           hitCount: 0,
           overlapArea: 0,
-          coverMin: Infinity,
-          coverMax: -Infinity
+          coverageSum: 0,
+          coverageMax: 0
         };
       }
       mapObj[k].hitCount += 1;
       mapObj[k].overlapArea += Math.max(0, Number(ovArea) || 0);
       if (!!cand.selected) mapObj[k].selected = true;
-      if (otherCand && otherCand.quad && cand.quad) {
-        var c0 = cand.quad[0], c1 = cand.quad[1];
-        if (c0 && c1) {
-          var dx = (Number(c1.x) || 0) - (Number(c0.x) || 0);
-          var dy = (Number(c1.y) || 0) - (Number(c0.y) || 0);
-          var len2 = dx * dx + dy * dy;
-          if (len2 > 1e-6) {
-            var oPts = otherCand.quad;
-            for (var oi = 0; oi < oPts.length; oi++) {
-              var op = oPts[oi];
-              if (!op) continue;
-              var t = (((Number(op.x) || 0) - (Number(c0.x) || 0)) * dx + ((Number(op.y) || 0) - (Number(c0.y) || 0)) * dy) / len2;
-              if (!isFinite(t)) continue;
-              if (t < mapObj[k].coverMin) mapObj[k].coverMin = t;
-              if (t > mapObj[k].coverMax) mapObj[k].coverMax = t;
-            }
-          }
-        }
+      if (!Array.isArray(ovPoly) || ovPoly.length < 3 || !cand.quad) return;
+      var c0 = cand.quad[0], c1 = cand.quad[1];
+      if (!c0 || !c1) return;
+      var dx = (Number(c1.x) || 0) - (Number(c0.x) || 0);
+      var dy = (Number(c1.y) || 0) - (Number(c0.y) || 0);
+      var len2 = dx * dx + dy * dy;
+      if (len2 <= 1e-6) return;
+      var tMin = Infinity, tMax = -Infinity;
+      for (var oi = 0; oi < ovPoly.length; oi++) {
+        var op = ovPoly[oi];
+        if (!op) continue;
+        var t = (((Number(op.x) || 0) - (Number(c0.x) || 0)) * dx + ((Number(op.y) || 0) - (Number(c0.y) || 0)) * dy) / len2;
+        if (!isFinite(t)) continue;
+        if (t < 0) t = 0;
+        if (t > 1) t = 1;
+        if (t < tMin) tMin = t;
+        if (t > tMax) tMax = t;
       }
+      if (!isFinite(tMin) || !isFinite(tMax)) return;
+      var span = Math.max(0, tMax - tMin);
+      if (!(span > 1e-6)) return;
+      mapObj[k].coverageSum += span;
+      if (span > mapObj[k].coverageMax) mapObj[k].coverageMax = span;
     }
     for (var i2 = 0; i2 < n; i2++) {
       var aPair = pairs[i2];
@@ -24761,10 +24765,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         if (dot < parDotMin) continue;
         var app = areaPoly(aP, bP), apn = areaPoly(aP, bN), anp = areaPoly(aN, bP), ann = areaPoly(aN, bN);
         // "겹침된 교집합 1개"가 아니라 "겹침에 참여한 후보(재료) 각각"을 남김
-        if (app) { keepCandidate(plusKeep, aP, 1, app.area, bP); keepCandidate(plusKeep, bP, 1, app.area, aP); }
-        if (apn) { keepCandidate(plusKeep, aP, 1, apn.area, bN); keepCandidate(minusKeep, bN, -1, apn.area, aP); }
-        if (anp) { keepCandidate(minusKeep, aN, -1, anp.area, bP); keepCandidate(plusKeep, bP, 1, anp.area, aN); }
-        if (ann) { keepCandidate(minusKeep, aN, -1, ann.area, bN); keepCandidate(minusKeep, bN, -1, ann.area, aN); }
+        if (app) { keepCandidate(plusKeep, aP, 1, app.area, app.poly); keepCandidate(plusKeep, bP, 1, app.area, app.poly); }
+        if (apn) { keepCandidate(plusKeep, aP, 1, apn.area, apn.poly); keepCandidate(minusKeep, bN, -1, apn.area, apn.poly); }
+        if (anp) { keepCandidate(minusKeep, aN, -1, anp.area, anp.poly); keepCandidate(plusKeep, bP, 1, anp.area, anp.poly); }
+        if (ann) { keepCandidate(minusKeep, aN, -1, ann.area, ann.poly); keepCandidate(minusKeep, bN, -1, ann.area, ann.poly); }
       }
     }
     var plusArrRaw = Object.keys(plusKeep).map(function(k) { return plusKeep[k]; });
@@ -24792,12 +24796,16 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (rp && rn) {
         var ap = Number(rp.overlapArea) || 0;
         var an = Number(rn.overlapArea) || 0;
-        var cp = (isFinite(Number(rp.coverMin)) && isFinite(Number(rp.coverMax))) ? Math.max(0, (Number(rp.coverMax) || 0) - (Number(rp.coverMin) || 0)) : 0;
-        var cn = (isFinite(Number(rn.coverMin)) && isFinite(Number(rn.coverMax))) ? Math.max(0, (Number(rn.coverMax) || 0) - (Number(rn.coverMin) || 0)) : 0;
-        var scoreP = ap * (1 + Math.min(1.2, cp));
-        var scoreN = an * (1 + Math.min(1.2, cn));
+        var cp = Number(rp.coverageSum) || 0;
+        var cn = Number(rn.coverageSum) || 0;
+        var mp = Number(rp.coverageMax) || 0;
+        var mn = Number(rn.coverageMax) || 0;
+        var scoreP = ap * (1 + Math.min(1.2, cp)) + ap * 0.4 * Math.min(1, mp);
+        var scoreN = an * (1 + Math.min(1.2, cn)) + an * 0.4 * Math.min(1, mn);
         if (scoreP > scoreN + 1e-6) plusOut.push(rp);
         else if (scoreN > scoreP + 1e-6) minusOut.push(rn);
+        else if (mp > mn + 1e-6) plusOut.push(rp);
+        else if (mn > mp + 1e-6) minusOut.push(rn);
         else if (rp.selected && !rn.selected) plusOut.push(rp);
         else if (rn.selected && !rp.selected) minusOut.push(rn);
         else { plusOut.push(rp); minusOut.push(rn); }

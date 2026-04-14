@@ -229,7 +229,7 @@ var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS = 700;
 /** 양방향 후보끼리 비교 시 부호별 최대 쌍 테스트 수(초과 시 중단 후 현재 점수 사용). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN = 120000;
 /** 2a-2-2 보존 전략 버전(화면 반영 확인용). */
-var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v8-corecov';
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v9-nms';
 /** 복도 0개 체인 전체 띠 폴백 — false 유지(광역 오생성). watch 체인만 아래 WATCH_ONLY */
 var FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR = false;
 /** 복도 subs가 한 세그도 없을 때: UI/DEBUG watch 엔티티가 체인에 있을 때만 전체 띠 */
@@ -24816,6 +24816,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         var knCenter = Number(rn.centerCoverageSum) || 0;
         var scoreP = ap * (1 + Math.min(1.4, kpCore * 1.6 + kpCenter * 0.45 + cp * 0.2)) + ap * 0.25 * Math.min(1, mp);
         var scoreN = an * (1 + Math.min(1.4, knCore * 1.6 + knCenter * 0.45 + cn * 0.2)) + an * 0.25 * Math.min(1, mn);
+        rp.rankScore = scoreP;
+        rn.rankScore = scoreN;
         if (kpCore > knCore + 0.03) plusOut.push(rp);
         else if (knCore > kpCore + 0.03) minusOut.push(rn);
         else if (scoreP > scoreN + 1e-6) plusOut.push(rp);
@@ -24828,6 +24830,78 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       } else if (rp) plusOut.push(rp);
       else if (rn) minusOut.push(rn);
     }
+    function quadAreaAbs(q) {
+      if (!Array.isArray(q) || q.length < 3 || typeof frameDefPolygonAreaAbs !== 'function') return 0;
+      return Number(frameDefPolygonAreaAbs(q)) || 0;
+    }
+    function candAxis(c) {
+      if (!c || !Array.isArray(c.quad) || c.quad.length < 2) return null;
+      var p1 = c.quad[0], p2 = c.quad[1];
+      if (!p1 || !p2) return null;
+      var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0);
+      var dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+      var len = Math.hypot(dx, dy);
+      if (!(len > 1e-6)) return null;
+      return { ux: dx / len, uy: dy / len, nx: -dy / len, ny: dx / len };
+    }
+    function candCenter(c) {
+      if (!c || !Array.isArray(c.quad) || c.quad.length < 4) return null;
+      var q = c.quad;
+      return {
+        x: ((Number(q[0].x) || 0) + (Number(q[1].x) || 0) + (Number(q[2].x) || 0) + (Number(q[3].x) || 0)) * 0.25,
+        y: ((Number(q[0].y) || 0) + (Number(q[1].y) || 0) + (Number(q[2].y) || 0) + (Number(q[3].y) || 0)) * 0.25
+      };
+    }
+    // ㄷ자 코너 보정: 같은 부호의 인접 평행 후보가 크게 겹치면 점수 큰 후보만 남긴다.
+    function pruneDominatedCandidates(arr) {
+      if (!Array.isArray(arr) || arr.length < 2) return Array.isArray(arr) ? arr : [];
+      var keep = new Array(arr.length);
+      for (var i0 = 0; i0 < arr.length; i0++) keep[i0] = true;
+      for (var i = 0; i < arr.length; i++) {
+        if (!keep[i]) continue;
+        var ci = arr[i];
+        var ai = candAxis(ci);
+        var bi = (typeof frameDef2aV2QuadBBox === 'function' && ci && ci.quad) ? frameDef2aV2QuadBBox(ci.quad) : null;
+        var ciCtr = candCenter(ci);
+        var iArea = quadAreaAbs(ci && ci.quad);
+        if (!ai || !bi || !ciCtr || !(iArea > 1e-6)) continue;
+        var iScore = Number(ci.rankScore);
+        if (!isFinite(iScore)) iScore = Number(ci.overlapArea) || 0;
+        for (var j = i + 1; j < arr.length; j++) {
+          if (!keep[j]) continue;
+          var cj = arr[j];
+          var aj = candAxis(cj);
+          var bj = (typeof frameDef2aV2QuadBBox === 'function' && cj && cj.quad) ? frameDef2aV2QuadBBox(cj.quad) : null;
+          var cjCtr = candCenter(cj);
+          var jArea = quadAreaAbs(cj && cj.quad);
+          if (!aj || !bj || !cjCtr || !(jArea > 1e-6)) continue;
+          var dot = Math.abs((Number(ai.ux) || 0) * (Number(aj.ux) || 0) + (Number(ai.uy) || 0) * (Number(aj.uy) || 0));
+          if (dot < 0.97) continue;
+          if (typeof frameDef2aV2BBoxIntersects2d === 'function' && !frameDef2aV2BBoxIntersects2d(bi, bj)) continue;
+          var ovPoly = frameDef2aV2QuadQuadOverlapPoly(ci.quad, cj.quad, bi, bj);
+          if (!ovPoly) continue;
+          var ovArea = Number(frameDefPolygonAreaAbs(ovPoly)) || 0;
+          if (!(ovArea > minOverlapAreaMm2)) continue;
+          var ovRatio = ovArea / Math.max(1e-6, Math.min(iArea, jArea));
+          if (ovRatio < 0.42) continue;
+          var sep = Math.abs((Number(cjCtr.x) - Number(ciCtr.x)) * (Number(ai.nx) || 0) + (Number(cjCtr.y) - Number(ciCtr.y)) * (Number(ai.ny) || 0));
+          var iTh = Math.max(1, Math.hypot((Number(ci.quad[3].x) || 0) - (Number(ci.quad[0].x) || 0), (Number(ci.quad[3].y) || 0) - (Number(ci.quad[0].y) || 0)));
+          var jTh = Math.max(1, Math.hypot((Number(cj.quad[3].x) || 0) - (Number(cj.quad[0].x) || 0), (Number(cj.quad[3].y) || 0) - (Number(cj.quad[0].y) || 0)));
+          if (sep > Math.max(iTh, jTh) * 1.05) continue;
+          var jScore = Number(cj.rankScore);
+          if (!isFinite(jScore)) jScore = Number(cj.overlapArea) || 0;
+          if (iScore > jScore + 1e-6) keep[j] = false;
+          else if (jScore > iScore + 1e-6) { keep[i] = false; break; }
+          else if (!!ci.selected && !cj.selected) keep[j] = false;
+          else if (!!cj.selected && !ci.selected) { keep[i] = false; break; }
+        }
+      }
+      var out = [];
+      for (var kx = 0; kx < arr.length; kx++) if (keep[kx]) out.push(arr[kx]);
+      return out;
+    }
+    plusOut = pruneDominatedCandidates(plusOut);
+    minusOut = pruneDominatedCandidates(minusOut);
     return { plus: plusOut, minus: minusOut };
   }
   var candsP = buildSignCandidates(1);

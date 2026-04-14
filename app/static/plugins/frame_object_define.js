@@ -213,21 +213,23 @@ var FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_MIN_STRONG_MM2 = 45;
 /** 약한 선분 방향 전파 시 이웃 탐색 최대 이격(mm, 평행 띠 기준). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_MAX_SEP_MM = 1800;
 /** 약한 선분 방향 전파를 적용할지 여부. */
-var FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_WEAK_SIGNS = true;
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_WEAK_SIGNS = false;
 /** true: 평행 근접 묶음(컴포넌트) 단위로 방향을 통일해 벽체 해치를 전체 유지. */
-var FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_COMPONENT_SIGN = true;
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_COMPONENT_SIGN = false;
 /** 컴포넌트 통일 시 donor 강도 최소(mm²). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MIN_STRONG_MM2 = 25;
 /** 컴포넌트 통일 이웃 최대 이격(mm). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MAX_SEP_MM = 2200;
 /** true: 맞은편 원천(segIndex)이 있으면 그쪽(가운데)으로 부호를 우선 고정. */
-var FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER = true;
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER = false;
 /** 양방향 후보끼리 비교 시 평행 판정 최소 |dot|. 1에 가까울수록 엄격. */
-var FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN = 0.988;
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN = 0.90;
 /** 양방향 후보끼리 최종 부호 재선택 적용 최대 벽 수(초과 시 자동 스킵, 자동탐지 멈춤 방지). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS = 700;
 /** 양방향 후보끼리 비교 시 부호별 최대 쌍 테스트 수(초과 시 중단 후 현재 점수 사용). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN = 120000;
+/** 2a-2-2 보존 전략 버전(화면 반영 확인용). */
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v5';
 /** 복도 0개 체인 전체 띠 폴백 — false 유지(광역 오생성). watch 체인만 아래 WATCH_ONLY */
 var FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR = false;
 /** 복도 subs가 한 세그도 없을 때: UI/DEBUG watch 엔티티가 체인에 있을 때만 전체 띠 */
@@ -919,6 +921,11 @@ function frameDefRenderDebugPanel() {
   html.push('<div style="font-size:0.75rem; color:#57606a;">쌍 ' + String(pairsFiltered.length) + '개 (1.2 제외 후)</div>');
   html.push('</div>');
   var n2a = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls.length : 0;
+  var dualOvStat = st.debugStep2aDualOverlapStat && typeof st.debugStep2aDualOverlapStat === 'object' ? st.debugStep2aDualOverlapStat : null;
+  var dualOvVer = dualOvStat && dualOvStat.ver ? String(dualOvStat.ver) : String(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER || '');
+  var dualOvPlus = dualOvStat && isFinite(Number(dualOvStat.plus)) ? Math.max(0, Math.floor(Number(dualOvStat.plus))) : 0;
+  var dualOvMinus = dualOvStat && isFinite(Number(dualOvStat.minus)) ? Math.max(0, Math.floor(Number(dualOvStat.minus))) : 0;
+  var dualOvStatTxt = ' <code style="font-size:0.60rem;">' + dualOvVer + ' +' + String(dualOvPlus) + '/-' + String(dualOvMinus) + '</code>';
   var n2aLoop = Array.isArray(st.wallStep2aClosedLoopChains) ? st.wallStep2aClosedLoopChains.length : 0;
   var n2aSrcSeg = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs.length : 0;
   var sc2a = st.wallStep2aSplitChainCounts && typeof st.wallStep2aSplitChainCounts === 'object' ? st.wallStep2aSplitChainCounts : null;
@@ -950,7 +957,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#24292f; margin-bottom:4px; cursor:pointer;"><input type="checkbox" id="frameDefDebugStep2aWallSegMidLinksChk" ' + (st.debugStep2aShowWallSegMidLinks ? 'checked' : '') + ' /> ④ 벽체↔원천 중점 연결(시안=원천 매칭, 분홍=가이드 폴백)</label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aHatchOvLblChk" style="margin-top:2px;" ' + (st.debugStep2aShowHatchOverlapLabels ? 'checked' : '') + ' /><span><b>방향 비교 ±겹침(mm²) 라벨</b> — 현재 최종 방향은 <b>2-1 양방향 후보끼리의 겹침 점수</b>로 재선택되며, 라벨은 참고용 수치(최대/합계)를 함께 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualCandidatesChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualCandidates ? 'checked' : '') + ' /><span><b>②-1 방향 비교 후보 해치(+/-) 표시</b> — +후보(파랑), -후보(주황)를 동시에 표시하고, 선택 방향은 진하게/비선택은 옅게 그립니다.</span></label>');
-  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualOverlapChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualOverlapPatches ? 'checked' : '') + ' /><span><b>②-2 방향 비교 후보끼리 겹침면 표시</b> — CAD 해치가 아니라 ②-1 양방향 벽체 후보(+/-)끼리의 교집합만 표시합니다. +겹침(청록), -겹침(주황).</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualOverlapChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualOverlapPatches ? 'checked' : '') + ' /><span><b>②-2 방향 비교 후보끼리 겹침면 표시</b>' + dualOvStatTxt + ' — CAD 해치가 아니라 ②-1 양방향 벽체 후보(+/-)끼리의 교집합만 표시합니다. +겹침(청록), -겹침(주황).</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push('</div>');
@@ -23994,8 +24001,8 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPick(list) {
     var wall = list[li];
     if (!wall || !wall.seg_a || !wall.seg_b) continue;
     var sd = score[li] || { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
-    var vP = (Number(sd.plusMax) || 0) + (Number(sd.plusSum) || 0) * sumW;
-    var vN = (Number(sd.minusMax) || 0) + (Number(sd.minusSum) || 0) * sumW;
+    var vP = (Number(sd.plusSum) || 0) + (Number(sd.plusMax) || 0) * sumW;
+    var vN = (Number(sd.minusSum) || 0) + (Number(sd.minusMax) || 0) * sumW;
     var preferCenter = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER !== 'boolean') || FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER;
     var centerSign = preferCenter ? centerPreferSign(wall) : null;
     if (Math.max(vP, vN) < pickMin && !(centerSign === 1 || centerSign === -1)) continue;
@@ -24349,8 +24356,8 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
     var w = list[li];
     if (!w || !w.seg_a || !w.seg_b) continue;
     var sd = score[li] || { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
-    var vP = (Number(sd.plusMax) || 0) + (Number(sd.plusSum) || 0) * sumW;
-    var vN = (Number(sd.minusMax) || 0) + (Number(sd.minusSum) || 0) * sumW;
+    var vP = (Number(sd.plusSum) || 0) + (Number(sd.plusMax) || 0) * sumW;
+    var vN = (Number(sd.minusSum) || 0) + (Number(sd.minusMax) || 0) * sumW;
     var cSign = ((typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER !== 'boolean') || FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER) ? centerSign(w) : null;
     var overlapStrong = Math.max(vP, vN) >= pickMin;
     if (!overlapStrong && !(cSign === 1 || cSign === -1)) { directSkippedWeak++; continue; }
@@ -24391,8 +24398,8 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
       var mw = meta[wi];
       if (!ww || !mw || !ww.seg_a || !ww.seg_b) continue;
       var sdw = score[wi] || { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
-      var vwP = (Number(sdw.plusMax) || 0) + (Number(sdw.plusSum) || 0) * sumW;
-      var vwN = (Number(sdw.minusMax) || 0) + (Number(sdw.minusSum) || 0) * sumW;
+      var vwP = (Number(sdw.plusSum) || 0) + (Number(sdw.plusMax) || 0) * sumW;
+      var vwN = (Number(sdw.minusSum) || 0) + (Number(sdw.minusMax) || 0) * sumW;
       var weak = Math.max(vwP, vwN) < pickMin;
       if (!weak) continue;
       weakCount++;
@@ -24406,8 +24413,8 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
         var dotd = Math.abs((Number(mw.ux) || 0) * (Number(md.ux) || 0) + (Number(mw.uy) || 0) * (Number(md.uy) || 0));
         if (dotd < parDotMin) continue;
         var sdd = score[wj] || { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
-        var vdP = (Number(sdd.plusMax) || 0) + (Number(sdd.plusSum) || 0) * sumW;
-        var vdN = (Number(sdd.minusMax) || 0) + (Number(sdd.minusSum) || 0) * sumW;
+        var vdP = (Number(sdd.plusSum) || 0) + (Number(sdd.plusMax) || 0) * sumW;
+        var vdN = (Number(sdd.minusSum) || 0) + (Number(sdd.minusMax) || 0) * sumW;
         if (Math.max(vdP, vdN) < propStrongMin) continue;
         var c1x = (Number(mw.bbox.minx) + Number(mw.bbox.maxx)) * 0.5;
         var c1y = (Number(mw.bbox.miny) + Number(mw.bbox.maxy)) * 0.5;
@@ -24480,8 +24487,8 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
       for (var ci = 0; ci < comp.length; ci++) {
         var idx = comp[ci];
         var sdc = score[idx] || { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
-        var vPc = (Number(sdc.plusMax) || 0) + (Number(sdc.plusSum) || 0) * sumW;
-        var vNc = (Number(sdc.minusMax) || 0) + (Number(sdc.minusSum) || 0) * sumW;
+        var vPc = (Number(sdc.plusSum) || 0) + (Number(sdc.plusMax) || 0) * sumW;
+        var vNc = (Number(sdc.minusSum) || 0) + (Number(sdc.minusMax) || 0) * sumW;
         if (Math.max(vPc, vNc) < unifyStrongMin) continue;
         if (vPc >= vNc) votePlus += vPc; else voteMinus += vNc;
       }
@@ -24729,6 +24736,12 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   var dualPolys = collectPairOverlapsDual(candsP, candsN);
   var plusPolys = dualPolys.plus || [];
   var minusPolys = dualPolys.minus || [];
+  st.debugStep2aDualOverlapStat = {
+    plus: plusPolys.length,
+    minus: minusPolys.length,
+    ver: String(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER || 'unknown'),
+    ts: Date.now()
+  };
   for (var pi = 0; pi < plusPolys.length; pi++) {
     var pp = plusPolys[pi];
     drawWorldPoly(pp.poly, pp.selectedPair ? '#06b6d4' : '#67e8f9', {

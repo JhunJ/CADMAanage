@@ -198,6 +198,36 @@ var FRAME_DEF_STEP2A_V2_CAD_HATCH_SCORE_OUTER_ONLY_PENALTY = 1.5e9;
 var FRAME_DEF_STEP2A_V2_CAD_HATCH_CLIP_INTERIOR = false;
 /** true: 맞은편 원천 매칭 실패여도 CAD 해치로 방향이 정해졌으면 원천 전장·추정 두께로 벽 생성(짧은 맞은편·비매칭 구간용) */
 var FRAME_DEF_STEP2A_V2_OPPOSITE_FAIL_UNPAIRED_FROM_HATCH = true;
+/** true: 2a 최종 부호를 CAD 해치가 아니라 "양방향 벽 후보끼리 겹침"으로 재선택. */
+var FRAME_DEF_STEP2A_V2_INWARD_SIGN_USE_DUAL_CAND_OVERLAP = true;
+/** 양방향 후보끼리 겹침 계산 최소 면적(mm²). */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2 = 1;
+/** 양방향 후보끼리 겹침 계산용 공간 버킷 크기(mm). */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_BUCKET_MM = 2200;
+/** 부호 선택 점수: max + sum*가중치(한쪽에 소량 다수 겹침 누락 완화). */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_SUM_WEIGHT = 0.22;
+/** 양쪽 점수가 모두 이 값 미만이면 기존 부호 유지(mm²). */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_PICK_MIN_MM2 = 0.5;
+/** 약한 선분(겹침 점수 부족) 방향을 강한 평행 이웃에서 전파할 때 최소 강한 점수(mm²). */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_MIN_STRONG_MM2 = 45;
+/** 약한 선분 방향 전파 시 이웃 탐색 최대 이격(mm, 평행 띠 기준). */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_MAX_SEP_MM = 1800;
+/** 약한 선분 방향 전파를 적용할지 여부. */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_WEAK_SIGNS = true;
+/** true: 평행 근접 묶음(컴포넌트) 단위로 방향을 통일해 벽체 해치를 전체 유지. */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_COMPONENT_SIGN = true;
+/** 컴포넌트 통일 시 donor 강도 최소(mm²). */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MIN_STRONG_MM2 = 25;
+/** 컴포넌트 통일 이웃 최대 이격(mm). */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MAX_SEP_MM = 2200;
+/** true: 맞은편 원천(segIndex)이 있으면 그쪽(가운데)으로 부호를 우선 고정. */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER = true;
+/** 양방향 후보끼리 비교 시 평행 판정 최소 |dot|. 1에 가까울수록 엄격. */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN = 0.988;
+/** 양방향 후보끼리 최종 부호 재선택 적용 최대 벽 수(초과 시 자동 스킵, 자동탐지 멈춤 방지). */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS = 700;
+/** 양방향 후보끼리 비교 시 부호별 최대 쌍 테스트 수(초과 시 중단 후 현재 점수 사용). */
+var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN = 120000;
 /** 복도 0개 체인 전체 띠 폴백 — false 유지(광역 오생성). watch 체인만 아래 WATCH_ONLY */
 var FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR = false;
 /** 복도 subs가 한 세그도 없을 때: UI/DEBUG watch 엔티티가 체인에 있을 때만 전체 띠 */
@@ -216,6 +246,9 @@ var FRAME_DEF_STEP2A_CORRIDOR_TRACK_PROX_MM = 175;
 var FRAME_DEF_STEP2A_MITER_EXT_MAX_W_MULT = 2.45;
 /** 띠 마이터: 꼭짓점당 연장이 `변장×0.42`만 있으면 긴 변에서 수 m까지 튐 → 절대 상한(mm) */
 var FRAME_DEF_STEP2A_MITER_EXT_PER_VERTEX_MAX_MM = 175;
+// #region agent log
+fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e6e213'},body:JSON.stringify({sessionId:'e6e213',runId:'pre-fix',hypothesisId:'H5',location:'frame_object_define.js:top-level',message:'script loaded',data:{step2aDualOverlapEnabled:FRAME_DEF_STEP2A_V2_INWARD_SIGN_USE_DUAL_CAND_OVERLAP===true},timestamp:Date.now()})}).catch(function(){});
+// #endregion
 /** 꼭짓점 경로 변: minSeg×이 비율 미만이면 띠 조각 생략 → 비율 낮출수록 짧은 변도 생성 */
 var FRAME_DEF_STEP2A_MITER_EDGE_MIN_FRAC = 0.34;
 var FRAME_DEF_WALL_EDIT_HIT_MM = 180;
@@ -237,10 +270,8 @@ var FRAME_DEF_DEBUG_ZONE_POINTS_MM = [];
 var FRAME_DEF_DEBUG_ZONE_RADIUS_MM = 25000;
 /** 2a NDJSON trace 기본 ent_id — 뷰어 해치는 `debugStep2aUserHatchTraceEnabled` 켠 뒤에만 `debugStep2aUserTraceEntityIds`와 병합 */
 var FRAME_DEF_DEBUG_2A_TRACE_ENTITY_IDS = [];
-/** 2a 집중 디버그: 이 ent_id(들)가 원천 세그에 있으면 빌드 시 상세 ingest + `window.__dbg2aFocus*` 갱신. 빈 배열이면 끔 */
+/** 2a 집중 디버그: 이 ent_id(들)가 원천 세그에 있으면 빌드 시 `window.__dbg2aFocus*` 갱신. 빈 배열이면 끔 */
 var FRAME_DEF_DEBUG_2A_FOCUS_ENTITY_IDS = [23628188];
-/** false(기본): 7901 9229ea NDJSON ingest·localStorage `__dbg2a*` 버퍼 생략 — 골조 탐지 시 수천 회 호출로 UI가 멈추는 것 방지. Cursor 디버깅 시만 true. */
-var FRAME_DEF_DEBUG_AGENT_INGEST_9229EA = false;
 /** ent_id 머지 후에도 잡기 위한 월드 기준선(수직선 등). null이면 좌표 매칭 안 함 */
 var FRAME_DEF_DEBUG_2A_FOCUS_WORLD_LINE = { x: 117862.9100507554, y0: 205497.2148522987, y1: 213197.2148522987, eps: 2.5 };
 /** 병합 후 trace: 세그 중점 슬랩 { x1,y1,x2,y2,tolY,padX } | null — 프로젝트별 값은 state.debugStep2aUserTraceSlab 우선 */
@@ -917,8 +948,9 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#24292f; margin-bottom:4px; cursor:pointer;"><input type="checkbox" id="frameDefDebugStep2aClosedLoopHatchChk" ' + (st.debugStep2aShowClosedLoopHatch ? 'checked' : '') + ' /> ② 벽체 내부 해치(주황) — <code style="font-size:0.62rem;">wallStep2aHatchWalls</code>와 ③ 동일·색만 다름. 기하 바꾼 뒤엔 「2a 재계산」 또는 골조 탐지 다시 실행.</label>');
   html.push('<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#24292f; margin-bottom:4px; cursor:pointer;"><input type="checkbox" id="frameDefDebugStep2aHatchChk" ' + (st.debugStep2aShowHatch ? 'checked' : '') + ' /> ③ 벽체 내부 해치(자홍)</label>');
   html.push('<label style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#24292f; margin-bottom:4px; cursor:pointer;"><input type="checkbox" id="frameDefDebugStep2aWallSegMidLinksChk" ' + (st.debugStep2aShowWallSegMidLinks ? 'checked' : '') + ' /> ④ 벽체↔원천 중점 연결(시안=원천 매칭, 분홍=가이드 폴백)</label>');
-  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aHatchOvLblChk" style="margin-top:2px;" ' + (st.debugStep2aShowHatchOverlapLabels ? 'checked' : '') + ' /><span><b>해치 ±겹침(mm²) 라벨</b> — 방향 판정은 <b>양쪽에서 충돌한 해치 중 최대 겹침</b> 기준(+1/-1)이며, Σ 겹침/겹침률(%)은 참고값으로 함께 표시합니다.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aHatchOvLblChk" style="margin-top:2px;" ' + (st.debugStep2aShowHatchOverlapLabels ? 'checked' : '') + ' /><span><b>방향 비교 ±겹침(mm²) 라벨</b> — 현재 최종 방향은 <b>2-1 양방향 후보끼리의 겹침 점수</b>로 재선택되며, 라벨은 참고용 수치(최대/합계)를 함께 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualCandidatesChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualCandidates ? 'checked' : '') + ' /><span><b>②-1 방향 비교 후보 해치(+/-) 표시</b> — +후보(파랑), -후보(주황)를 동시에 표시하고, 선택 방향은 진하게/비선택은 옅게 그립니다.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualOverlapChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualOverlapPatches ? 'checked' : '') + ' /><span><b>②-2 방향 비교 후보끼리 겹침면 표시</b> — CAD 해치가 아니라 ②-1 양방향 벽체 후보(+/-)끼리의 교집합만 표시합니다. +겹침(청록), -겹침(주황).</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push('</div>');
@@ -1431,6 +1463,14 @@ function frameDefRenderDebugPanel() {
       if (typeof draw === 'function') draw();
     };
   }
+  var step2aDualOverlapChk = document.getElementById('frameDefDebugStep2aDualOverlapChk');
+  if (step2aDualOverlapChk) {
+    step2aDualOverlapChk.onchange = function() {
+      var s = frameDefGetState();
+      s.debugStep2aShowDualOverlapPatches = !!step2aDualOverlapChk.checked;
+      if (typeof draw === 'function') draw();
+    };
+  }
   var step2bCnnChk = document.getElementById('frameDefDebugStep2bCnnChk');
   if (step2bCnnChk) {
     step2bCnnChk.onchange = function() {
@@ -1587,7 +1627,7 @@ function frameDefStateDefaults() {
     autoRotatedWallKeys: {}, editDragState: null, editSnapGuide: null,
     rawSegs: [], descs: [], debugColumns: [],
     wallCandidates: [], wallPairs: [], wallStep2Segs: [], wallStep2aHatchWalls: [], wallStep2aSourceSegs: [], wallStep2aSourcePairs: [], wallStep2aClosedLoopChains: [], wallStep2aClosedLoopDebug: [], wallStep2aSplitChainCounts: { closed: 0, open: 0, openWalls: 0 }, wallCandidatesStep11: [], wallCandidatesStep11Rings: [], wallStep11ClosedChains: [], wallStep11ByCategory: {}, wallStep11Debug: null, wallStep12Walls: { '121': [], '122': [], '123': [], '124': [] },
-    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep11ShowHatch: false,
+    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep2aShowDualOverlapPatches: false, debugStep11ShowHatch: false,
     debugStep111ShowHatch: false, debugStep112ShowHatch: false, debugStep113ShowHatch: false, debugStep114ShowHatch: false, debugStep115ShowHatch: false, debugStep116ShowHatch: false,
     debugStep121ShowHatch: false, debugStep122ShowHatch: false, debugStep123ShowHatch: false, debugStep123ShowPreSwapHatch: false, debugStep124ShowHatch: false,
     debugStep124ShowSplitCandidates: false,
@@ -1655,6 +1695,7 @@ function frameDefGetState() {
   if (window.frameDefState.debugStep2aShowWallSegMidLinks !== true && window.frameDefState.debugStep2aShowWallSegMidLinks !== false) window.frameDefState.debugStep2aShowWallSegMidLinks = false;
   if (window.frameDefState.debugStep2aShowHatchOverlapLabels !== true && window.frameDefState.debugStep2aShowHatchOverlapLabels !== false) window.frameDefState.debugStep2aShowHatchOverlapLabels = false;
   if (window.frameDefState.debugStep2aShowDualCandidates !== true && window.frameDefState.debugStep2aShowDualCandidates !== false) window.frameDefState.debugStep2aShowDualCandidates = false;
+  if (window.frameDefState.debugStep2aShowDualOverlapPatches !== true && window.frameDefState.debugStep2aShowDualOverlapPatches !== false) window.frameDefState.debugStep2aShowDualOverlapPatches = false;
   if (window.frameDefState.debugStep11ShowHatch !== true && window.frameDefState.debugStep11ShowHatch !== false) window.frameDefState.debugStep11ShowHatch = false;
   if (window.frameDefState.debugStep111ShowHatch !== true && window.frameDefState.debugStep111ShowHatch !== false) window.frameDefState.debugStep111ShowHatch = false;
   if (window.frameDefState.debugStep112ShowHatch !== true && window.frameDefState.debugStep112ShowHatch !== false) window.frameDefState.debugStep112ShowHatch = false;
@@ -3419,11 +3460,6 @@ function frameDefJoinSegmentsIntoChains(segs, endpointTol) {
     list.push(bestByEk[jk].seg);
   }
   if (!list.length) return [];
-  // #region agent log
-  if (typeof fetch === 'function' && joinSnapKeyCandN > joinSnapKeyEkN) {
-    fetch('http://127.0.0.1:7246/ingest/ed3d586f-4e6e-4d59-afb3-4db05628884f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '44f71e' }, body: JSON.stringify({ sessionId: '44f71e', runId: 'join-dedup-v1', hypothesisId: 'H_joinSnapDupKeepLonger', location: 'frame_object_define.js:frameDefJoinSegmentsIntoChains', message: 'snap-key dedupe keep longest', data: { candN: joinSnapKeyCandN, ekN: joinSnapKeyEkN, droppedN: joinSnapKeyCandN - joinSnapKeyEkN, snapMm: snap }, timestamp: Date.now() }) }).catch(function() {});
-  }
-  // #endregion
   var nodes = {}, edges = [];
   for (var i = 0; i < list.length; i++) {
     var s = list[i];
@@ -6517,9 +6553,6 @@ function frameDefDebugLogTraceEntitySegStages2a(stage, segArr, extra) {
     });
   }
   if (!hits.length) return;
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/ed3d586f-4e6e-4d59-afb3-4db05628884f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '44f71e' }, body: JSON.stringify({ sessionId: '44f71e', runId: 'namyanju-150-2361966x', hypothesisId: 'H_trace2361966x_seg', location: 'frame_object_define.js:' + String(stage), message: 'trace entity seg stage', data: { stage: stage, hitN: hits.length, hits: hits, extra: extra || null }, timestamp: Date.now() }) }).catch(function() {});
-  // #endregion
 }
 
 /** 추적 ID가 벽 트랙 쌍의 a/b entity_ids에 걸리는 경우 */
@@ -6552,9 +6585,6 @@ function frameDefDebugLogTraceEntityPairs2a(stage, pairArr, extra) {
     });
   }
   if (!hits.length) return;
-  // #region agent log
-  fetch('http://127.0.0.1:7246/ingest/ed3d586f-4e6e-4d59-afb3-4db05628884f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '44f71e' }, body: JSON.stringify({ sessionId: '44f71e', runId: 'namyanju-150-2361966x', hypothesisId: 'H_trace2361966x_pair', location: 'frame_object_define.js:' + String(stage), message: 'trace entity wall pair', data: { stage: stage, hitN: hits.length, hits: hits, extra: extra || null }, timestamp: Date.now() }) }).catch(function() {});
-  // #endregion
 }
 
 /** `FRAME_DEF_DEBUG_2A_TRACE_ENTITY_IDS` 및 사용자 해치 id 중 하나가 체인 세그에 포함되는지 */
@@ -7852,11 +7882,6 @@ function frameDefMergeCollinearOverlappingSegsFor2aChainJoin(joinCandArr, tol) {
     }
   }
   var out = mergedOut.concat(outPass);
-  // #region agent log
-  if (typeof fetch === 'function') {
-    fetch('http://127.0.0.1:7246/ingest/ed3d586f-4e6e-4d59-afb3-4db05628884f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '44f71e' }, body: JSON.stringify({ sessionId: '44f71e', runId: '2a-collinear-v7', hypothesisId: 'H_lineDistCluster', location: 'frame_object_define.js:frameDefMergeCollinearOverlappingSegsFor2aChainJoin', message: '2a collinear merge', data: { inLen: src.length, outLen: out.length, multiRunN: multiRunN, mergeBatchN: mergeBatches.length, byLineDist: byLineDist, unifyLg: unifyLg, lineDistMax: lineDistMax, rhoBandMm: rhoBandMm, nearStackMm: typeof FRAME_DEF_STEP2A_COLLINEAR_NEAR_STACK_MM === 'number' ? FRAME_DEF_STEP2A_COLLINEAR_NEAR_STACK_MM : -1, lineDistRule: 'axisCoarse_perpNearStack_transitive', rhoStepMm: typeof FRAME_DEF_STEP2A_COLLINEAR_MERGE_RHO_STEP_MM === 'number' ? FRAME_DEF_STEP2A_COLLINEAR_MERGE_RHO_STEP_MM : -1, gapMm: gapMm, groupKeyN: keys.length, keysWithMultiSeg: keysWithMultiSeg, maxGroupArr: maxGroupArr, keysSorted: true, corridorTailRule: 'bleed+bleedCap' }, timestamp: Date.now() }) }).catch(function() {});
-  }
-  // #endregion
   return out;
 }
 
@@ -9468,17 +9493,6 @@ function frameDefBuildStep2aWallsFromOpenChains(openChains, pairs, tol, buildOpt
     for (var ajw = 0; ajw < segPack.length; ajw++) {
       if (segPack[ajw] && segPack[ajw].subs && segPack[ajw].subs.length) { anyCorridor = true; break; }
     }
-    // #region agent log
-    if (typeof fetch === 'function' && typeof frameDef2aChainMatchesTraceEntityIds2a === 'function' && frameDef2aChainMatchesTraceEntityIds2a(chain)) {
-      var spSum = [];
-      for (var _spi = 0; _spi < segPack.length; _spi++) {
-        var _pk = segPack[_spi];
-        if (!_pk || !_pk.pair) { spSum.push({ i: _spi, pair: false }); continue; }
-        spSum.push({ i: _spi, th: Number(_pk.pair.thickness_mm) || 0, subsN: (_pk.subs && _pk.subs.length) || 0 });
-      }
-      fetch('http://127.0.0.1:7246/ingest/ed3d586f-4e6e-4d59-afb3-4db05628884f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '44f71e' }, body: JSON.stringify({ sessionId: '44f71e', runId: '2361966x-open-chain', hypothesisId: 'H_openChainCorridor', location: 'frame_object_define.js:frameDefBuildStep2aWallsFromOpenChains', message: 'trace chain segPack', data: { openChainIndex: ci, chainLen: chain.length, anyCorridor: anyCorridor, allowStripNoPair: allowStripNoPair, segPack: spSum, tiePreferThin: !!(typeof FRAME_DEF_STEP2A_CORRIDOR_PAIR_TIE_PREFER_THINNER === 'boolean' && FRAME_DEF_STEP2A_CORRIDOR_PAIR_TIE_PREFER_THINNER) }, timestamp: Date.now() }) }).catch(function() {});
-    }
-    // #endregion
     if (!pairList.length || !anyCorridor) {
       var stripNoCorW = typeof FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR === 'boolean' && FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR && !anyCorridor && pairList.length;
       var stripNoCorWw = typeof FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_NO_CORRIDOR_WATCH_ONLY === 'boolean' && FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_NO_CORRIDOR_WATCH_ONLY && !anyCorridor && pairList.length && typeof frameDefSubChainTouchesStep2aExtendWatchIds === 'function' && frameDefSubChainTouchesStep2aExtendWatchIds(chain, typeof frameDefStep2aExtendWatchIdsMap === 'function' ? frameDefStep2aExtendWatchIdsMap() : null);
@@ -10024,50 +10038,23 @@ function frameDef2aV2PickInwardFromHatchCentroidDelta(seg, hatchBBoxList) {
  *   — `MIN_OVERLAP_MM2` 미만은 ‘해치와 겹침 없음’으로 보고 비교에서 제외, **의미 있게 겹치는 쪽만** 남겨 더 큰 면적 쪽 선택(한쪽만 통과면 그쪽, 둘 다 미달이면 프로브·점수로 폴백)
  */
 function frameDef2aV2PickInwardFromFullSourceHatch(seg, thFullMm, hatchBBoxList) {
-  // #region agent log
-  function _agentLog2aPick(payload) {
-    if (typeof FRAME_DEF_DEBUG_AGENT_INGEST_9229EA !== 'boolean' || !FRAME_DEF_DEBUG_AGENT_INGEST_9229EA) return;
-    fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '9229ea' }, body: JSON.stringify(Object.assign({ sessionId: '9229ea', location: 'frame_object_define.js:frameDef2aV2PickInwardFromFullSourceHatch', hypothesisId: 'H1-H3', timestamp: Date.now(), runId: 'post-fix' }, payload)) }).catch(function() {});
-    try {
-      if (typeof localStorage !== 'undefined') {
-        var key = '__dbg2aStep2a';
-        var buf = JSON.parse(localStorage.getItem(key) || '[]');
-        if (!Array.isArray(buf)) buf = [];
-        buf.push(Object.assign({ t: Date.now() }, payload));
-        if (buf.length > 120) buf = buf.slice(-120);
-        localStorage.setItem(key, JSON.stringify(buf));
-      }
-    } catch (eLs) {}
-  }
-  // #endregion
   if (!seg || !seg.p1 || !seg.p2 || !Array.isArray(hatchBBoxList) || !hatchBBoxList.length) {
-    // #region agent log
-    _agentLog2aPick({ message: 'pick early exit', data: { reason: 'no-input' } });
-    // #endregion
     return null;
   }
   if (typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function' || typeof frameDef2aV2QuadHatchProbeBits !== 'function'
       || typeof frameDef2aV2QuadHatchScoreFromProbeBits !== 'function') {
-    // #region agent log
-    _agentLog2aPick({ message: 'pick early exit', data: { reason: 'missing-fn' } });
-    // #endregion
     return null;
   }
   var T = Math.max(FRAME_DEF_WALL_MIN_THICKNESS_MM, Math.min(FRAME_DEF_WALL_MAX_THICKNESS_MM, Number(thFullMm) || 170));
   var qP = frameDefSegToWallBodyQuadOutlineWorld(seg.p1, seg.p2, T, 1);
   var qN = frameDefSegToWallBodyQuadOutlineWorld(seg.p1, seg.p2, T, -1);
   if (!qP || qP.length < 4 || !qN || qN.length < 4) {
-    // #region agent log
-    _agentLog2aPick({ message: 'pick early exit', data: { reason: 'bad-quad', T: T } });
-    // #endregion
     return null;
   }
   var bP = frameDef2aV2QuadHatchProbeBits(qP, hatchBBoxList);
   var bN = frameDef2aV2QuadHatchProbeBits(qN, hatchBBoxList);
   var touchP = !!(bP.outerHit || bP.innerHit || bP.deepHit);
   var touchN = !!(bN.outerHit || bN.innerHit || bN.deepHit);
-  var smx = ((Number(seg.p1.x) || 0) + (Number(seg.p2.x) || 0)) * 0.5;
-  var smy = ((Number(seg.p1.y) || 0) + (Number(seg.p2.y) || 0)) * 0.5;
   var preferOv = typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_PICK_PREFER_OVERLAP_GRID !== 'boolean' || FRAME_DEF_STEP2A_V2_CAD_HATCH_PICK_PREFER_OVERLAP_GRID;
   var pickGn = (typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_PICK_GRID === 'number' && FRAME_DEF_STEP2A_V2_CAD_HATCH_PICK_GRID >= 2)
     ? Math.min(16, Math.floor(FRAME_DEF_STEP2A_V2_CAD_HATCH_PICK_GRID)) : 6;
@@ -10077,7 +10064,6 @@ function frameDef2aV2PickInwardFromFullSourceHatch(seg, thFullMm, hatchBBoxList)
     axOvN = frameDef2aV2QuadHatchOverlapAreaGrid(qN, hatchBBoxList, pickGn);
   }
   var maxG = Math.max(axOv, axOvN);
-  var sumA = axOv + axOvN;
   var minHm = typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_MIN_OVERLAP_MM2 === 'number' ? FRAME_DEF_STEP2A_V2_CAD_HATCH_MIN_OVERLAP_MM2 : 5;
   var gridPick = null;
   if (preferOv) {
@@ -10094,78 +10080,32 @@ function frameDef2aV2PickInwardFromFullSourceHatch(seg, thFullMm, hatchBBoxList)
     }
   }
   var result = null;
-  var pickBranch = 'null';
   var sP = 0, sN = 0;
   if (gridPick !== null) {
     result = gridPick;
-    pickBranch = 'grid-area';
   } else if (touchP && !touchN) {
     result = 1;
-    pickBranch = 'touch-only';
   } else if (!touchP && touchN) {
     result = -1;
-    pickBranch = 'touch-only';
   } else if (!touchP && !touchN) {
     result = null;
-    pickBranch = 'none';
   } else {
     sP = frameDef2aV2QuadHatchScoreFromProbeBits(bP, qP, hatchBBoxList);
     sN = frameDef2aV2QuadHatchScoreFromProbeBits(bN, qN, hatchBBoxList);
     if (Math.abs(sP - sN) < 1e-6) {
       result = null;
-      pickBranch = 'score-tie';
     } else {
       result = sP > sN ? 1 : -1;
-      pickBranch = 'score';
     }
   }
-  var gridWinner = (axOv > axOvN + 1e-6) ? 1 : (axOvN > axOv + 1e-6 ? -1 : 0);
-  var probeGridMismatch = (gridWinner !== 0 && result !== null && result !== gridWinner);
-  // #region agent log
-  _agentLog2aPick({
-    message: 'pick resolved',
-    data: {
-      smx: smx, smy: smy, T: T,
-      touchP: touchP, touchN: touchN,
-      bitsP: { o: !!bP.outerHit, i: !!bP.innerHit, d: !!bP.deepHit },
-      bitsN: { o: !!bN.outerHit, i: !!bN.innerHit, d: !!bN.deepHit },
-      sP: sP, sN: sN,
-      axOv: axOv, axOvN: axOvN, pickGn: pickGn, sumA: sumA, gridWinner: gridWinner,
-      pick: result, pickBranch: pickBranch, probeGridMismatch: probeGridMismatch
-    }
-  });
-  // #endregion
   if (result === null && hatchBBoxList.length
       && (typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_PICK_CENTROID_FALLBACK !== 'boolean' || FRAME_DEF_STEP2A_V2_CAD_HATCH_PICK_CENTROID_FALLBACK)
       && typeof frameDef2aV2PickInwardFromHatchCentroidDelta === 'function') {
     var cenR = frameDef2aV2PickInwardFromHatchCentroidDelta(seg, hatchBBoxList);
     if (cenR !== null && cenR !== undefined) {
       result = cenR;
-      _agentLog2aPick({ message: 'pick centroid fallback', data: { pick: result } });
     }
   }
-  try {
-    if (typeof window !== 'undefined' && typeof frameDef2aV2SegMatchesFocusDebug === 'function' && frameDef2aV2SegMatchesFocusDebug(seg)) {
-      var _fx1 = Number(seg.p1.x) || 0, _fy1 = Number(seg.p1.y) || 0, _fx2 = Number(seg.p2.x) || 0, _fy2 = Number(seg.p2.y) || 0;
-      var _fdx = _fx2 - _fx1, _fdy = _fy2 - _fy1, _flen = Math.hypot(_fdx, _fdy);
-      var _fnx = _flen > 1e-6 ? -_fdy / _flen : 0, _fny = _flen > 1e-6 ? _fdx / _flen : 0;
-      var _vert = Math.abs(_fdx) <= Math.abs(_fdy) * 0.02;
-      window.__dbg2aFocusPick = {
-        ent_id: seg.ent_id,
-        axOv_mm2_inwardSignPlus1: axOv,
-        axOvN_mm2_inwardSignMinus1: axOvN,
-        pick: result,
-        pickBranch: pickBranch,
-        gridWinner: gridWinner,
-        probeGridMismatch: probeGridMismatch,
-        pickGridN: pickGn,
-        leftNormalWorld: { nx: _fnx, ny: _fny },
-        hint: _vert
-          ? '수직 세그: (nx,ny)≈(±1,0) — inwardSign +1 스트립은 +nx 쪽(월드 +X면 화면에서 보통 오른쪽). 우측 해치가 많으면 axOv(+1) > axOvN(-1) 이어야 함.'
-          : '선분 좌법선 (nx,ny): +1 쿼드는 이 방향으로 두께 진행, -1 은 반대.'
-      };
-    }
-  } catch (_eFp) {}
   return result;
 }
 
@@ -10905,24 +10845,10 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
     if (!(slen > minLen)) continue;
 
     var focusThis = typeof frameDef2aV2SegMatchesFocusDebug === 'function' && frameDef2aV2SegMatchesFocusDebug(sg);
-    if (focusThis && typeof window !== 'undefined') {
-      try {
-        window.__dbg2aFocusPick = null;
-        window.__dbg2aFocusDualHatch = null;
-      } catch (eClr) {}
-    }
     if (focusThis) {
-      // #region agent log
-      (function() {
-        try {
-          if (typeof window !== 'undefined') window.__dbg2aFocusSegEnter = { t: Date.now(), si: i, ent_id: sg.ent_id, p1: sg.p1, p2: sg.p2, slen: slen };
-        } catch (eF0) {}
-        if (typeof FRAME_DEF_DEBUG_AGENT_INGEST_9229EA === 'boolean' && FRAME_DEF_DEBUG_AGENT_INGEST_9229EA) {
-          var payload = { sessionId: '9229ea', location: 'frame_object_define.js:frameDefBuildWallStep2aHatchReviewWalls', message: '2a FOCUS source seg enter', hypothesisId: 'H-focus-23628188', timestamp: Date.now(), runId: 'focus-line', data: { si: i, ent_id: sg.ent_id, entity_ids: typeof frameDefSegEntityIds === 'function' ? frameDefSegEntityIds(sg) : [], p1: sg.p1, p2: sg.p2, slen: slen } };
-          fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '9229ea' }, body: JSON.stringify(payload) }).catch(function() {});
-        }
-      })();
-      // #endregion
+      try {
+        if (typeof window !== 'undefined') window.__dbg2aFocusSegEnter = { t: Date.now(), si: i, ent_id: sg.ent_id, p1: sg.p1, p2: sg.p2, slen: slen };
+      } catch (eF0) {}
     }
 
     var thFull = defaultFull;
@@ -11078,38 +11004,6 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
         }
       }
     }
-    if (focusThis && useCadHatchInward && hatchBBox2aV2.length >= 1) {
-      try {
-        if (typeof window !== 'undefined') {
-          var _gx1 = Number(sg.p1.x) || 0, _gy1 = Number(sg.p1.y) || 0, _gx2 = Number(sg.p2.x) || 0, _gy2 = Number(sg.p2.y) || 0;
-          var _gdx = _gx2 - _gx1, _gdy = _gy2 - _gy1, _glen = Math.hypot(_gdx, _gdy);
-          var _gnx = _glen > 1e-6 ? -_gdy / _glen : 0, _gny = _glen > 1e-6 ? _gdx / _glen : 0;
-          window.__dbg2aFocusDualHatch = {
-            ent_id: sg.ent_id,
-            dualHatchChosen: !!dualHatchChosen,
-            dualOvPos_mm2: dbgDualOvFullP,
-            dualOvNeg_mm2: dbgDualOvFullN,
-            dualOvPos_hatchIdx: dbgDualOvFullPIdx,
-            dualOvNeg_hatchIdx: dbgDualOvFullNIdx,
-            dualOvNearPos_mm2: dbgDualOvNearP,
-            dualOvNearNeg_mm2: dbgDualOvNearN,
-            dualOvNearPos_hatchIdx: dbgDualOvNearPIdx,
-            dualOvNearNeg_hatchIdx: dbgDualOvNearNIdx,
-            dualOvPickPos_mm2: dbgDualOvPickP,
-            dualOvPickNeg_mm2: dbgDualOvPickN,
-            dualOvPickPos_hatchIdx: dbgDualOvPickPIdx,
-            dualOvPickNeg_hatchIdx: dbgDualOvPickNIdx,
-            dualNearCount: dbgDualNearCount,
-            dualUsedNear: dbgDualUsedNear,
-            dualUsedGlobalFallback: dbgDualUsedGlobalFallback,
-            hatchSign: dbgHatchSign,
-            dbgDualResPath: dbgDualResPath,
-            leftNormalWorld: { nx: _gnx, ny: _gny },
-            note: 'dual 경로: +1/-1에서 충돌한 해치 중 최대 겹침(mm²) 비교(근처 우선, 부족하면 전체 fallback).'
-          };
-        }
-      } catch (eFd) {}
-    }
     if (!dualHatchChosen) {
       if (useCadHatchInward && hatchBBox2aV2.length >= 1 && typeof frameDef2aV2PickInwardFromFullSourceHatch === 'function') {
         pickFullH = frameDef2aV2PickInwardFromFullSourceHatch(sg, thFull, hatchBBox2aV2);
@@ -11148,36 +11042,12 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
     }
     if (!resOpp || !resOpp.ok) {
       if (focusThis) {
-        // #region agent log
-        (function() {
-          try {
-            if (typeof window !== 'undefined') window.__dbg2aFocusFail = { stage: 'noResOpp', si: i, ent_id: sg.ent_id, t: Date.now() };
-          } catch (eFf) {}
-          if (typeof FRAME_DEF_DEBUG_AGENT_INGEST_9229EA === 'boolean' && FRAME_DEF_DEBUG_AGENT_INGEST_9229EA) {
-            fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '9229ea' }, body: JSON.stringify({ sessionId: '9229ea', location: 'frame_object_define.js:frameDefBuildWallStep2aHatchReviewWalls', message: '2a FOCUS no resOpp', hypothesisId: 'H-focus-23628188', timestamp: Date.now(), runId: 'focus-line', data: { si: i, ent_id: sg.ent_id } }) }).catch(function() {});
-          }
-        })();
-        // #endregion
+        try {
+          if (typeof window !== 'undefined') window.__dbg2aFocusFail = { stage: 'noResOpp', si: i, ent_id: sg.ent_id, t: Date.now() };
+        } catch (eFf) {}
       }
       continue;
     }
-    // #region agent log
-    (function() {
-      if (typeof FRAME_DEF_DEBUG_AGENT_INGEST_9229EA !== 'boolean' || !FRAME_DEF_DEBUG_AGENT_INGEST_9229EA) return;
-      var thU = Number(resOpp.thUse);
-      fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '9229ea' }, body: JSON.stringify({ sessionId: '9229ea', location: 'frame_object_define.js:frameDefBuildWallStep2aHatchReviewWalls', message: '2a wall opp resolved', hypothesisId: 'H7-hatchSignWithoutOkPair', timestamp: Date.now(), runId: 'post-fix', data: { si: i, dualHatchChosen: !!dualHatchChosen, hatchSign: dbgHatchSign, dualResPath: dbgDualResPath, dualOvFullP: dbgDualOvFullP, dualOvFullN: dbgDualOvFullN, pickFullH: pickFullH, outlineInwardSign: resOpp.outlineInwardSign, thFull: thFull, thUse: thU, thDelta: thU - thFull } }) }).catch(function() {});
-      try {
-        if (typeof localStorage !== 'undefined') {
-          var k2 = '__dbg2aWallBuild';
-          var buf2 = JSON.parse(localStorage.getItem(k2) || '[]');
-          if (!Array.isArray(buf2)) buf2 = [];
-          buf2.push({ t: Date.now(), si: i, dualHatchChosen: !!dualHatchChosen, hatchSign: dbgHatchSign, dualResPath: dbgDualResPath, oP: dbgDualOvFullP, oN: dbgDualOvFullN, outlineInwardSign: resOpp.outlineInwardSign });
-          if (buf2.length > 100) buf2 = buf2.slice(-100);
-          localStorage.setItem(k2, JSON.stringify(buf2));
-        }
-      } catch (eWb) {}
-    })();
-    // #endregion
     var thUse0 = resOpp.thUse;
     if (!(thUse0 >= FRAME_DEF_WALL_MIN_THICKNESS_MM - 1e-6)) continue;
     var p1w0 = resOpp.p1, p2w0 = resOpp.p2;
@@ -11255,18 +11125,6 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
         }
       }
     }
-    if (focusThis) {
-      try {
-        if (typeof window !== 'undefined') {
-          window.__dbg2aFocusQuadResolve = {
-            oBase_mm2: oQuadBase,
-            oAlt_mm2: oQuadAltV,
-            quadSgnFinal: quadSgn0,
-            note: '맞은편 확정 후 쿼드: 충돌 해치 중 최대 겹침 기준 우선(근처 해치), 동률일 때만 inner-edge 중점 보조'
-          };
-        }
-      } catch (eQr) {}
-    }
     var thUse = thUse0;
     var doClip = (typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_CLIP_INTERIOR !== 'boolean' || FRAME_DEF_STEP2A_V2_CAD_HATCH_CLIP_INTERIOR)
       && useCadHatchInward && hatchBBox2aV2.length && typeof frameDef2aV2LargestClipQuadByCadHatches === 'function';
@@ -11317,6 +11175,9 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
       from_step12: false,
       __step2aV2SourceIndex: i,
       __step2aV2OppositeSegIndex: oidx,
+      __step2aDualBaseOuterP1: { x: Number(p1w0.x) || 0, y: Number(p1w0.y) || 0 },
+      __step2aDualBaseOuterP2: { x: Number(p2w0.x) || 0, y: Number(p2w0.y) || 0 },
+      __step2aDualBaseThicknessMm: Number(thUse0) || Number(thOut) || 170,
       __step2aOutlineInwardSign: quadSgn0,
       __step2aDualSignEval: {
         enabled: useCadHatchInward && hatchBBox2aV2.length >= 1,
@@ -11344,34 +11205,43 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
       __step2aInteriorQuadWorld: interiorQuadWorld
     };
     if (focusThis) {
-      // #region agent log
-      (function() {
-        var data = {
-          si: i,
-          wall_id: wallRec.wall_id,
-          sourceEnt: sg.ent_id,
-          dualHatchChosen: !!dualHatchChosen,
-          dbgDualResPath: dbgDualResPath,
-          resOpp: { p1: resOpp.p1, p2: resOpp.p2, thUse: resOpp.thUse, outlineInwardSign: resOpp.outlineInwardSign, oppSegIndex: typeof resOpp.oppSegIndex === 'number' ? resOpp.oppSegIndex : -1 },
-          outerAfterOppLen: lenBeforeHatchExt,
-          hatchExtApplied: hatchExtApplied,
-          outerFinalLen: clen00,
-          segA: { p1: wallRec.seg_a.p1, p2: wallRec.seg_a.p2, len: wallRec.seg_a.len },
-          segB: { p1: wallRec.seg_b.p1, p2: wallRec.seg_b.p2, len: wallRec.seg_b.len }
-        };
-        try {
-          if (typeof window !== 'undefined') window.__dbg2aFocusWall = data;
-        } catch (eFw) {}
-        if (typeof FRAME_DEF_DEBUG_AGENT_INGEST_9229EA === 'boolean' && FRAME_DEF_DEBUG_AGENT_INGEST_9229EA) {
-          fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '9229ea' }, body: JSON.stringify({ sessionId: '9229ea', location: 'frame_object_define.js:frameDefBuildWallStep2aHatchReviewWalls', message: '2a FOCUS wall built', hypothesisId: 'H-focus-23628188', timestamp: Date.now(), runId: 'focus-line', data: data }) }).catch(function() {});
+      try {
+        if (typeof window !== 'undefined') {
+          window.__dbg2aFocusWall = {
+            si: i,
+            wall_id: wallRec.wall_id,
+            sourceEnt: sg.ent_id,
+            dualHatchChosen: !!dualHatchChosen,
+            dbgDualResPath: dbgDualResPath,
+            resOpp: { p1: resOpp.p1, p2: resOpp.p2, thUse: resOpp.thUse, outlineInwardSign: resOpp.outlineInwardSign, oppSegIndex: typeof resOpp.oppSegIndex === 'number' ? resOpp.oppSegIndex : -1 },
+            outerAfterOppLen: lenBeforeHatchExt,
+            hatchExtApplied: hatchExtApplied,
+            outerFinalLen: clen00,
+            segA: { p1: wallRec.seg_a.p1, p2: wallRec.seg_a.p2, len: wallRec.seg_a.len },
+            segB: { p1: wallRec.seg_b.p1, p2: wallRec.seg_b.p2, len: wallRec.seg_b.len }
+          };
         }
-      })();
-      // #endregion
+      } catch (eFw) {}
     }
     out.push(wallRec);
   }
 
   if (typeof frameDefDedupeStep2aHatchWalls === 'function' && out.length > 1) out = frameDefDedupeStep2aHatchWalls(out);
+  if ((typeof FRAME_DEF_STEP2A_V2_INWARD_SIGN_USE_DUAL_CAND_OVERLAP !== 'boolean' || FRAME_DEF_STEP2A_V2_INWARD_SIGN_USE_DUAL_CAND_OVERLAP)
+      && typeof frameDef2aV2ApplyDualCandidateOverlapSignPickV2 === 'function'
+      && out.length > 1) {
+    try {
+      // #region agent log
+      fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e6e213'},body:JSON.stringify({sessionId:'e6e213',runId:'pre-fix',hypothesisId:'H0',location:'frame_object_define.js:frameDefBuildWallStep2aHatchReviewWalls:before-call',message:'about to call sign-pick-v2',data:{outLen:Array.isArray(out)?out.length:-1},timestamp:Date.now()})}).catch(function(){});
+      // #endregion
+      frameDef2aV2ApplyDualCandidateOverlapSignPickV2(out);
+    } catch (eDualPick) {
+      // #region agent log
+      fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e6e213'},body:JSON.stringify({sessionId:'e6e213',runId:'pre-fix',hypothesisId:'H0',location:'frame_object_define.js:frameDefBuildWallStep2aHatchReviewWalls:catch',message:'sign-pick-v2 threw error',data:{error:(eDualPick&&eDualPick.message)?eDualPick.message:String(eDualPick)},timestamp:Date.now()})}).catch(function(){});
+      // #endregion
+      try { console.warn('[2a-dual-cand-overlap] skipped by error:', eDualPick && eDualPick.message ? eDualPick.message : eDualPick); } catch (_eDualPickLog) {}
+    }
+  }
 
   if (stIf) {
     stIf.wallStep2aSplitChainCounts = {
@@ -11452,7 +11322,6 @@ function frameDefRefreshStep2aHatchOverlapDbgLabels() {
     ? FRAME_DEF_STEP2A_V2_DEBUG_LABEL_HATCH_BBOX_PAD_MM : 120;
   var useWl = typeof FRAME_DEF_STEP2A_V2_DEBUG_LABEL_HATCH_USE_WHITELIST === 'boolean' ? FRAME_DEF_STEP2A_V2_DEBUG_LABEL_HATCH_USE_WHITELIST : true;
   var incSrcWl = typeof FRAME_DEF_STEP2A_V2_DEBUG_LABEL_INCLUDE_SOURCE_SPAN_FOR_WHITELIST !== 'boolean' || FRAME_DEF_STEP2A_V2_DEBUG_LABEL_INCLUDE_SOURCE_SPAN_FOR_WHITELIST;
-  var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
   var nLbl = 0;
   var srcOppTangentOpposite = 0;
   var srcOppTangentCompared = 0;
@@ -11638,19 +11507,6 @@ function frameDefRefreshStep2aHatchOverlapDbgLabels() {
       }
     }
   }
-  var t1 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-  // #region agent log
-  (function() {
-    try {
-      if (typeof window !== 'undefined') {
-        window.__dbgStep2aOverlapLast = { t: t1, overlapGuideSeg: overlapGuideSeg, wallsOverlapUsedSegB: wallsOverlapUsedSegB, labelParallelInherit: labelParallelInherit, labelProxInherit: labelProxInherit, wallCount: list.length, weakThr: weakThr, strongThr: strongThr, proxMax: proxMax };
-      }
-    } catch (e0) {}
-    if (typeof FRAME_DEF_DEBUG_AGENT_INGEST_9229EA === 'boolean' && FRAME_DEF_DEBUG_AGENT_INGEST_9229EA) {
-      fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '9229ea' }, body: JSON.stringify({ sessionId: '9229ea', location: 'frame_object_define.js:frameDefRefreshStep2aHatchOverlapDbgLabels', message: '2a hatch overlap dbg refresh', hypothesisId: 'H-overlapGuideSeg-wired', timestamp: Date.now(), runId: 'post-fix', data: { overlapGuideSeg: overlapGuideSeg, wallsOverlapUsedSegB: wallsOverlapUsedSegB, textAnchorSeg: typeof FRAME_DEF_STEP2A_V2_DEBUG_LABEL_TEXT_ANCHOR_SEG === 'string' ? FRAME_DEF_STEP2A_V2_DEBUG_LABEL_TEXT_ANCHOR_SEG : '', ms: t1 - t0, wallsLabeled: nLbl, wallCount: list.length, hatchCount: hatchBBox.length, whitelistOn: useWl, dbgLabelThScale: typeof FRAME_DEF_STEP2A_V2_DEBUG_LABEL_OVERLAP_TH_SCALE === 'number' ? FRAME_DEF_STEP2A_V2_DEBUG_LABEL_OVERLAP_TH_SCALE : 1, dbgLabelGrid: typeof FRAME_DEF_STEP2A_V2_CAD_HATCH_DEBUG_LABEL_GRID === 'number' ? FRAME_DEF_STEP2A_V2_CAD_HATCH_DEBUG_LABEL_GRID : 0, incSrcSpan: incSrcWl, wallsWithSourceExpand: wallsWithSourceExpand, labelZeroSourceFallback: labelZeroSourceFallback, labelParallelInherit: labelParallelInherit, labelProxInherit: labelProxInherit, srcOppTangentOpposite: srcOppTangentOpposite, srcOppTangentCompared: srcOppTangentCompared } }) }).catch(function() {});
-    }
-  })();
-  // #endregion
 }
 
 function frameDefRebuildStep2aHatchWalls() {
@@ -19651,14 +19507,8 @@ function frameDefDetectNow() {
   if (typeof FRAME_DEF_STEP2A_PREMERGE_COLLINEAR_SOURCE === 'boolean' && FRAME_DEF_STEP2A_PREMERGE_COLLINEAR_SOURCE
       && typeof frameDefGetSegsForStep2aChainJoin === 'function' && typeof frameDefMergeCollinearOverlappingSegsFor2aChainJoin === 'function') {
     var tol2aPre = Math.max(1, Number(typeof FRAME_DEF_STEP11_JOIN_TOL_MM !== 'undefined' ? FRAME_DEF_STEP11_JOIN_TOL_MM : 25));
-    var preIn = segsFor2aSourceOnly.length;
     var jcPre = frameDefGetSegsForStep2aChainJoin(segsFor2aSourceOnly, {}, tol2aPre);
     segsFor2aSourceOnly = frameDefMergeCollinearOverlappingSegsFor2aChainJoin(jcPre, tol2aPre);
-    // #region agent log
-    if (typeof fetch === 'function') {
-      fetch('http://127.0.0.1:7246/ingest/ed3d586f-4e6e-4d59-afb3-4db05628884f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '44f71e' }, body: JSON.stringify({ sessionId: '44f71e', runId: '2a-preSource-v1', hypothesisId: 'H_preSourceMerge', location: 'frame_object_define.js:frameDefDetectNow', message: '2a source premerge', data: { preIn: preIn, preOut: segsFor2aSourceOnly.length, tol: tol2aPre }, timestamp: Date.now() }) }).catch(function() {});
-    }
-    // #endregion
   }
   st.wallStep2aSourceSegs = segsFor2aSourceOnly;
   if (typeof frameDefDebugLogTraceEntitySegStages2a === 'function') frameDefDebugLogTraceEntitySegStages2a('detect_2aSourceSegs', segsFor2aSourceOnly);
@@ -23245,6 +23095,7 @@ function frameDefDrawPreviewOverlays() {
   if (st.debugStep21ShowHatch === true) frameDefDrawDebugStep21PairHatches();
   if (typeof frameDefDrawDebugStep2aWallHatches === 'function') frameDefDrawDebugStep2aWallHatches();
   if (typeof frameDefDrawDebugStep2aDualCandidateHatches === 'function') frameDefDrawDebugStep2aDualCandidateHatches();
+  if (typeof frameDefDrawDebugStep2aDualOverlapPatches === 'function') frameDefDrawDebugStep2aDualOverlapPatches();
   if (typeof frameDefDrawDebugStep2aHatchOverlapLabels === 'function') frameDefDrawDebugStep2aHatchOverlapLabels();
   if (typeof frameDefDrawDebugStep2bWallHatches === 'function') frameDefDrawDebugStep2bWallHatches();
   if (typeof frameDefDrawDebugStep2aWallSegMidLinks === 'function') frameDefDrawDebugStep2aWallSegMidLinks();
@@ -23865,10 +23716,15 @@ function frameDefDrawDebugStep2aDualCandidateHatches() {
   for (var i = 0; i < list.length; i++) {
     var w = list[i];
     if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) continue;
-    var th = Number(w.thickness_mm);
+    var baseP1 = w.__step2aDualBaseOuterP1 && isFinite(Number(w.__step2aDualBaseOuterP1.x)) && isFinite(Number(w.__step2aDualBaseOuterP1.y))
+      ? w.__step2aDualBaseOuterP1 : w.seg_a.p1;
+    var baseP2 = w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) && isFinite(Number(w.__step2aDualBaseOuterP2.y))
+      ? w.__step2aDualBaseOuterP2 : w.seg_a.p2;
+    var th = Number(w.__step2aDualBaseThicknessMm);
+    if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = Number(w.thickness_mm);
     if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = 170;
-    var qP = frameDefSegToWallBodyQuadOutlineWorld(w.seg_a.p1, w.seg_a.p2, th, 1);
-    var qN = frameDefSegToWallBodyQuadOutlineWorld(w.seg_a.p1, w.seg_a.p2, th, -1);
+    var qP = frameDefSegToWallBodyQuadOutlineWorld(baseP1, baseP2, th, 1);
+    var qN = frameDefSegToWallBodyQuadOutlineWorld(baseP1, baseP2, th, -1);
     if (!qP || qP.length < 4 || !qN || qN.length < 4) continue;
     var pRec = {
       wall_id: (w.wall_id || ('dual-' + String(i))) + '-p',
@@ -23893,6 +23749,988 @@ function frameDefDrawDebugStep2aDualCandidateHatches() {
   frameDefDrawDebugWallHatchList(minusOpp, '#fcd34d', { fillAlpha: 0.04, hatchAlpha: 0.10, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
   frameDefDrawDebugWallHatchList(plusSel, '#2563eb', { fillAlpha: 0.12, hatchAlpha: 0.24, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
   frameDefDrawDebugWallHatchList(minusSel, '#f59e0b', { fillAlpha: 0.12, hatchAlpha: 0.24, step: FRAME_DEF_DEBUG_HATCH_STEP_PX });
+}
+
+/** 2a: 두 벽 후보 쿼드의 교집합 폴리곤(면적>0) 반환. */
+function frameDef2aV2QuadQuadOverlapPoly(quadA, quadB, bboxAOpt, bboxBOpt) {
+  if (!quadA || quadA.length < 4 || !quadB || quadB.length < 4) return null;
+  if (typeof frameDef2aV2SutherlandHodgman !== 'function' || typeof frameDefPolygonAreaAbs !== 'function') return null;
+  if (typeof frameDef2aV2BBoxIntersects2d === 'function') {
+    var ba = bboxAOpt || (typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(quadA) : null);
+    var bb = bboxBOpt || (typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(quadB) : null);
+    if (ba && bb && !frameDef2aV2BBoxIntersects2d(ba, bb)) return null;
+  }
+  var out = frameDef2aV2SutherlandHodgman(quadA, quadB);
+  if (!out || out.length < 3) return null;
+  var area = Number(frameDefPolygonAreaAbs(out)) || 0;
+  return area > 1e-6 ? out : null;
+}
+
+/** 2a: wall 리스트에서 양방향(+/-) 후보끼리 겹침 점수로 최종 inwardSign 재선택. */
+function frameDef2aV2ApplyDualCandidateOverlapSignPick(list) {
+  if (!Array.isArray(list) || list.length < 2) return;
+  if (typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function') return;
+  if (typeof frameDef2aV2QuadBBox !== 'function' || typeof frameDef2aV2BBoxIntersects2d !== 'function') return;
+  if (typeof frameDef2aV2QuadQuadOverlapPoly !== 'function' || typeof frameDefPolygonAreaAbs !== 'function') return;
+  var minMm2 = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2))
+    ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2) : 1;
+  var pickMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_PICK_MIN_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_PICK_MIN_MM2))
+    ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_PICK_MIN_MM2) : 0.5;
+  var sumW = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_SUM_WEIGHT === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_SUM_WEIGHT))
+    ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_SUM_WEIGHT) : 0.22;
+  var cellMm = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_BUCKET_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_BUCKET_MM))
+    ? Math.max(600, FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_BUCKET_MM) : 2200;
+  var parDotMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN))
+    ? Math.max(0.90, Math.min(0.99999, FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN)) : 0.988;
+  var maxWalls = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS))
+    ? Math.max(80, Math.floor(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS)) : 700;
+  var maxPairTestsPerSign = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN))
+    ? Math.max(10000, Math.floor(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN)) : 120000;
+  if (list.length > maxWalls) return;
+
+  function mkBaseCandidate(w, signVal) {
+    if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) return null;
+    var baseP1 = w.__step2aDualBaseOuterP1 && isFinite(Number(w.__step2aDualBaseOuterP1.x)) && isFinite(Number(w.__step2aDualBaseOuterP1.y))
+      ? w.__step2aDualBaseOuterP1 : w.seg_a.p1;
+    var baseP2 = w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) && isFinite(Number(w.__step2aDualBaseOuterP2.y))
+      ? w.__step2aDualBaseOuterP2 : w.seg_a.p2;
+    var th = Number(w.__step2aDualBaseThicknessMm);
+    if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = Number(w.thickness_mm);
+    if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = 170;
+    var q = frameDefSegToWallBodyQuadOutlineWorld(baseP1, baseP2, th, signVal);
+    if (!q || q.length < 4) return null;
+    var b = frameDef2aV2QuadBBox(q);
+    if (!b) return null;
+    var dx = (Number(baseP2.x) || 0) - (Number(baseP1.x) || 0);
+    var dy = (Number(baseP2.y) || 0) - (Number(baseP1.y) || 0);
+    var len = Math.hypot(dx, dy);
+    var ux = len > 1e-9 ? (dx / len) : 0;
+    var uy = len > 1e-9 ? (dy / len) : 0;
+    return { q: q, b: b, ux: ux, uy: uy, th: th, p1: baseP1, p2: baseP2 };
+  }
+  function unionBBox(b1, b2) {
+    if (!b1 && !b2) return null;
+    if (!b1) return b2;
+    if (!b2) return b1;
+    return {
+      minx: Math.min(Number(b1.minx) || 0, Number(b2.minx) || 0),
+      miny: Math.min(Number(b1.miny) || 0, Number(b2.miny) || 0),
+      maxx: Math.max(Number(b1.maxx) || 0, Number(b2.maxx) || 0),
+      maxy: Math.max(Number(b1.maxy) || 0, Number(b2.maxy) || 0)
+    };
+  }
+  function overlapInfo(ca, cb) {
+    if (!ca || !cb || !ca.q || !cb.q || !ca.b || !cb.b) return { area: 0, poly: null };
+    if (!frameDef2aV2BBoxIntersects2d(ca.b, cb.b)) return { area: 0, poly: null };
+    var ov = frameDef2aV2QuadQuadOverlapPoly(ca.q, cb.q, ca.b, cb.b);
+    if (!ov) return { area: 0, poly: null };
+    return { area: Number(frameDefPolygonAreaAbs(ov)) || 0, poly: ov };
+  }
+
+  var meta = new Array(list.length);
+  var sourceIdxToWallIdxs = {};
+  var active = [];
+  for (var i = 0; i < list.length; i++) {
+    var w = list[i];
+    if (!w) continue;
+    var sidx = Number(w.__step2aV2SourceIndex);
+    if (isFinite(sidx) && sidx >= 0) {
+      var sk = String(Math.floor(sidx));
+      if (!sourceIdxToWallIdxs[sk]) sourceIdxToWallIdxs[sk] = [];
+      sourceIdxToWallIdxs[sk].push(i);
+    }
+    var cp = mkBaseCandidate(w, 1);
+    var cn = mkBaseCandidate(w, -1);
+    if (!cp && !cn) continue;
+    meta[i] = {
+      plus: cp,
+      minus: cn,
+      ux: cp ? cp.ux : (cn ? cn.ux : 0),
+      uy: cp ? cp.uy : (cn ? cn.uy : 0),
+      pairBBox: unionBBox(cp ? cp.b : null, cn ? cn.b : null)
+    };
+    active.push(i);
+  }
+  if (active.length < 2) return;
+
+  var score = new Array(list.length);
+  for (var si = 0; si < score.length; si++) score[si] = { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
+  var buckets = {};
+  var cellSpans = {};
+  var wideIdxs = [];
+  function key(gx, gy) { return String(gx) + ',' + String(gy); }
+  function addBucket(gx, gy, idx) {
+    var k = key(gx, gy);
+    if (!buckets[k]) buckets[k] = [];
+    buckets[k].push(idx);
+  }
+  for (var ai = 0; ai < active.length; ai++) {
+    var idxW = active[ai];
+    var m = meta[idxW];
+    if (!m || !m.pairBBox) { cellSpans[idxW] = null; continue; }
+    var bb = m.pairBBox;
+    var gx0 = Math.floor((Number(bb.minx) || 0) / cellMm);
+    var gy0 = Math.floor((Number(bb.miny) || 0) / cellMm);
+    var gx1 = Math.floor((Number(bb.maxx) || 0) / cellMm);
+    var gy1 = Math.floor((Number(bb.maxy) || 0) / cellMm);
+    var span = (gx1 - gx0 + 1) * (gy1 - gy0 + 1);
+    if (span > 240) {
+      wideIdxs.push(idxW);
+      cellSpans[idxW] = null;
+      continue;
+    }
+    var cells = [];
+    for (var gx = gx0; gx <= gx1; gx++) {
+      for (var gy = gy0; gy <= gy1; gy++) {
+        cells.push({ gx: gx, gy: gy });
+        addBucket(gx, gy, idxW);
+      }
+    }
+    cellSpans[idxW] = cells;
+  }
+
+  var testedPairs = 0;
+  for (var ii = 0; ii < active.length; ii++) {
+    var iWall = active[ii];
+    var mi = meta[iWall];
+    if (!mi) continue;
+    var near = {};
+    var spans = cellSpans[iWall];
+    if (spans && spans.length) {
+      for (var s = 0; s < spans.length; s++) {
+        var arr = buckets[key(spans[s].gx, spans[s].gy)];
+        if (!arr || !arr.length) continue;
+        for (var a = 0; a < arr.length; a++) {
+          var jx = arr[a];
+          if (jx > iWall) near[jx] = true;
+        }
+      }
+    } else {
+      for (var ja = ii + 1; ja < active.length; ja++) near[active[ja]] = true;
+    }
+    if (wideIdxs.length) {
+      for (var wk = 0; wk < wideIdxs.length; wk++) {
+        var wx = wideIdxs[wk];
+        if (wx > iWall) near[wx] = true;
+      }
+    }
+    var keys = Object.keys(near);
+    for (var ki = 0; ki < keys.length; ki++) {
+      testedPairs++;
+      if (testedPairs > maxPairTestsPerSign) break;
+      var jWall = Number(keys[ki]);
+      if (!(jWall > iWall)) continue;
+      var mj = meta[jWall];
+      if (!mj) continue;
+      var dot = Math.abs((Number(mi.ux) || 0) * (Number(mj.ux) || 0) + (Number(mi.uy) || 0) * (Number(mj.uy) || 0));
+      if (dot < parDotMin) continue;
+      if (mi.pairBBox && mj.pairBBox && !frameDef2aV2BBoxIntersects2d(mi.pairBBox, mj.pairBBox)) continue;
+
+      var app = overlapInfo(mi.plus, mj.plus);
+      var apn = overlapInfo(mi.plus, mj.minus);
+      var anp = overlapInfo(mi.minus, mj.plus);
+      var ann = overlapInfo(mi.minus, mj.minus);
+
+      var iPlus = app.area >= apn.area ? app.area : apn.area;
+      var iMinus = anp.area >= ann.area ? anp.area : ann.area;
+      var jPlus = app.area >= anp.area ? app.area : anp.area;
+      var jMinus = apn.area >= ann.area ? apn.area : ann.area;
+
+      if (iPlus >= minMm2) {
+        score[iWall].plusSum += iPlus;
+        if (iPlus > score[iWall].plusMax) score[iWall].plusMax = iPlus;
+      }
+      if (iMinus >= minMm2) {
+        score[iWall].minusSum += iMinus;
+        if (iMinus > score[iWall].minusMax) score[iWall].minusMax = iMinus;
+      }
+      if (jPlus >= minMm2) {
+        score[jWall].plusSum += jPlus;
+        if (jPlus > score[jWall].plusMax) score[jWall].plusMax = jPlus;
+      }
+      if (jMinus >= minMm2) {
+        score[jWall].minusSum += jMinus;
+        if (jMinus > score[jWall].minusMax) score[jWall].minusMax = jMinus;
+      }
+    }
+    if (testedPairs > maxPairTestsPerSign) break;
+  }
+
+  function centerPreferSign(w) {
+    if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) return null;
+    var oppIdx = Number(w.__step2aV2OppositeSegIndex);
+    if (!isFinite(oppIdx) || oppIdx < 0) return null;
+    var oppList = sourceIdxToWallIdxs[String(Math.floor(oppIdx))];
+    if (!oppList || !oppList.length) return null;
+    var ax = ((Number(w.seg_a.p1.x) || 0) + (Number(w.seg_a.p2.x) || 0)) * 0.5;
+    var ay = ((Number(w.seg_a.p1.y) || 0) + (Number(w.seg_a.p2.y) || 0)) * 0.5;
+    var best = null, bestD2 = Infinity;
+    for (var oi = 0; oi < oppList.length; oi++) {
+      var ow = list[oppList[oi]];
+      if (!ow || !ow.seg_a || !ow.seg_a.p1 || !ow.seg_a.p2) continue;
+      var bx = ((Number(ow.seg_a.p1.x) || 0) + (Number(ow.seg_a.p2.x) || 0)) * 0.5;
+      var by = ((Number(ow.seg_a.p1.y) || 0) + (Number(ow.seg_a.p2.y) || 0)) * 0.5;
+      var d2 = (bx - ax) * (bx - ax) + (by - ay) * (by - ay);
+      if (d2 < bestD2) { bestD2 = d2; best = { x: bx, y: by }; }
+    }
+    if (!best) return null;
+    var baseP1 = w.__step2aDualBaseOuterP1 && isFinite(Number(w.__step2aDualBaseOuterP1.x)) && isFinite(Number(w.__step2aDualBaseOuterP1.y))
+      ? w.__step2aDualBaseOuterP1 : w.seg_a.p1;
+    var baseP2 = w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) && isFinite(Number(w.__step2aDualBaseOuterP2.y))
+      ? w.__step2aDualBaseOuterP2 : w.seg_a.p2;
+    var dx = (Number(baseP2.x) || 0) - (Number(baseP1.x) || 0);
+    var dy = (Number(baseP2.y) || 0) - (Number(baseP1.y) || 0);
+    var len = Math.hypot(dx, dy);
+    if (len < 1e-6) return null;
+    var nx = -dy / len, ny = dx / len;
+    var dotc = (best.x - ax) * nx + (best.y - ay) * ny;
+    var eps = Math.max(4, (Number(w.thickness_mm) || 170) * 0.04);
+    if (dotc > eps) return 1;
+    if (dotc < -eps) return -1;
+    return null;
+  }
+
+  for (var li = 0; li < list.length; li++) {
+    var wall = list[li];
+    if (!wall || !wall.seg_a || !wall.seg_b) continue;
+    var sd = score[li] || { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
+    var vP = (Number(sd.plusMax) || 0) + (Number(sd.plusSum) || 0) * sumW;
+    var vN = (Number(sd.minusMax) || 0) + (Number(sd.minusSum) || 0) * sumW;
+    var preferCenter = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER !== 'boolean') || FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER;
+    var centerSign = preferCenter ? centerPreferSign(wall) : null;
+    if (Math.max(vP, vN) < pickMin && !(centerSign === 1 || centerSign === -1)) continue;
+    var newSign = vP >= vN ? 1 : -1;
+    if (centerSign === 1 || centerSign === -1) newSign = centerSign;
+    var oldSign = Number(wall.__step2aOutlineInwardSign) < 0 ? -1 : 1;
+    if (!wall.__step2aDualSignEval || typeof wall.__step2aDualSignEval !== 'object') wall.__step2aDualSignEval = {};
+    wall.__step2aDualSignEval.scoreRule = 'dual-candidate-overlap';
+    wall.__step2aDualSignEval.overlapPickPlusMm2 = Number(sd.plusMax) || 0;
+    wall.__step2aDualSignEval.overlapPickMinusMm2 = Number(sd.minusMax) || 0;
+    wall.__step2aDualSignEval.overlapAllPlusMm2 = Number(sd.plusSum) || 0;
+    wall.__step2aDualSignEval.overlapAllMinusMm2 = Number(sd.minusSum) || 0;
+    if (newSign === oldSign) {
+      wall.__step2aDualSignEval.path = centerSign ? 'dual-candidate-overlap-center-keep' : 'dual-candidate-overlap-keep';
+      continue;
+    }
+    wall.__step2aOutlineInwardSign = newSign;
+    var thW = Number(wall.__step2aDualBaseThicknessMm);
+    if (!isFinite(thW) || thW < FRAME_DEF_WALL_MIN_THICKNESS_MM) thW = Number(wall.thickness_mm);
+    if (!isFinite(thW) || thW < FRAME_DEF_WALL_MIN_THICKNESS_MM) thW = 170;
+    var baseP1Sel = wall.__step2aDualBaseOuterP1 && isFinite(Number(wall.__step2aDualBaseOuterP1.x)) && isFinite(Number(wall.__step2aDualBaseOuterP1.y))
+      ? wall.__step2aDualBaseOuterP1 : wall.seg_a.p1;
+    var baseP2Sel = wall.__step2aDualBaseOuterP2 && isFinite(Number(wall.__step2aDualBaseOuterP2.x)) && isFinite(Number(wall.__step2aDualBaseOuterP2.y))
+      ? wall.__step2aDualBaseOuterP2 : wall.seg_a.p2;
+    var qSel = frameDefSegToWallBodyQuadOutlineWorld(baseP1Sel, baseP2Sel, thW, newSign);
+    if (qSel && qSel.length >= 4) {
+      wall.seg_a = {
+        id: wall.seg_a.id,
+        ent_id: wall.seg_a.ent_id,
+        source_type: wall.seg_a.source_type,
+        p1: { x: qSel[0].x, y: qSel[0].y },
+        p2: { x: qSel[1].x, y: qSel[1].y },
+        len: Math.hypot((Number(qSel[1].x) || 0) - (Number(qSel[0].x) || 0), (Number(qSel[1].y) || 0) - (Number(qSel[0].y) || 0)),
+        axis_angle: wall.seg_a.axis_angle
+      };
+      wall.seg_b = {
+        id: wall.seg_b.id,
+        ent_id: wall.seg_b.ent_id,
+        source_type: wall.seg_b.source_type,
+        p1: { x: qSel[3].x, y: qSel[3].y },
+        p2: { x: qSel[2].x, y: qSel[2].y },
+        len: Math.hypot((Number(qSel[2].x) || 0) - (Number(qSel[3].x) || 0), (Number(qSel[2].y) || 0) - (Number(qSel[3].y) || 0)),
+        axis_angle: wall.seg_b.axis_angle
+      };
+      wall.__step2aInteriorQuadWorld = [
+        { x: Number(qSel[0].x) || 0, y: Number(qSel[0].y) || 0 },
+        { x: Number(qSel[1].x) || 0, y: Number(qSel[1].y) || 0 },
+        { x: Number(qSel[2].x) || 0, y: Number(qSel[2].y) || 0 },
+        { x: Number(qSel[3].x) || 0, y: Number(qSel[3].y) || 0 }
+      ];
+    }
+    wall.__step2aDualSignEval.path = centerSign ? 'dual-candidate-overlap-center-flip' : 'dual-candidate-overlap-flip';
+    wall.__step2aDualSignEval.hatchSign = newSign;
+  }
+}
+
+/** 2a v2: 선분별(+/-) 일대다 비교(평행만)로 최종 부호 재선택. 기존 함수 오류/누락 보완판. */
+function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
+  function frameDef2aDebugLog(runId, hypothesisId, location, message, data) {
+    fetch('http://127.0.0.1:7901/ingest/5605fe8f-3a4f-4372-9afc-144418d269e4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'e6e213'},body:JSON.stringify({sessionId:'e6e213',runId:runId,hypothesisId:hypothesisId,location:location,message:message,data:data,timestamp:Date.now()})}).catch(function(){});
+  }
+  var dbgRunId = 'pre-fix';
+  // #region agent log
+  frameDef2aDebugLog(dbgRunId, 'H0', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:entry', 'function entry', {
+    hasArrayList: Array.isArray(list),
+    listLen: Array.isArray(list) ? list.length : -1
+  });
+  // #endregion
+  if (!Array.isArray(list) || list.length < 2) {
+    // #region agent log
+    frameDef2aDebugLog(dbgRunId, 'H0', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:early-return', 'early return by list size', {
+      hasArrayList: Array.isArray(list),
+      listLen: Array.isArray(list) ? list.length : -1
+    });
+    // #endregion
+    return;
+  }
+  if (typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function') {
+    // #region agent log
+    frameDef2aDebugLog(dbgRunId, 'H0', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:early-return', 'early return by missing frameDefSegToWallBodyQuadOutlineWorld', {});
+    // #endregion
+    return;
+  }
+  if (typeof frameDef2aV2QuadBBox !== 'function' || typeof frameDef2aV2BBoxIntersects2d !== 'function') {
+    // #region agent log
+    frameDef2aDebugLog(dbgRunId, 'H0', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:early-return', 'early return by missing bbox helpers', {
+      hasQuadBBox: typeof frameDef2aV2QuadBBox === 'function',
+      hasBBoxIntersects: typeof frameDef2aV2BBoxIntersects2d === 'function'
+    });
+    // #endregion
+    return;
+  }
+  if (typeof frameDef2aV2QuadQuadOverlapPoly !== 'function' || typeof frameDefPolygonAreaAbs !== 'function') {
+    // #region agent log
+    frameDef2aDebugLog(dbgRunId, 'H0', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:early-return', 'early return by missing overlap helpers', {
+      hasOverlapPoly: typeof frameDef2aV2QuadQuadOverlapPoly === 'function',
+      hasPolyArea: typeof frameDefPolygonAreaAbs === 'function'
+    });
+    // #endregion
+    return;
+  }
+  var minMm2 = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2))
+    ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2) : 1;
+  var pickMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_PICK_MIN_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_PICK_MIN_MM2))
+    ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_PICK_MIN_MM2) : 0.5;
+  var sumW = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_SUM_WEIGHT === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_SUM_WEIGHT))
+    ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_SUM_WEIGHT) : 0.22;
+  var cellMm = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_BUCKET_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_BUCKET_MM))
+    ? Math.max(600, FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_BUCKET_MM) : 2200;
+  var parDotMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN))
+    ? Math.max(0.90, Math.min(0.99999, FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN)) : 0.988;
+  var maxWalls = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS))
+    ? Math.max(80, Math.floor(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS)) : 700;
+  var maxPairTests = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN))
+    ? Math.max(10000, Math.floor(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN)) : 120000;
+  var enablePropagate = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_WEAK_SIGNS !== 'boolean') || FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_WEAK_SIGNS;
+  var propStrongMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_MIN_STRONG_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_MIN_STRONG_MM2))
+    ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_MIN_STRONG_MM2) : 45;
+  var propMaxSep = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_MAX_SEP_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_MAX_SEP_MM))
+    ? Math.max(120, FRAME_DEF_STEP2A_V2_DUAL_CAND_PROPAGATE_MAX_SEP_MM) : 1800;
+  var enableUnify = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_COMPONENT_SIGN !== 'boolean') || FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_COMPONENT_SIGN;
+  var unifyStrongMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MIN_STRONG_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MIN_STRONG_MM2))
+    ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MIN_STRONG_MM2) : 25;
+  var unifyMaxSep = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MAX_SEP_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MAX_SEP_MM))
+    ? Math.max(120, FRAME_DEF_STEP2A_V2_DUAL_CAND_UNIFY_MAX_SEP_MM) : 2200;
+  // #region agent log
+  frameDef2aDebugLog(dbgRunId, 'H1', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:config', 'enter sign-pick-v2', {
+    listLen: Array.isArray(list) ? list.length : -1,
+    minMm2: minMm2,
+    pickMin: pickMin,
+    sumW: sumW,
+    parDotMin: parDotMin,
+    maxWalls: maxWalls,
+    maxPairTests: maxPairTests,
+    enablePropagate: !!enablePropagate,
+    propStrongMin: propStrongMin,
+    propMaxSep: propMaxSep,
+    enableUnify: !!enableUnify,
+    unifyStrongMin: unifyStrongMin,
+    unifyMaxSep: unifyMaxSep
+  });
+  // #endregion
+
+  function applyWallSign(wallObj, signVal) {
+    if (!wallObj || !wallObj.seg_a || !wallObj.seg_b) return;
+    var p1s = (wallObj.__step2aDualBaseOuterP1 && isFinite(Number(wallObj.__step2aDualBaseOuterP1.x)) && isFinite(Number(wallObj.__step2aDualBaseOuterP1.y)))
+      ? wallObj.__step2aDualBaseOuterP1 : wallObj.seg_a.p1;
+    var p2s = (wallObj.__step2aDualBaseOuterP2 && isFinite(Number(wallObj.__step2aDualBaseOuterP2.x)) && isFinite(Number(wallObj.__step2aDualBaseOuterP2.y)))
+      ? wallObj.__step2aDualBaseOuterP2 : wallObj.seg_a.p2;
+    var thW = Number(wallObj.__step2aDualBaseThicknessMm);
+    if (!isFinite(thW) || thW < FRAME_DEF_WALL_MIN_THICKNESS_MM) thW = Number(wallObj.thickness_mm);
+    if (!isFinite(thW) || thW < FRAME_DEF_WALL_MIN_THICKNESS_MM) thW = 170;
+    var qSel = frameDefSegToWallBodyQuadOutlineWorld(p1s, p2s, thW, signVal);
+    if (!qSel || qSel.length < 4) {
+      // #region agent log
+      frameDef2aDebugLog(dbgRunId, 'H4', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:applyWallSign', 'applyWallSign skipped due invalid quad', {
+        signVal: signVal,
+        thickness: thW,
+        hasP1: !!p1s,
+        hasP2: !!p2s
+      });
+      // #endregion
+      return;
+    }
+    wallObj.__step2aOutlineInwardSign = signVal;
+    wallObj.seg_a = { id: wallObj.seg_a.id, ent_id: wallObj.seg_a.ent_id, source_type: wallObj.seg_a.source_type, p1: { x: qSel[0].x, y: qSel[0].y }, p2: { x: qSel[1].x, y: qSel[1].y }, len: Math.hypot((Number(qSel[1].x) || 0) - (Number(qSel[0].x) || 0), (Number(qSel[1].y) || 0) - (Number(qSel[0].y) || 0)), axis_angle: wallObj.seg_a.axis_angle };
+    wallObj.seg_b = { id: wallObj.seg_b.id, ent_id: wallObj.seg_b.ent_id, source_type: wallObj.seg_b.source_type, p1: { x: qSel[3].x, y: qSel[3].y }, p2: { x: qSel[2].x, y: qSel[2].y }, len: Math.hypot((Number(qSel[2].x) || 0) - (Number(qSel[3].x) || 0), (Number(qSel[2].y) || 0) - (Number(qSel[3].y) || 0)), axis_angle: wallObj.seg_b.axis_angle };
+    wallObj.__step2aInteriorQuadWorld = [{ x: Number(qSel[0].x) || 0, y: Number(qSel[0].y) || 0 }, { x: Number(qSel[1].x) || 0, y: Number(qSel[1].y) || 0 }, { x: Number(qSel[2].x) || 0, y: Number(qSel[2].y) || 0 }, { x: Number(qSel[3].x) || 0, y: Number(qSel[3].y) || 0 }];
+  }
+  if (list.length > maxWalls) return;
+
+  function mk(w, signVal) {
+    if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) return null;
+    var p1 = (w.__step2aDualBaseOuterP1 && isFinite(Number(w.__step2aDualBaseOuterP1.x)) && isFinite(Number(w.__step2aDualBaseOuterP1.y)))
+      ? w.__step2aDualBaseOuterP1 : w.seg_a.p1;
+    var p2 = (w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) && isFinite(Number(w.__step2aDualBaseOuterP2.y)))
+      ? w.__step2aDualBaseOuterP2 : w.seg_a.p2;
+    var th = Number(w.__step2aDualBaseThicknessMm);
+    if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = Number(w.thickness_mm);
+    if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = 170;
+    var q = frameDefSegToWallBodyQuadOutlineWorld(p1, p2, th, signVal);
+    if (!q || q.length < 4) return null;
+    var b = frameDef2aV2QuadBBox(q);
+    if (!b) return null;
+    var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0), dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+    var len = Math.hypot(dx, dy);
+    return { q: q, b: b, ux: len > 1e-9 ? dx / len : 0, uy: len > 1e-9 ? dy / len : 0, p1: p1, p2: p2, th: th };
+  }
+  function unionBBox(b1, b2) {
+    if (!b1 && !b2) return null;
+    if (!b1) return b2;
+    if (!b2) return b1;
+    return { minx: Math.min(b1.minx, b2.minx), miny: Math.min(b1.miny, b2.miny), maxx: Math.max(b1.maxx, b2.maxx), maxy: Math.max(b1.maxy, b2.maxy) };
+  }
+  function area(ca, cb) {
+    if (!ca || !cb || !ca.q || !cb.q || !ca.b || !cb.b) return 0;
+    if (!frameDef2aV2BBoxIntersects2d(ca.b, cb.b)) return 0;
+    var ov = frameDef2aV2QuadQuadOverlapPoly(ca.q, cb.q, ca.b, cb.b);
+    if (!ov) return 0;
+    return Number(frameDefPolygonAreaAbs(ov)) || 0;
+  }
+
+  var meta = new Array(list.length);
+  var sourceToWalls = {};
+  var active = [];
+  var metaMissing = 0;
+  for (var i = 0; i < list.length; i++) {
+    var w = list[i];
+    if (!w) continue;
+    var cp = mk(w, 1), cn = mk(w, -1);
+    if (!cp && !cn) { metaMissing++; continue; }
+    meta[i] = { plus: cp, minus: cn, ux: cp ? cp.ux : (cn ? cn.ux : 0), uy: cp ? cp.uy : (cn ? cn.uy : 0), bbox: unionBBox(cp ? cp.b : null, cn ? cn.b : null) };
+    active.push(i);
+    var sidx = Number(w.__step2aV2SourceIndex);
+    if (isFinite(sidx) && sidx >= 0) {
+      var keyS = String(Math.floor(sidx));
+      if (!sourceToWalls[keyS]) sourceToWalls[keyS] = [];
+      sourceToWalls[keyS].push(i);
+    }
+  }
+  // #region agent log
+  frameDef2aDebugLog(dbgRunId, 'H4', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:meta', 'meta build summary', {
+    activeCount: active.length,
+    metaMissingCount: metaMissing
+  });
+  // #endregion
+  if (active.length < 2) return;
+
+  var score = new Array(list.length);
+  for (var si = 0; si < score.length; si++) score[si] = { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
+  var buckets = {}, spansByWall = {}, wide = [];
+  function key(gx, gy) { return String(gx) + ',' + String(gy); }
+  function add(gx, gy, idx) { var k = key(gx, gy); if (!buckets[k]) buckets[k] = []; buckets[k].push(idx); }
+  for (var ai = 0; ai < active.length; ai++) {
+    var iw = active[ai], m = meta[iw];
+    if (!m || !m.bbox) { spansByWall[iw] = null; continue; }
+    var b = m.bbox;
+    var gx0 = Math.floor((Number(b.minx) || 0) / cellMm), gy0 = Math.floor((Number(b.miny) || 0) / cellMm);
+    var gx1 = Math.floor((Number(b.maxx) || 0) / cellMm), gy1 = Math.floor((Number(b.maxy) || 0) / cellMm);
+    var span = (gx1 - gx0 + 1) * (gy1 - gy0 + 1);
+    if (span > 240) { wide.push(iw); spansByWall[iw] = null; continue; }
+    var cells = [];
+    for (var gx = gx0; gx <= gx1; gx++) for (var gy = gy0; gy <= gy1; gy++) { cells.push({ gx: gx, gy: gy }); add(gx, gy, iw); }
+    spansByWall[iw] = cells;
+  }
+
+  var tested = 0;
+  var parallelPassed = 0;
+  var bboxPassed = 0;
+  var nonZeroOverlapPairs = 0;
+  for (var ii = 0; ii < active.length; ii++) {
+    var iWall = active[ii], mi = meta[iWall];
+    if (!mi) continue;
+    var near = {};
+    var spans = spansByWall[iWall];
+    if (spans && spans.length) {
+      for (var s = 0; s < spans.length; s++) {
+        var arr = buckets[key(spans[s].gx, spans[s].gy)];
+        if (!arr || !arr.length) continue;
+        for (var ar = 0; ar < arr.length; ar++) { var jx = arr[ar]; if (jx > iWall) near[jx] = true; }
+      }
+    } else {
+      for (var j0 = ii + 1; j0 < active.length; j0++) near[active[j0]] = true;
+    }
+    if (wide.length) for (var wk = 0; wk < wide.length; wk++) if (wide[wk] > iWall) near[wide[wk]] = true;
+
+    var keys = Object.keys(near);
+    for (var ki = 0; ki < keys.length; ki++) {
+      tested++;
+      if (tested > maxPairTests) break;
+      var jWall = Number(keys[ki]);
+      if (!(jWall > iWall)) continue;
+      var mj = meta[jWall];
+      if (!mj) continue;
+      var dot = Math.abs((Number(mi.ux) || 0) * (Number(mj.ux) || 0) + (Number(mi.uy) || 0) * (Number(mj.uy) || 0));
+      if (dot < parDotMin) continue;
+      parallelPassed++;
+      if (mi.bbox && mj.bbox && !frameDef2aV2BBoxIntersects2d(mi.bbox, mj.bbox)) continue;
+      bboxPassed++;
+
+      var app = area(mi.plus, mj.plus), apn = area(mi.plus, mj.minus), anp = area(mi.minus, mj.plus), ann = area(mi.minus, mj.minus);
+      if (app >= minMm2 || apn >= minMm2 || anp >= minMm2 || ann >= minMm2) nonZeroOverlapPairs++;
+      var iPlus = app >= apn ? app : apn;
+      var iMinus = anp >= ann ? anp : ann;
+      var jPlus = app >= anp ? app : anp;
+      var jMinus = apn >= ann ? apn : ann;
+      if (iPlus >= minMm2) { score[iWall].plusSum += iPlus; if (iPlus > score[iWall].plusMax) score[iWall].plusMax = iPlus; }
+      if (iMinus >= minMm2) { score[iWall].minusSum += iMinus; if (iMinus > score[iWall].minusMax) score[iWall].minusMax = iMinus; }
+      if (jPlus >= minMm2) { score[jWall].plusSum += jPlus; if (jPlus > score[jWall].plusMax) score[jWall].plusMax = jPlus; }
+      if (jMinus >= minMm2) { score[jWall].minusSum += jMinus; if (jMinus > score[jWall].minusMax) score[jWall].minusMax = jMinus; }
+    }
+    if (tested > maxPairTests) break;
+  }
+  // #region agent log
+  frameDef2aDebugLog(dbgRunId, 'H1', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:pairs', 'pair test summary', {
+    tested: tested,
+    maxPairTests: maxPairTests,
+    hitMaxPairLimit: tested > maxPairTests,
+    parallelPassed: parallelPassed,
+    bboxPassed: bboxPassed,
+    nonZeroOverlapPairs: nonZeroOverlapPairs
+  });
+  // #endregion
+
+  function centerSign(w) {
+    if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) return null;
+    var oppIdx = Number(w.__step2aV2OppositeSegIndex);
+    if (!isFinite(oppIdx) || oppIdx < 0) return null;
+    var oppList = sourceToWalls[String(Math.floor(oppIdx))];
+    if (!oppList || !oppList.length) return null;
+    var ax = ((Number(w.seg_a.p1.x) || 0) + (Number(w.seg_a.p2.x) || 0)) * 0.5;
+    var ay = ((Number(w.seg_a.p1.y) || 0) + (Number(w.seg_a.p2.y) || 0)) * 0.5;
+    var best = null, bestD2 = Infinity;
+    for (var oi = 0; oi < oppList.length; oi++) {
+      var ow = list[oppList[oi]];
+      if (!ow || !ow.seg_a || !ow.seg_a.p1 || !ow.seg_a.p2) continue;
+      var bx = ((Number(ow.seg_a.p1.x) || 0) + (Number(ow.seg_a.p2.x) || 0)) * 0.5;
+      var by = ((Number(ow.seg_a.p1.y) || 0) + (Number(ow.seg_a.p2.y) || 0)) * 0.5;
+      var d2 = (bx - ax) * (bx - ax) + (by - ay) * (by - ay);
+      if (d2 < bestD2) { bestD2 = d2; best = { x: bx, y: by }; }
+    }
+    if (!best) return null;
+    var p1 = (w.__step2aDualBaseOuterP1 && isFinite(Number(w.__step2aDualBaseOuterP1.x)) && isFinite(Number(w.__step2aDualBaseOuterP1.y)))
+      ? w.__step2aDualBaseOuterP1 : w.seg_a.p1;
+    var p2 = (w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) && isFinite(Number(w.__step2aDualBaseOuterP2.y)))
+      ? w.__step2aDualBaseOuterP2 : w.seg_a.p2;
+    var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0), dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+    var len = Math.hypot(dx, dy);
+    if (len < 1e-6) return null;
+    var nx = -dy / len, ny = dx / len;
+    var d = (best.x - ax) * nx + (best.y - ay) * ny;
+    var eps = Math.max(4, (Number(w.thickness_mm) || 170) * 0.04);
+    if (d > eps) return 1;
+    if (d < -eps) return -1;
+    return null;
+  }
+
+  var directSkippedWeak = 0;
+  var directChanged = 0;
+  var directCenterOverride = 0;
+  for (var li = 0; li < list.length; li++) {
+    var w = list[li];
+    if (!w || !w.seg_a || !w.seg_b) continue;
+    var sd = score[li] || { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
+    var vP = (Number(sd.plusMax) || 0) + (Number(sd.plusSum) || 0) * sumW;
+    var vN = (Number(sd.minusMax) || 0) + (Number(sd.minusSum) || 0) * sumW;
+    var cSign = ((typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER !== 'boolean') || FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER) ? centerSign(w) : null;
+    if (Math.max(vP, vN) < pickMin && !(cSign === 1 || cSign === -1)) { directSkippedWeak++; continue; }
+    var newSign = vP >= vN ? 1 : -1;
+    if (cSign === 1 || cSign === -1) { newSign = cSign; directCenterOverride++; }
+    var oldSign = Number(w.__step2aOutlineInwardSign) < 0 ? -1 : 1;
+    if (!w.__step2aDualSignEval || typeof w.__step2aDualSignEval !== 'object') w.__step2aDualSignEval = {};
+    w.__step2aDualSignEval.scoreRule = 'dual-candidate-overlap';
+    w.__step2aDualSignEval.overlapPickPlusMm2 = Number(sd.plusMax) || 0;
+    w.__step2aDualSignEval.overlapPickMinusMm2 = Number(sd.minusMax) || 0;
+    w.__step2aDualSignEval.overlapAllPlusMm2 = Number(sd.plusSum) || 0;
+    w.__step2aDualSignEval.overlapAllMinusMm2 = Number(sd.minusSum) || 0;
+    if (newSign === oldSign) {
+      w.__step2aDualSignEval.path = cSign ? 'dual-candidate-overlap-center-keep' : 'dual-candidate-overlap-keep';
+      continue;
+    }
+    directChanged++;
+    applyWallSign(w, newSign);
+    w.__step2aDualSignEval.path = cSign ? 'dual-candidate-overlap-center-flip' : 'dual-candidate-overlap-flip';
+    w.__step2aDualSignEval.hatchSign = newSign;
+  }
+  // #region agent log
+  frameDef2aDebugLog(dbgRunId, 'H3', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:direct', 'direct pick summary', {
+    directSkippedWeak: directSkippedWeak,
+    directChanged: directChanged,
+    directCenterOverride: directCenterOverride
+  });
+  // #endregion
+  if (enablePropagate) {
+    var weakCount = 0;
+    var propagatedCount = 0;
+    for (var wi = 0; wi < list.length; wi++) {
+      var ww = list[wi];
+      var mw = meta[wi];
+      if (!ww || !mw || !ww.seg_a || !ww.seg_b) continue;
+      var sdw = score[wi] || { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
+      var vwP = (Number(sdw.plusMax) || 0) + (Number(sdw.plusSum) || 0) * sumW;
+      var vwN = (Number(sdw.minusMax) || 0) + (Number(sdw.minusSum) || 0) * sumW;
+      var weak = Math.max(vwP, vwN) < pickMin;
+      if (!weak) continue;
+      weakCount++;
+      var bestDonor = null;
+      var bestSep = Infinity;
+      for (var wj = 0; wj < list.length; wj++) {
+        if (wj === wi) continue;
+        var wd = list[wj];
+        var md = meta[wj];
+        if (!wd || !md || !wd.seg_a || !wd.seg_b || !mw.bbox || !md.bbox) continue;
+        var dotd = Math.abs((Number(mw.ux) || 0) * (Number(md.ux) || 0) + (Number(mw.uy) || 0) * (Number(md.uy) || 0));
+        if (dotd < parDotMin) continue;
+        var sdd = score[wj] || { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
+        var vdP = (Number(sdd.plusMax) || 0) + (Number(sdd.plusSum) || 0) * sumW;
+        var vdN = (Number(sdd.minusMax) || 0) + (Number(sdd.minusSum) || 0) * sumW;
+        if (Math.max(vdP, vdN) < propStrongMin) continue;
+        var c1x = (Number(mw.bbox.minx) + Number(mw.bbox.maxx)) * 0.5;
+        var c1y = (Number(mw.bbox.miny) + Number(mw.bbox.maxy)) * 0.5;
+        var c2x = (Number(md.bbox.minx) + Number(md.bbox.maxx)) * 0.5;
+        var c2y = (Number(md.bbox.miny) + Number(md.bbox.maxy)) * 0.5;
+        var nx = -(Number(mw.uy) || 0), ny = (Number(mw.ux) || 0);
+        var sep = Math.abs((c2x - c1x) * nx + (c2y - c1y) * ny);
+        if (sep > propMaxSep) continue;
+        if (sep < bestSep) {
+          bestSep = sep;
+          bestDonor = { sign: Number(wd.__step2aOutlineInwardSign) < 0 ? -1 : 1 };
+        }
+      }
+      if (!bestDonor) continue;
+      var oldS = Number(ww.__step2aOutlineInwardSign) < 0 ? -1 : 1;
+      if (oldS === bestDonor.sign) continue;
+      applyWallSign(ww, bestDonor.sign);
+      propagatedCount++;
+      if (!ww.__step2aDualSignEval || typeof ww.__step2aDualSignEval !== 'object') ww.__step2aDualSignEval = {};
+      ww.__step2aDualSignEval.path = 'dual-candidate-overlap-propagated';
+      ww.__step2aDualSignEval.hatchSign = bestDonor.sign;
+    }
+    // #region agent log
+    frameDef2aDebugLog(dbgRunId, 'H2', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:propagate', 'propagate summary', {
+      weakCount: weakCount,
+      propagatedCount: propagatedCount,
+      propStrongMin: propStrongMin,
+      propMaxSep: propMaxSep
+    });
+    // #endregion
+  }
+  if (enableUnify) {
+    var visited = {};
+    var compCount = 0;
+    var singletonCompCount = 0;
+    var unifyChangedCount = 0;
+    for (var root = 0; root < list.length; root++) {
+      if (visited[root]) continue;
+      var mr = meta[root];
+      var wr = list[root];
+      if (!mr || !wr) { visited[root] = true; continue; }
+      var comp = [];
+      var q = [root];
+      visited[root] = true;
+      while (q.length) {
+        var cur = q.pop();
+        comp.push(cur);
+        var mc = meta[cur];
+        if (!mc || !mc.bbox) continue;
+        var c1x = (Number(mc.bbox.minx) + Number(mc.bbox.maxx)) * 0.5;
+        var c1y = (Number(mc.bbox.miny) + Number(mc.bbox.maxy)) * 0.5;
+        var nx = -(Number(mc.uy) || 0), ny = (Number(mc.ux) || 0);
+        for (var nb = 0; nb < list.length; nb++) {
+          if (visited[nb]) continue;
+          var mn = meta[nb];
+          if (!mn || !mn.bbox) continue;
+          var dotc = Math.abs((Number(mc.ux) || 0) * (Number(mn.ux) || 0) + (Number(mc.uy) || 0) * (Number(mn.uy) || 0));
+          if (dotc < parDotMin) continue;
+          var c2x = (Number(mn.bbox.minx) + Number(mn.bbox.maxx)) * 0.5;
+          var c2y = (Number(mn.bbox.miny) + Number(mn.bbox.maxy)) * 0.5;
+          var sep = Math.abs((c2x - c1x) * nx + (c2y - c1y) * ny);
+          if (sep > unifyMaxSep) continue;
+          visited[nb] = true;
+          q.push(nb);
+        }
+      }
+      compCount++;
+      if (comp.length <= 1) { singletonCompCount++; continue; }
+      var votePlus = 0, voteMinus = 0;
+      for (var ci = 0; ci < comp.length; ci++) {
+        var idx = comp[ci];
+        var sdc = score[idx] || { plusMax: 0, plusSum: 0, minusMax: 0, minusSum: 0 };
+        var vPc = (Number(sdc.plusMax) || 0) + (Number(sdc.plusSum) || 0) * sumW;
+        var vNc = (Number(sdc.minusMax) || 0) + (Number(sdc.minusSum) || 0) * sumW;
+        if (Math.max(vPc, vNc) < unifyStrongMin) continue;
+        if (vPc >= vNc) votePlus += vPc; else voteMinus += vNc;
+      }
+      if (votePlus <= 0 && voteMinus <= 0) continue;
+      var compSign = votePlus >= voteMinus ? 1 : -1;
+      for (var ci2 = 0; ci2 < comp.length; ci2++) {
+        var idx2 = comp[ci2];
+        var ww2 = list[idx2];
+        if (!ww2) continue;
+        var old2 = Number(ww2.__step2aOutlineInwardSign) < 0 ? -1 : 1;
+        if (old2 !== compSign) { applyWallSign(ww2, compSign); unifyChangedCount++; }
+        if (!ww2.__step2aDualSignEval || typeof ww2.__step2aDualSignEval !== 'object') ww2.__step2aDualSignEval = {};
+        ww2.__step2aDualSignEval.path = 'dual-candidate-overlap-component-unify';
+        ww2.__step2aDualSignEval.hatchSign = compSign;
+      }
+    }
+    // #region agent log
+    frameDef2aDebugLog(dbgRunId, 'H2', 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:unify', 'component unify summary', {
+      compCount: compCount,
+      singletonCompCount: singletonCompCount,
+      unifyChangedCount: unifyChangedCount,
+      unifyStrongMin: unifyStrongMin,
+      unifyMaxSep: unifyMaxSep
+    });
+    // #endregion
+    // #region agent log
+    try {
+      console.log('[2a-debug]', JSON.stringify({
+        runId: dbgRunId,
+        hypothesisId: 'H2',
+        location: 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:unify-console',
+        message: 'component unify summary',
+        data: {
+          compCount: compCount,
+          singletonCompCount: singletonCompCount,
+          unifyChangedCount: unifyChangedCount,
+          unifyStrongMin: unifyStrongMin,
+          unifyMaxSep: unifyMaxSep
+        },
+        timestamp: Date.now()
+      }));
+    } catch (_e2aDbgConsoleUnify) {}
+    // #endregion
+  }
+  // #region agent log
+  try {
+    console.log('[2a-debug]', JSON.stringify({
+      runId: dbgRunId,
+      hypothesisId: 'H3',
+      location: 'frame_object_define.js:frameDef2aV2ApplyDualCandidateOverlapSignPickV2:final-console',
+      message: 'pick pipeline summary',
+      data: {
+        directSkippedWeak: directSkippedWeak,
+        directChanged: directChanged,
+        directCenterOverride: directCenterOverride,
+        enablePropagate: !!enablePropagate,
+        enableUnify: !!enableUnify
+      },
+      timestamp: Date.now()
+    }));
+  } catch (_e2aDbgConsoleFinal) {}
+  // #endregion
+}
+
+/** 2a: ②-1에서 만든 양방향 벽 후보(+/−)끼리의 실제 겹침 면적만 별도 표시. */
+function frameDefDrawDebugStep2aDualOverlapPatches() {
+  var st = frameDefGetState();
+  if (st.debugStep2aShowDualOverlapPatches !== true) return;
+  var list = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
+  if (!list.length || typeof toScreen !== 'function' || typeof frameDefDrawHatchPolygon !== 'function') return;
+  if (typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function') return;
+  if (typeof frameDef2aV2QuadQuadOverlapPoly !== 'function') return;
+  var minOverlapAreaMm2 = (typeof FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MIN_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MIN_MM2))
+    ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MIN_MM2) : 1;
+  var bucketCellMm = (typeof FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_BUCKET_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_BUCKET_MM))
+    ? Math.max(600, FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_BUCKET_MM) : 2200;
+  var parDotMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN))
+    ? Math.max(0.90, Math.min(0.99999, FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN)) : 0.988;
+  function drawWorldPoly(poly, color, hatchOpts, strokeAlpha) {
+    if (!Array.isArray(poly) || poly.length < 3) return;
+    var screenPoly = [];
+    for (var i = 0; i < poly.length; i++) {
+      var p = poly[i];
+      if (!p || !isFinite(Number(p.x)) || !isFinite(Number(p.y))) continue;
+      screenPoly.push(toScreen(Number(p.x), Number(p.y)));
+    }
+    if (screenPoly.length < 3) return;
+    frameDefDrawHatchPolygon(screenPoly, color, hatchOpts);
+  }
+  function buildSignCandidates(signVal) {
+    var out = [];
+    for (var wi = 0; wi < list.length; wi++) {
+      var w = list[wi];
+      if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) continue;
+      var baseP1 = w.__step2aDualBaseOuterP1 && isFinite(Number(w.__step2aDualBaseOuterP1.x)) && isFinite(Number(w.__step2aDualBaseOuterP1.y))
+        ? w.__step2aDualBaseOuterP1 : w.seg_a.p1;
+      var baseP2 = w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) && isFinite(Number(w.__step2aDualBaseOuterP2.y))
+        ? w.__step2aDualBaseOuterP2 : w.seg_a.p2;
+      var th = Number(w.__step2aDualBaseThicknessMm);
+      if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = Number(w.thickness_mm);
+      if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = 170;
+      var q = frameDefSegToWallBodyQuadOutlineWorld(baseP1, baseP2, th, signVal);
+      if (!q || q.length < 4) continue;
+      var bq = typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(q) : null;
+      var dx = (Number(baseP2.x) || 0) - (Number(baseP1.x) || 0);
+      var dy = (Number(baseP2.y) || 0) - (Number(baseP1.y) || 0);
+      var len = Math.hypot(dx, dy);
+      var ux = len > 1e-9 ? (dx / len) : 0;
+      var uy = len > 1e-9 ? (dy / len) : 0;
+      out.push({
+        wallIdx: wi,
+        quad: q,
+        bbox: bq,
+        ux: ux,
+        uy: uy,
+        selected: (Number(w.__step2aOutlineInwardSign) < 0 ? -1 : 1) === signVal
+      });
+    }
+    return out;
+  }
+  function collectPairOverlapsDual(candsP, candsN) {
+    var plusPolys = [];
+    var minusPolys = [];
+    if (!Array.isArray(candsP) || !Array.isArray(candsN)) return { plus: plusPolys, minus: minusPolys };
+    var byWall = {};
+    for (var ciP = 0; ciP < candsP.length; ciP++) {
+      var cp = candsP[ciP];
+      if (!cp || !isFinite(Number(cp.wallIdx))) continue;
+      var kp = String(Math.floor(Number(cp.wallIdx)));
+      if (!byWall[kp]) byWall[kp] = { plus: null, minus: null, ux: 0, uy: 0 };
+      byWall[kp].plus = cp;
+      byWall[kp].ux = Number(cp.ux) || byWall[kp].ux;
+      byWall[kp].uy = Number(cp.uy) || byWall[kp].uy;
+    }
+    for (var ciN = 0; ciN < candsN.length; ciN++) {
+      var cn = candsN[ciN];
+      if (!cn || !isFinite(Number(cn.wallIdx))) continue;
+      var kn = String(Math.floor(Number(cn.wallIdx)));
+      if (!byWall[kn]) byWall[kn] = { plus: null, minus: null, ux: 0, uy: 0 };
+      byWall[kn].minus = cn;
+      byWall[kn].ux = Number(cn.ux) || byWall[kn].ux;
+      byWall[kn].uy = Number(cn.uy) || byWall[kn].uy;
+    }
+    var pairs = [];
+    var byWallKeys = Object.keys(byWall);
+    for (var bk = 0; bk < byWallKeys.length; bk++) {
+      var row = byWall[byWallKeys[bk]];
+      if (!row || (!row.plus && !row.minus)) continue;
+      pairs.push(row);
+    }
+    var n = pairs.length;
+    if (n < 2) return { plus: plusPolys, minus: minusPolys };
+    var buckets = {};
+    var spans = new Array(n);
+    var wide = [];
+    function key(gx, gy) { return String(gx) + ',' + String(gy); }
+    function push(gx, gy, idx) {
+      var k = key(gx, gy);
+      if (!buckets[k]) buckets[k] = [];
+      buckets[k].push(idx);
+    }
+    function unionBBox(a, b) {
+      if (!a && !b) return null;
+      if (!a) return b;
+      if (!b) return a;
+      return { minx: Math.min(a.minx, b.minx), miny: Math.min(a.miny, b.miny), maxx: Math.max(a.maxx, b.maxx), maxy: Math.max(a.maxy, b.maxy) };
+    }
+    for (var i = 0; i < n; i++) {
+      var pairRec = pairs[i];
+      var bp = pairRec && pairRec.plus && pairRec.plus.bbox ? pairRec.plus.bbox : null;
+      var bn = pairRec && pairRec.minus && pairRec.minus.bbox ? pairRec.minus.bbox : null;
+      var bu = unionBBox(bp, bn);
+      if (!bu) { spans[i] = null; continue; }
+      var gx0 = Math.floor((Number(bu.minx) || 0) / bucketCellMm);
+      var gy0 = Math.floor((Number(bu.miny) || 0) / bucketCellMm);
+      var gx1 = Math.floor((Number(bu.maxx) || 0) / bucketCellMm);
+      var gy1 = Math.floor((Number(bu.maxy) || 0) / bucketCellMm);
+      var cnt = (gx1 - gx0 + 1) * (gy1 - gy0 + 1);
+      if (cnt > 240) { wide.push(i); spans[i] = null; continue; }
+      var cells = [];
+      for (var gx = gx0; gx <= gx1; gx++) {
+        for (var gy = gy0; gy <= gy1; gy++) {
+          cells.push({ gx: gx, gy: gy });
+          push(gx, gy, i);
+        }
+      }
+      spans[i] = cells;
+    }
+    function areaPoly(a, b) {
+      if (!a || !b || !a.quad || !b.quad || !a.bbox || !b.bbox) return null;
+      if (!frameDef2aV2BBoxIntersects2d(a.bbox, b.bbox)) return null;
+      var ov = frameDef2aV2QuadQuadOverlapPoly(a.quad, b.quad, a.bbox, b.bbox);
+      if (!ov) return null;
+      var ar = Number(frameDefPolygonAreaAbs(ov)) || 0;
+      if (ar < minOverlapAreaMm2) return null;
+      return { area: ar, poly: ov };
+    }
+    for (var i2 = 0; i2 < n; i2++) {
+      var aPair = pairs[i2];
+      if (!aPair) continue;
+      var aP = aPair.plus || null;
+      var aN = aPair.minus || null;
+      var near = {};
+      var sps = spans[i2];
+      if (sps && sps.length) {
+        for (var si2 = 0; si2 < sps.length; si2++) {
+          var arr = buckets[key(sps[si2].gx, sps[si2].gy)];
+          if (!arr || !arr.length) continue;
+          for (var ai = 0; ai < arr.length; ai++) {
+            var idx = arr[ai];
+            if (idx > i2) near[idx] = true;
+          }
+        }
+      } else {
+        for (var jj = i2 + 1; jj < n; jj++) near[jj] = true;
+      }
+      if (wide.length) for (var wj = 0; wj < wide.length; wj++) if (wide[wj] > i2) near[wide[wj]] = true;
+      var keys = Object.keys(near);
+      for (var k = 0; k < keys.length; k++) {
+        var j = Number(keys[k]);
+        if (!(j > i2)) continue;
+        var bPair = pairs[j];
+        if (!bPair) continue;
+        var bP = bPair.plus || null;
+        var bN = bPair.minus || null;
+        var aUx = Number(aPair.ux) || 0;
+        var aUy = Number(aPair.uy) || 0;
+        var bUx = Number(bPair.ux) || 0;
+        var bUy = Number(bPair.uy) || 0;
+        var dot = Math.abs(aUx * bUx + aUy * bUy);
+        if (dot < parDotMin) continue;
+        var app = areaPoly(aP, bP), apn = areaPoly(aP, bN), anp = areaPoly(aN, bP), ann = areaPoly(aN, bN);
+        // 2a-2-1에서 비교한 항목을 재생산/대표 1개로 축약하지 않고,
+        // 실제로 겹친 비교 결과만 남기는 "보존 전략"을 적용한다.
+        if (app) plusPolys.push({ poly: app.poly, selectedPair: !!(aP && aP.selected && bP && bP.selected) });
+        if (apn) plusPolys.push({ poly: apn.poly, selectedPair: !!(aP && aP.selected && bN && bN.selected) });
+        if (anp) minusPolys.push({ poly: anp.poly, selectedPair: !!(aN && aN.selected && bP && bP.selected) });
+        if (ann) minusPolys.push({ poly: ann.poly, selectedPair: !!(aN && aN.selected && bN && bN.selected) });
+      }
+    }
+    return { plus: plusPolys, minus: minusPolys };
+  }
+  var candsP = buildSignCandidates(1);
+  var candsN = buildSignCandidates(-1);
+  var dualPolys = collectPairOverlapsDual(candsP, candsN);
+  var plusPolys = dualPolys.plus || [];
+  var minusPolys = dualPolys.minus || [];
+  for (var pi = 0; pi < plusPolys.length; pi++) {
+    var pp = plusPolys[pi];
+    drawWorldPoly(pp.poly, pp.selectedPair ? '#06b6d4' : '#67e8f9', {
+      fillAlpha: pp.selectedPair ? 0.30 : 0.10,
+      hatchAlpha: pp.selectedPair ? 0.48 : 0.20,
+      step: FRAME_DEF_DEBUG_HATCH_STEP_PX
+    }, pp.selectedPair ? 0.84 : 0.42);
+  }
+  for (var ni = 0; ni < minusPolys.length; ni++) {
+    var np = minusPolys[ni];
+    drawWorldPoly(np.poly, np.selectedPair ? '#f59e0b' : '#fdba74', {
+      fillAlpha: np.selectedPair ? 0.30 : 0.10,
+      hatchAlpha: np.selectedPair ? 0.48 : 0.20,
+      step: FRAME_DEF_DEBUG_HATCH_STEP_PX
+    }, np.selectedPair ? 0.84 : 0.42);
+  }
 }
 
 /** 2a: `__step2aHatchOverlapDbg` + `__step2aDualSignEval` — 양방향(+1/-1) 비교 여부, 선택/반대 겹침(mm²·%)과 판정(정상/주의) 표시. */
@@ -24156,8 +24994,6 @@ function frameDef2aMidLinkDebugInputSig(list, sourceSegs) {
 
 var __frameDef2aMidLinkCacheSig = '';
 var __frameDef2aMidLinkWorldPairs = [];
-var __frameDef2aMidLastLogTs = 0;
-var __frameDef2aMidDrawLastLogTs = 0;
 
 function frameDef2aSegStableKey(seg) {
   if (!seg || !seg.p1 || !seg.p2) return '';
@@ -24934,15 +25770,6 @@ function frameDef2aResolveMidLinkWorldPairsForWalls(list, sourceSegs) {
       if (out[idx]) nFallback++;
     }
   }
-  // #region agent log
-  if (typeof fetch === 'function') {
-    var _tMid = Date.now();
-    if ((_tMid - __frameDef2aMidLastLogTs) > 1200) {
-      __frameDef2aMidLastLogTs = _tMid;
-      fetch('http://127.0.0.1:7246/ingest/ed3d586f-4e6e-4d59-afb3-4db05628884f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '45010c' }, body: JSON.stringify({ sessionId: '45010c', runId: 'midlink-qc-v2', hypothesisId: 'H_midReject', location: 'frame_object_define.js:frameDef2aResolveMidLinkWorldPairsForWalls', message: '2a midlink reject stats', data: { walls: list.length, srcSegs: sourceSegs.length, rejPairAxis: rejPairAxis, rejPairLine: rejPairLine, rejPairGuidePerp: rejPairGuidePerp, rejPairRel: rejPairRel, rejPairThick: rejPairThick, rejPairOverlap: rejPairOverlap, rejPairLen: rejPairLen, rejCorner: rejCorner, rejAnchor: rejAnchor, rejPairHatch: rejPairHatch, rejPairOtherWall: rejPairOtherWall, nMidLinkThickDirFlip: nMidLinkThickDirFlip, nGlobal: nGlobal, nFallback: nFallback, samples: selSamples }, timestamp: _tMid }) }).catch(function () {});
-    }
-  }
-  // #endregion
   return out;
 }
 
@@ -24958,21 +25785,6 @@ function frameDefDrawDebugStep2aWallSegMidLinks() {
     __frameDef2aMidLinkCacheSig = sig;
     __frameDef2aMidLinkWorldPairs = frameDef2aResolveMidLinkWorldPairsForWalls(list, sourceSegs);
   }
-  // #region agent log
-  if (typeof fetch === 'function') {
-    var _tMd = Date.now();
-    if ((_tMd - __frameDef2aMidDrawLastLogTs) > 1200) {
-      var _nf = 0, _ng = 0;
-      for (var _mi = 0; _mi < __frameDef2aMidLinkWorldPairs.length; _mi++) {
-        var _pr = __frameDef2aMidLinkWorldPairs[_mi];
-        if (!_pr || !_pr.ma || !_pr.mb) continue;
-        if (_pr.fallback === true) _nf++; else _ng++;
-      }
-      __frameDef2aMidDrawLastLogTs = _tMd;
-      fetch('http://127.0.0.1:7246/ingest/ed3d586f-4e6e-4d59-afb3-4db05628884f', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '45010c' }, body: JSON.stringify({ sessionId: '45010c', runId: 'midlink-draw-v2', hypothesisId: 'H_midVisible', location: 'frame_object_define.js:frameDefDrawDebugStep2aWallSegMidLinks', message: '2a midlink draw snapshot', data: { walls: list.length, srcSegs: sourceSegs.length, nGlobal: _ng, nFallback: _nf, cacheSigLen: sig.length }, timestamp: _tMd }) }).catch(function () {});
-    }
-  }
-  // #endregion
   ctx.save();
   ctx.lineWidth = 1.75;
   ctx.setLineDash([5, 4]);

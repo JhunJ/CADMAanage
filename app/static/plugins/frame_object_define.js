@@ -24688,7 +24688,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (ar < minOverlapAreaMm2) return null;
       return { area: ar, poly: ov };
     }
-    function keepCandidate(mapObj, cand, signVal) {
+    function keepCandidate(mapObj, cand, signVal, ovArea) {
       if (!cand || !Array.isArray(cand.quad) || cand.quad.length < 4) return;
       var k = String(signVal) + ':' + String(isFinite(Number(cand.wallIdx)) ? Math.floor(Number(cand.wallIdx)) : -1);
       if (!mapObj[k]) {
@@ -24696,10 +24696,12 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           quad: cand.quad,
           selected: !!cand.selected,
           wallIdx: isFinite(Number(cand.wallIdx)) ? Math.floor(Number(cand.wallIdx)) : -1,
-          hitCount: 0
+          hitCount: 0,
+          overlapArea: 0
         };
       }
       mapObj[k].hitCount += 1;
+      mapObj[k].overlapArea += Math.max(0, Number(ovArea) || 0);
       if (!!cand.selected) mapObj[k].selected = true;
     }
     for (var i2 = 0; i2 < n; i2++) {
@@ -24738,13 +24740,46 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         if (dot < parDotMin) continue;
         var app = areaPoly(aP, bP), apn = areaPoly(aP, bN), anp = areaPoly(aN, bP), ann = areaPoly(aN, bN);
         // "겹침된 교집합 1개"가 아니라 "겹침에 참여한 후보(재료) 각각"을 남김
-        if (app) { keepCandidate(plusKeep, aP, 1); keepCandidate(plusKeep, bP, 1); }
-        if (apn) { keepCandidate(plusKeep, aP, 1); keepCandidate(minusKeep, bN, -1); }
-        if (anp) { keepCandidate(minusKeep, aN, -1); keepCandidate(plusKeep, bP, 1); }
-        if (ann) { keepCandidate(minusKeep, aN, -1); keepCandidate(minusKeep, bN, -1); }
+        if (app) { keepCandidate(plusKeep, aP, 1, app.area); keepCandidate(plusKeep, bP, 1, app.area); }
+        if (apn) { keepCandidate(plusKeep, aP, 1, apn.area); keepCandidate(minusKeep, bN, -1, apn.area); }
+        if (anp) { keepCandidate(minusKeep, aN, -1, anp.area); keepCandidate(plusKeep, bP, 1, anp.area); }
+        if (ann) { keepCandidate(minusKeep, aN, -1, ann.area); keepCandidate(minusKeep, bN, -1, ann.area); }
       }
     }
-    return { plus: Object.keys(plusKeep).map(function(k) { return plusKeep[k]; }), minus: Object.keys(minusKeep).map(function(k) { return minusKeep[k]; }) };
+    var plusArrRaw = Object.keys(plusKeep).map(function(k) { return plusKeep[k]; });
+    var minusArrRaw = Object.keys(minusKeep).map(function(k) { return minusKeep[k]; });
+    // 같은 wallIdx에서 +/-가 동시에 남으면, 겹침 누적 면적이 더 큰 쪽만 남긴다.
+    var plusByWall = {}, minusByWall = {}, wallMap = {};
+    for (var pr = 0; pr < plusArrRaw.length; pr++) {
+      var pRec = plusArrRaw[pr];
+      if (!pRec) continue;
+      plusByWall[String(pRec.wallIdx)] = pRec;
+      wallMap[String(pRec.wallIdx)] = true;
+    }
+    for (var nr = 0; nr < minusArrRaw.length; nr++) {
+      var nRec = minusArrRaw[nr];
+      if (!nRec) continue;
+      minusByWall[String(nRec.wallIdx)] = nRec;
+      wallMap[String(nRec.wallIdx)] = true;
+    }
+    var plusOut = [], minusOut = [];
+    var wKeys = Object.keys(wallMap);
+    for (var wi = 0; wi < wKeys.length; wi++) {
+      var wk = wKeys[wi];
+      var rp = plusByWall[wk] || null;
+      var rn = minusByWall[wk] || null;
+      if (rp && rn) {
+        var ap = Number(rp.overlapArea) || 0;
+        var an = Number(rn.overlapArea) || 0;
+        if (ap > an + 1e-6) plusOut.push(rp);
+        else if (an > ap + 1e-6) minusOut.push(rn);
+        else if (rp.selected && !rn.selected) plusOut.push(rp);
+        else if (rn.selected && !rp.selected) minusOut.push(rn);
+        else { plusOut.push(rp); minusOut.push(rn); }
+      } else if (rp) plusOut.push(rp);
+      else if (rn) minusOut.push(rn);
+    }
+    return { plus: plusOut, minus: minusOut };
   }
   var candsP = buildSignCandidates(1);
   var candsN = buildSignCandidates(-1);

@@ -24352,9 +24352,14 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
     var vP = (Number(sd.plusMax) || 0) + (Number(sd.plusSum) || 0) * sumW;
     var vN = (Number(sd.minusMax) || 0) + (Number(sd.minusSum) || 0) * sumW;
     var cSign = ((typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER !== 'boolean') || FRAME_DEF_STEP2A_V2_DUAL_CAND_PREFER_OPPOSITE_CENTER) ? centerSign(w) : null;
-    if (Math.max(vP, vN) < pickMin && !(cSign === 1 || cSign === -1)) { directSkippedWeak++; continue; }
+    var overlapStrong = Math.max(vP, vN) >= pickMin;
+    if (!overlapStrong && !(cSign === 1 || cSign === -1)) { directSkippedWeak++; continue; }
     var newSign = vP >= vN ? 1 : -1;
-    if (cSign === 1 || cSign === -1) { newSign = cSign; directCenterOverride++; }
+    // 보존 전략: 겹침 비교가 충분히 강하면 그 결과를 우선 사용하고,
+    // centerSign은 약한 신호(또는 거의 동점)에서만 보조 선택으로 사용한다.
+    var tieEps = Math.max(1e-6, pickMin * 0.08);
+    var nearTie = Math.abs(vP - vN) <= tieEps;
+    if ((cSign === 1 || cSign === -1) && (!overlapStrong || nearTie)) { newSign = cSign; directCenterOverride++; }
     var oldSign = Number(w.__step2aOutlineInwardSign) < 0 ? -1 : 1;
     if (!w.__step2aDualSignEval || typeof w.__step2aDualSignEval !== 'object') w.__step2aDualSignEval = {};
     w.__step2aDualSignEval.scoreRule = 'dual-candidate-overlap';

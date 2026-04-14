@@ -229,7 +229,7 @@ var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS = 700;
 /** 양방향 후보끼리 비교 시 부호별 최대 쌍 테스트 수(초과 시 중단 후 현재 점수 사용). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN = 120000;
 /** 2a-2-2 보존 전략 버전(화면 반영 확인용). */
-var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v7-ovpoly';
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v8-corecov';
 /** 복도 0개 체인 전체 띠 폴백 — false 유지(광역 오생성). watch 체인만 아래 WATCH_ONLY */
 var FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR = false;
 /** 복도 subs가 한 세그도 없을 때: UI/DEBUG watch 엔티티가 체인에 있을 때만 전체 띠 */
@@ -24699,7 +24699,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           hitCount: 0,
           overlapArea: 0,
           coverageSum: 0,
-          coverageMax: 0
+          coverageMax: 0,
+          coreCoverageSum: 0,
+          centerCoverageSum: 0
         };
       }
       mapObj[k].hitCount += 1;
@@ -24726,8 +24728,16 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (!isFinite(tMin) || !isFinite(tMax)) return;
       var span = Math.max(0, tMax - tMin);
       if (!(span > 1e-6)) return;
+      var corePad = 0.14;
+      var coreL = Math.max(tMin, corePad);
+      var coreR = Math.min(tMax, 1 - corePad);
+      var coreSpan = Math.max(0, coreR - coreL);
+      var mid = (tMin + tMax) * 0.5;
+      var centerW = Math.max(0, 1 - Math.min(1, Math.abs(mid - 0.5) * 2));
       mapObj[k].coverageSum += span;
       if (span > mapObj[k].coverageMax) mapObj[k].coverageMax = span;
+      mapObj[k].coreCoverageSum += coreSpan;
+      mapObj[k].centerCoverageSum += span * centerW;
     }
     for (var i2 = 0; i2 < n; i2++) {
       var aPair = pairs[i2];
@@ -24800,9 +24810,15 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         var cn = Number(rn.coverageSum) || 0;
         var mp = Number(rp.coverageMax) || 0;
         var mn = Number(rn.coverageMax) || 0;
-        var scoreP = ap * (1 + Math.min(1.2, cp)) + ap * 0.4 * Math.min(1, mp);
-        var scoreN = an * (1 + Math.min(1.2, cn)) + an * 0.4 * Math.min(1, mn);
-        if (scoreP > scoreN + 1e-6) plusOut.push(rp);
+        var kpCore = Number(rp.coreCoverageSum) || 0;
+        var knCore = Number(rn.coreCoverageSum) || 0;
+        var kpCenter = Number(rp.centerCoverageSum) || 0;
+        var knCenter = Number(rn.centerCoverageSum) || 0;
+        var scoreP = ap * (1 + Math.min(1.4, kpCore * 1.6 + kpCenter * 0.45 + cp * 0.2)) + ap * 0.25 * Math.min(1, mp);
+        var scoreN = an * (1 + Math.min(1.4, knCore * 1.6 + knCenter * 0.45 + cn * 0.2)) + an * 0.25 * Math.min(1, mn);
+        if (kpCore > knCore + 0.03) plusOut.push(rp);
+        else if (knCore > kpCore + 0.03) minusOut.push(rn);
+        else if (scoreP > scoreN + 1e-6) plusOut.push(rp);
         else if (scoreN > scoreP + 1e-6) minusOut.push(rn);
         else if (mp > mn + 1e-6) plusOut.push(rp);
         else if (mn > mp + 1e-6) minusOut.push(rn);

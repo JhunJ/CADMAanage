@@ -24278,14 +24278,23 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
 
       var app = area(mi.plus, mj.plus), apn = area(mi.plus, mj.minus), anp = area(mi.minus, mj.plus), ann = area(mi.minus, mj.minus);
       if (app >= minMm2 || apn >= minMm2 || anp >= minMm2 || ann >= minMm2) nonZeroOverlapPairs++;
-      var iPlus = app >= apn ? app : apn;
-      var iMinus = anp >= ann ? anp : ann;
-      var jPlus = app >= anp ? app : anp;
-      var jMinus = apn >= ann ? apn : ann;
-      if (iPlus >= minMm2) { score[iWall].plusSum += iPlus; if (iPlus > score[iWall].plusMax) score[iWall].plusMax = iPlus; }
-      if (iMinus >= minMm2) { score[iWall].minusSum += iMinus; if (iMinus > score[iWall].minusMax) score[iWall].minusMax = iMinus; }
-      if (jPlus >= minMm2) { score[jWall].plusSum += jPlus; if (jPlus > score[jWall].plusMax) score[jWall].plusMax = jPlus; }
-      if (jMinus >= minMm2) { score[jWall].minusSum += jMinus; if (jMinus > score[jWall].minusMax) score[jWall].minusMax = jMinus; }
+      // 보존 전략: pair당 best 1개로 축약하지 않고, 실제 겹친 비교 항목을 모두 누적한다.
+      if (app >= minMm2) {
+        score[iWall].plusSum += app; if (app > score[iWall].plusMax) score[iWall].plusMax = app;
+        score[jWall].plusSum += app; if (app > score[jWall].plusMax) score[jWall].plusMax = app;
+      }
+      if (apn >= minMm2) {
+        score[iWall].plusSum += apn; if (apn > score[iWall].plusMax) score[iWall].plusMax = apn;
+        score[jWall].minusSum += apn; if (apn > score[jWall].minusMax) score[jWall].minusMax = apn;
+      }
+      if (anp >= minMm2) {
+        score[iWall].minusSum += anp; if (anp > score[iWall].minusMax) score[iWall].minusMax = anp;
+        score[jWall].plusSum += anp; if (anp > score[jWall].plusMax) score[jWall].plusMax = anp;
+      }
+      if (ann >= minMm2) {
+        score[iWall].minusSum += ann; if (ann > score[iWall].minusMax) score[iWall].minusMax = ann;
+        score[jWall].minusSum += ann; if (ann > score[jWall].minusMax) score[jWall].minusMax = ann;
+      }
     }
     if (tested > maxPairTests) break;
   }

@@ -24610,9 +24610,11 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     return out;
   }
   function collectPairOverlapsDual(candsP, candsN) {
-    var plusPolys = [];
-    var minusPolys = [];
-    if (!Array.isArray(candsP) || !Array.isArray(candsN)) return { plus: plusPolys, minus: minusPolys };
+    // 2a-2-2 보존 전략:
+    // "교집합 도형 1개"를 남기는 대신, 겹침이 확인된 후보(재료) 자체를 각각 남긴다.
+    var plusKeep = {};
+    var minusKeep = {};
+    if (!Array.isArray(candsP) || !Array.isArray(candsN)) return { plus: [], minus: [] };
     var byWall = {};
     for (var ciP = 0; ciP < candsP.length; ciP++) {
       var cp = candsP[ciP];
@@ -24640,7 +24642,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       pairs.push(row);
     }
     var n = pairs.length;
-    if (n < 2) return { plus: plusPolys, minus: minusPolys };
+    if (n < 2) return { plus: [], minus: [] };
     var buckets = {};
     var spans = new Array(n);
     var wide = [];
@@ -24686,6 +24688,20 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (ar < minOverlapAreaMm2) return null;
       return { area: ar, poly: ov };
     }
+    function keepCandidate(mapObj, cand, signVal) {
+      if (!cand || !Array.isArray(cand.quad) || cand.quad.length < 4) return;
+      var k = String(signVal) + ':' + String(isFinite(Number(cand.wallIdx)) ? Math.floor(Number(cand.wallIdx)) : -1);
+      if (!mapObj[k]) {
+        mapObj[k] = {
+          quad: cand.quad,
+          selected: !!cand.selected,
+          wallIdx: isFinite(Number(cand.wallIdx)) ? Math.floor(Number(cand.wallIdx)) : -1,
+          hitCount: 0
+        };
+      }
+      mapObj[k].hitCount += 1;
+      if (!!cand.selected) mapObj[k].selected = true;
+    }
     for (var i2 = 0; i2 < n; i2++) {
       var aPair = pairs[i2];
       if (!aPair) continue;
@@ -24721,15 +24737,14 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         var dot = Math.abs(aUx * bUx + aUy * bUy);
         if (dot < parDotMin) continue;
         var app = areaPoly(aP, bP), apn = areaPoly(aP, bN), anp = areaPoly(aN, bP), ann = areaPoly(aN, bN);
-        // 2a-2-1에서 비교한 항목을 재생산/대표 1개로 축약하지 않고,
-        // 실제로 겹친 비교 결과만 남기는 "보존 전략"을 적용한다.
-        if (app) plusPolys.push({ poly: app.poly, selectedPair: !!(aP && aP.selected && bP && bP.selected) });
-        if (apn) plusPolys.push({ poly: apn.poly, selectedPair: !!(aP && aP.selected && bN && bN.selected) });
-        if (anp) minusPolys.push({ poly: anp.poly, selectedPair: !!(aN && aN.selected && bP && bP.selected) });
-        if (ann) minusPolys.push({ poly: ann.poly, selectedPair: !!(aN && aN.selected && bN && bN.selected) });
+        // "겹침된 교집합 1개"가 아니라 "겹침에 참여한 후보(재료) 각각"을 남김
+        if (app) { keepCandidate(plusKeep, aP, 1); keepCandidate(plusKeep, bP, 1); }
+        if (apn) { keepCandidate(plusKeep, aP, 1); keepCandidate(minusKeep, bN, -1); }
+        if (anp) { keepCandidate(minusKeep, aN, -1); keepCandidate(plusKeep, bP, 1); }
+        if (ann) { keepCandidate(minusKeep, aN, -1); keepCandidate(minusKeep, bN, -1); }
       }
     }
-    return { plus: plusPolys, minus: minusPolys };
+    return { plus: Object.keys(plusKeep).map(function(k) { return plusKeep[k]; }), minus: Object.keys(minusKeep).map(function(k) { return minusKeep[k]; }) };
   }
   var candsP = buildSignCandidates(1);
   var candsN = buildSignCandidates(-1);
@@ -24744,19 +24759,19 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   };
   for (var pi = 0; pi < plusPolys.length; pi++) {
     var pp = plusPolys[pi];
-    drawWorldPoly(pp.poly, pp.selectedPair ? '#06b6d4' : '#67e8f9', {
-      fillAlpha: pp.selectedPair ? 0.30 : 0.10,
-      hatchAlpha: pp.selectedPair ? 0.48 : 0.20,
+    drawWorldPoly(pp.quad, pp.selected ? '#06b6d4' : '#67e8f9', {
+      fillAlpha: pp.selected ? 0.30 : 0.12,
+      hatchAlpha: pp.selected ? 0.48 : 0.22,
       step: FRAME_DEF_DEBUG_HATCH_STEP_PX
-    }, pp.selectedPair ? 0.84 : 0.42);
+    }, pp.selected ? 0.84 : 0.46);
   }
   for (var ni = 0; ni < minusPolys.length; ni++) {
     var np = minusPolys[ni];
-    drawWorldPoly(np.poly, np.selectedPair ? '#f59e0b' : '#fdba74', {
-      fillAlpha: np.selectedPair ? 0.30 : 0.10,
-      hatchAlpha: np.selectedPair ? 0.48 : 0.20,
+    drawWorldPoly(np.quad, np.selected ? '#f59e0b' : '#fdba74', {
+      fillAlpha: np.selected ? 0.30 : 0.12,
+      hatchAlpha: np.selected ? 0.48 : 0.22,
       step: FRAME_DEF_DEBUG_HATCH_STEP_PX
-    }, np.selectedPair ? 0.84 : 0.42);
+    }, np.selected ? 0.84 : 0.46);
   }
 }
 

@@ -229,9 +229,13 @@ var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS = 700;
 /** 양방향 후보끼리 비교 시 부호별 최대 쌍 테스트 수(초과 시 중단 후 현재 점수 사용). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN = 120000;
 /** 2a-2-2 보존 전략 버전(화면 반영 확인용). */
-var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v11-perf-nmsx2';
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v14-pair4-area';
 /** 2a-2-2 표시용 후보 최대 개수(부호별) — 과도한 그리기로 인한 팬/줌 버벅임 방지 */
-var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS = 180;
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS = 220;
+/** true면 동일 부호 후보 간 NMS를 적용(성능/회귀 이슈로 기본 OFF). */
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_LOCAL_NMS = false;
+/** true면 +/- 교차부호 후보끼리도 NMS를 적용(회귀 방지를 위해 기본 OFF). */
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_CROSS_SIGN_NMS = false;
 /** 복도 0개 체인 전체 띠 폴백 — false 유지(광역 오생성). watch 체인만 아래 WATCH_ONLY */
 var FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR = false;
 /** 복도 subs가 한 세그도 없을 때: UI/DEBUG watch 엔티티가 체인에 있을 때만 전체 띠 */
@@ -24459,12 +24463,30 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   if (!st.__debugStep2aDualOverlapCache || typeof st.__debugStep2aDualOverlapCache !== 'object') {
     st.__debugStep2aDualOverlapCache = { listRef: null, key: '', plus: [], minus: [], stat: null };
   }
+  function dualOverlapGeomSig(arr) {
+    if (!Array.isArray(arr) || !arr.length) return '0';
+    function r(v) { return Math.round(Number(v) || 0); }
+    var out = [String(arr.length)];
+    for (var i = 0; i < arr.length; i++) {
+      var w = arr[i];
+      if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2 || !w.seg_b || !w.seg_b.p1 || !w.seg_b.p2) { out.push('_'); continue; }
+      out.push(
+        String(r(w.seg_a.p1.x)), ',', String(r(w.seg_a.p1.y)), ',',
+        String(r(w.seg_a.p2.x)), ',', String(r(w.seg_a.p2.y)), ',',
+        String(r(w.seg_b.p1.x)), ',', String(r(w.seg_b.p1.y)), ',',
+        String(r(w.seg_b.p2.x)), ',', String(r(w.seg_b.p2.y)), ',',
+        String(Math.round((Number(w.thickness_mm) || 0) * 10) / 10), ',',
+        String(Number(w.__step2aOutlineInwardSign) < 0 ? -1 : 1)
+      );
+    }
+    return out.join('|');
+  }
   var cacheKey = [
     String(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER || ''),
     String(minOverlapAreaMm2),
     String(bucketCellMm),
     String(parDotMin),
-    String(Array.isArray(list) ? list.length : 0)
+    dualOverlapGeomSig(list)
   ].join('|');
   var cache = st.__debugStep2aDualOverlapCache;
   if (cache.key === cacheKey && Array.isArray(cache.plus) && Array.isArray(cache.minus)) {
@@ -24510,58 +24532,43 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     return out;
   }
   function collectPairOverlapsDual(candsP, candsN) {
-    // 2a-2-2 보존 전략:
-    // "교집합 도형 1개"를 남기는 대신, 겹침이 확인된 후보(재료) 자체를 각각 남긴다.
-    var plusKeep = {};
-    var minusKeep = {};
     if (!Array.isArray(candsP) || !Array.isArray(candsN)) return { plus: [], minus: [] };
     var byWall = {};
-    for (var ciP = 0; ciP < candsP.length; ciP++) {
-      var cp = candsP[ciP];
-      if (!cp || !isFinite(Number(cp.wallIdx))) continue;
-      var kp = String(Math.floor(Number(cp.wallIdx)));
-      if (!byWall[kp]) byWall[kp] = { plus: null, minus: null, ux: 0, uy: 0 };
-      byWall[kp].plus = cp;
-      byWall[kp].ux = Number(cp.ux) || byWall[kp].ux;
-      byWall[kp].uy = Number(cp.uy) || byWall[kp].uy;
+    function putCand(cand, sign) {
+      if (!cand || !isFinite(Number(cand.wallIdx))) return;
+      var idx = Math.floor(Number(cand.wallIdx));
+      var k = String(idx);
+      if (!byWall[k]) byWall[k] = { wallIdx: idx, plus: null, minus: null, ux: 0, uy: 0 };
+      if (sign > 0) byWall[k].plus = cand; else byWall[k].minus = cand;
+      byWall[k].ux = Number(cand.ux) || byWall[k].ux;
+      byWall[k].uy = Number(cand.uy) || byWall[k].uy;
     }
-    for (var ciN = 0; ciN < candsN.length; ciN++) {
-      var cn = candsN[ciN];
-      if (!cn || !isFinite(Number(cn.wallIdx))) continue;
-      var kn = String(Math.floor(Number(cn.wallIdx)));
-      if (!byWall[kn]) byWall[kn] = { plus: null, minus: null, ux: 0, uy: 0 };
-      byWall[kn].minus = cn;
-      byWall[kn].ux = Number(cn.ux) || byWall[kn].ux;
-      byWall[kn].uy = Number(cn.uy) || byWall[kn].uy;
-    }
-    var pairs = [];
+    for (var p0 = 0; p0 < candsP.length; p0++) putCand(candsP[p0], 1);
+    for (var n0 = 0; n0 < candsN.length; n0++) putCand(candsN[n0], -1);
+
+    var rows = [];
     var byWallKeys = Object.keys(byWall);
     for (var bk = 0; bk < byWallKeys.length; bk++) {
-      var row = byWall[byWallKeys[bk]];
-      if (!row || (!row.plus && !row.minus)) continue;
-      pairs.push(row);
+      var r = byWall[byWallKeys[bk]];
+      if (!r || (!r.plus && !r.minus)) continue;
+      rows.push(r);
     }
-    var n = pairs.length;
-    if (n < 2) return { plus: [], minus: [] };
-    var buckets = {};
-    var spans = new Array(n);
-    var wide = [];
-    function key(gx, gy) { return String(gx) + ',' + String(gy); }
-    function push(gx, gy, idx) {
-      var k = key(gx, gy);
-      if (!buckets[k]) buckets[k] = [];
-      buckets[k].push(idx);
-    }
+    if (rows.length < 2) return { plus: [], minus: [] };
+
     function unionBBox(a, b) {
       if (!a && !b) return null;
       if (!a) return b;
       if (!b) return a;
       return { minx: Math.min(a.minx, b.minx), miny: Math.min(a.miny, b.miny), maxx: Math.max(a.maxx, b.maxx), maxy: Math.max(a.maxy, b.maxy) };
     }
-    for (var i = 0; i < n; i++) {
-      var pairRec = pairs[i];
-      var bp = pairRec && pairRec.plus && pairRec.plus.bbox ? pairRec.plus.bbox : null;
-      var bn = pairRec && pairRec.minus && pairRec.minus.bbox ? pairRec.minus.bbox : null;
+    function gridKey(gx, gy) { return String(gx) + ',' + String(gy); }
+    var buckets = {};
+    var spans = new Array(rows.length);
+    var wide = [];
+    for (var i = 0; i < rows.length; i++) {
+      var ri = rows[i];
+      var bp = ri.plus && ri.plus.bbox ? ri.plus.bbox : null;
+      var bn = ri.minus && ri.minus.bbox ? ri.minus.bbox : null;
       var bu = unionBBox(bp, bn);
       if (!bu) { spans[i] = null; continue; }
       var gx0 = Math.floor((Number(bu.minx) || 0) / bucketCellMm);
@@ -24574,311 +24581,120 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       for (var gx = gx0; gx <= gx1; gx++) {
         for (var gy = gy0; gy <= gy1; gy++) {
           cells.push({ gx: gx, gy: gy });
-          push(gx, gy, i);
+          var gk = gridKey(gx, gy);
+          if (!buckets[gk]) buckets[gk] = [];
+          buckets[gk].push(i);
         }
       }
       spans[i] = cells;
     }
-    function areaPoly(a, b) {
-      if (!a || !b || !a.quad || !b.quad || !a.bbox || !b.bbox) return null;
-      if (!frameDef2aV2BBoxIntersects2d(a.bbox, b.bbox)) return null;
+
+    function areaVal(a, b) {
+      if (!a || !b || !a.quad || !b.quad || !a.bbox || !b.bbox) return 0;
+      if (!frameDef2aV2BBoxIntersects2d(a.bbox, b.bbox)) return 0;
       var ov = frameDef2aV2QuadQuadOverlapPoly(a.quad, b.quad, a.bbox, b.bbox);
-      if (!ov) return null;
+      if (!ov) return 0;
       var ar = Number(frameDefPolygonAreaAbs(ov)) || 0;
-      if (ar < minOverlapAreaMm2) return null;
-      return { area: ar, poly: ov };
+      return ar >= minOverlapAreaMm2 ? ar : 0;
     }
-    function keepCandidate(mapObj, cand, signVal, ovArea, ovPoly) {
-      if (!cand || !Array.isArray(cand.quad) || cand.quad.length < 4) return;
-      var k = String(signVal) + ':' + String(isFinite(Number(cand.wallIdx)) ? Math.floor(Number(cand.wallIdx)) : -1);
-      if (!mapObj[k]) {
-        mapObj[k] = {
-          quad: cand.quad,
-          selected: !!cand.selected,
-          wallIdx: isFinite(Number(cand.wallIdx)) ? Math.floor(Number(cand.wallIdx)) : -1,
-          hitCount: 0,
-          overlapArea: 0,
-          coverageSum: 0,
-          coverageMax: 0,
-          coreCoverageSum: 0,
-          centerCoverageSum: 0
+    var vote = {};
+    function ensureVote(row) {
+      var k = String(row.wallIdx);
+      if (!vote[k]) {
+        vote[k] = {
+          wallIdx: row.wallIdx,
+          plusCand: row.plus || null,
+          minusCand: row.minus || null,
+          plusArea: 0, minusArea: 0,
+          plusMax: 0, minusMax: 0,
+          plusHits: 0, minusHits: 0
         };
       }
-      mapObj[k].hitCount += 1;
-      mapObj[k].overlapArea += Math.max(0, Number(ovArea) || 0);
-      if (!!cand.selected) mapObj[k].selected = true;
-      if (!Array.isArray(ovPoly) || ovPoly.length < 3 || !cand.quad) return;
-      var c0 = cand.quad[0], c1 = cand.quad[1];
-      if (!c0 || !c1) return;
-      var dx = (Number(c1.x) || 0) - (Number(c0.x) || 0);
-      var dy = (Number(c1.y) || 0) - (Number(c0.y) || 0);
-      var len2 = dx * dx + dy * dy;
-      if (len2 <= 1e-6) return;
-      var tMin = Infinity, tMax = -Infinity;
-      for (var oi = 0; oi < ovPoly.length; oi++) {
-        var op = ovPoly[oi];
-        if (!op) continue;
-        var t = (((Number(op.x) || 0) - (Number(c0.x) || 0)) * dx + ((Number(op.y) || 0) - (Number(c0.y) || 0)) * dy) / len2;
-        if (!isFinite(t)) continue;
-        if (t < 0) t = 0;
-        if (t > 1) t = 1;
-        if (t < tMin) tMin = t;
-        if (t > tMax) tMax = t;
-      }
-      if (!isFinite(tMin) || !isFinite(tMax)) return;
-      var span = Math.max(0, tMax - tMin);
-      if (!(span > 1e-6)) return;
-      var corePad = 0.14;
-      var coreL = Math.max(tMin, corePad);
-      var coreR = Math.min(tMax, 1 - corePad);
-      var coreSpan = Math.max(0, coreR - coreL);
-      var mid = (tMin + tMax) * 0.5;
-      var centerW = Math.max(0, 1 - Math.min(1, Math.abs(mid - 0.5) * 2));
-      mapObj[k].coverageSum += span;
-      if (span > mapObj[k].coverageMax) mapObj[k].coverageMax = span;
-      mapObj[k].coreCoverageSum += coreSpan;
-      mapObj[k].centerCoverageSum += span * centerW;
+      return vote[k];
     }
-    for (var i2 = 0; i2 < n; i2++) {
-      var aPair = pairs[i2];
-      if (!aPair) continue;
-      var aP = aPair.plus || null;
-      var aN = aPair.minus || null;
+    function addVote(row, sign, area) {
+      if (!(area > 0)) return;
+      var v = ensureVote(row);
+      if (sign > 0) {
+        v.plusArea += area;
+        v.plusHits += 1;
+        if (area > v.plusMax) v.plusMax = area;
+      } else {
+        v.minusArea += area;
+        v.minusHits += 1;
+        if (area > v.minusMax) v.minusMax = area;
+      }
+    }
+
+    for (var ii = 0; ii < rows.length; ii++) {
+      var aRow = rows[ii];
       var near = {};
-      var sps = spans[i2];
+      var sps = spans[ii];
       if (sps && sps.length) {
-        for (var si2 = 0; si2 < sps.length; si2++) {
-          var arr = buckets[key(sps[si2].gx, sps[si2].gy)];
+        for (var si = 0; si < sps.length; si++) {
+          var arr = buckets[gridKey(sps[si].gx, sps[si].gy)];
           if (!arr || !arr.length) continue;
           for (var ai = 0; ai < arr.length; ai++) {
             var idx = arr[ai];
-            if (idx > i2) near[idx] = true;
+            if (idx > ii) near[idx] = true;
           }
         }
       } else {
-        for (var jj = i2 + 1; jj < n; jj++) near[jj] = true;
+        for (var jj = ii + 1; jj < rows.length; jj++) near[jj] = true;
       }
-      if (wide.length) for (var wj = 0; wj < wide.length; wj++) if (wide[wj] > i2) near[wide[wj]] = true;
-      var keys = Object.keys(near);
-      for (var k = 0; k < keys.length; k++) {
-        var j = Number(keys[k]);
-        if (!(j > i2)) continue;
-        var bPair = pairs[j];
-        if (!bPair) continue;
-        var bP = bPair.plus || null;
-        var bN = bPair.minus || null;
-        var aUx = Number(aPair.ux) || 0;
-        var aUy = Number(aPair.uy) || 0;
-        var bUx = Number(bPair.ux) || 0;
-        var bUy = Number(bPair.uy) || 0;
-        var dot = Math.abs(aUx * bUx + aUy * bUy);
+      if (wide.length) for (var wi = 0; wi < wide.length; wi++) if (wide[wi] > ii) near[wide[wi]] = true;
+
+      var nKeys = Object.keys(near);
+      for (var nk = 0; nk < nKeys.length; nk++) {
+        var jx = Number(nKeys[nk]);
+        if (!(jx > ii)) continue;
+        var bRow = rows[jx];
+        if (!bRow) continue;
+        var dot = Math.abs((Number(aRow.ux) || 0) * (Number(bRow.ux) || 0) + (Number(aRow.uy) || 0) * (Number(bRow.uy) || 0));
         if (dot < parDotMin) continue;
-        var app = areaPoly(aP, bP), apn = areaPoly(aP, bN), anp = areaPoly(aN, bP), ann = areaPoly(aN, bN);
-        // "겹침된 교집합 1개"가 아니라 "겹침에 참여한 후보(재료) 각각"을 남김
-        if (app) { keepCandidate(plusKeep, aP, 1, app.area, app.poly); keepCandidate(plusKeep, bP, 1, app.area, app.poly); }
-        if (apn) { keepCandidate(plusKeep, aP, 1, apn.area, apn.poly); keepCandidate(minusKeep, bN, -1, apn.area, apn.poly); }
-        if (anp) { keepCandidate(minusKeep, aN, -1, anp.area, anp.poly); keepCandidate(plusKeep, bP, 1, anp.area, anp.poly); }
-        if (ann) { keepCandidate(minusKeep, aN, -1, ann.area, ann.poly); keepCandidate(minusKeep, bN, -1, ann.area, ann.poly); }
+
+        // 2a-2-1의 4가지 조합 면적
+        var app = areaVal(aRow.plus, bRow.plus);
+        var apn = areaVal(aRow.plus, bRow.minus);
+        var anp = areaVal(aRow.minus, bRow.plus);
+        var ann = areaVal(aRow.minus, bRow.minus);
+
+        // 각 선분별(+/-) 누적
+        addVote(aRow, 1, app); addVote(aRow, 1, apn);
+        addVote(aRow, -1, anp); addVote(aRow, -1, ann);
+        addVote(bRow, 1, app); addVote(bRow, 1, anp);
+        addVote(bRow, -1, apn); addVote(bRow, -1, ann);
       }
     }
-    var plusArrRaw = Object.keys(plusKeep).map(function(k) { return plusKeep[k]; });
-    var minusArrRaw = Object.keys(minusKeep).map(function(k) { return minusKeep[k]; });
-    // 같은 wallIdx에서 +/-가 동시에 남으면, 겹침 누적 면적이 더 큰 쪽만 남긴다.
-    var plusByWall = {}, minusByWall = {}, wallMap = {};
-    for (var pr = 0; pr < plusArrRaw.length; pr++) {
-      var pRec = plusArrRaw[pr];
-      if (!pRec) continue;
-      plusByWall[String(pRec.wallIdx)] = pRec;
-      wallMap[String(pRec.wallIdx)] = true;
-    }
-    for (var nr = 0; nr < minusArrRaw.length; nr++) {
-      var nRec = minusArrRaw[nr];
-      if (!nRec) continue;
-      minusByWall[String(nRec.wallIdx)] = nRec;
-      wallMap[String(nRec.wallIdx)] = true;
-    }
+
     var plusOut = [], minusOut = [];
-    var wKeys = Object.keys(wallMap);
-    for (var wi = 0; wi < wKeys.length; wi++) {
-      var wk = wKeys[wi];
-      var rp = plusByWall[wk] || null;
-      var rn = minusByWall[wk] || null;
-      if (rp && rn) {
-        var ap = Number(rp.overlapArea) || 0;
-        var an = Number(rn.overlapArea) || 0;
-        var cp = Number(rp.coverageSum) || 0;
-        var cn = Number(rn.coverageSum) || 0;
-        var mp = Number(rp.coverageMax) || 0;
-        var mn = Number(rn.coverageMax) || 0;
-        var kpCore = Number(rp.coreCoverageSum) || 0;
-        var knCore = Number(rn.coreCoverageSum) || 0;
-        var kpCenter = Number(rp.centerCoverageSum) || 0;
-        var knCenter = Number(rn.centerCoverageSum) || 0;
-        var scoreP = ap * (1 + Math.min(1.4, kpCore * 1.6 + kpCenter * 0.45 + cp * 0.2)) + ap * 0.25 * Math.min(1, mp);
-        var scoreN = an * (1 + Math.min(1.4, knCore * 1.6 + knCenter * 0.45 + cn * 0.2)) + an * 0.25 * Math.min(1, mn);
-        rp.rankScore = scoreP;
-        rn.rankScore = scoreN;
-        if (kpCore > knCore + 0.03) plusOut.push(rp);
-        else if (knCore > kpCore + 0.03) minusOut.push(rn);
-        else if (scoreP > scoreN + 1e-6) plusOut.push(rp);
-        else if (scoreN > scoreP + 1e-6) minusOut.push(rn);
-        else if (mp > mn + 1e-6) plusOut.push(rp);
-        else if (mn > mp + 1e-6) minusOut.push(rn);
-        else if (rp.selected && !rn.selected) plusOut.push(rp);
-        else if (rn.selected && !rp.selected) minusOut.push(rn);
-        else { plusOut.push(rp); minusOut.push(rn); }
-      } else if (rp) plusOut.push(rp);
-      else if (rn) minusOut.push(rn);
-    }
-    function quadAreaAbs(q) {
-      if (!Array.isArray(q) || q.length < 3 || typeof frameDefPolygonAreaAbs !== 'function') return 0;
-      return Number(frameDefPolygonAreaAbs(q)) || 0;
-    }
-    function candAxis(c) {
-      if (!c || !Array.isArray(c.quad) || c.quad.length < 2) return null;
-      var p1 = c.quad[0], p2 = c.quad[1];
-      if (!p1 || !p2) return null;
-      var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0);
-      var dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
-      var len = Math.hypot(dx, dy);
-      if (!(len > 1e-6)) return null;
-      return { ux: dx / len, uy: dy / len, nx: -dy / len, ny: dx / len };
-    }
-    function candCenter(c) {
-      if (!c || !Array.isArray(c.quad) || c.quad.length < 4) return null;
-      var q = c.quad;
-      return {
-        x: ((Number(q[0].x) || 0) + (Number(q[1].x) || 0) + (Number(q[2].x) || 0) + (Number(q[3].x) || 0)) * 0.25,
-        y: ((Number(q[0].y) || 0) + (Number(q[1].y) || 0) + (Number(q[2].y) || 0) + (Number(q[3].y) || 0)) * 0.25
-      };
-    }
-    function projOverlapRatio(ca, cb, axis) {
-      if (!ca || !cb || !axis || !Array.isArray(ca.quad) || !Array.isArray(cb.quad)) return 0;
-      var ux = Number(axis.ux) || 0, uy = Number(axis.uy) || 0;
-      var aMin = Infinity, aMax = -Infinity, bMin = Infinity, bMax = -Infinity;
-      for (var i = 0; i < ca.quad.length; i++) {
-        var pa = ca.quad[i];
-        if (!pa) continue;
-        var ta = (Number(pa.x) || 0) * ux + (Number(pa.y) || 0) * uy;
-        if (ta < aMin) aMin = ta;
-        if (ta > aMax) aMax = ta;
+    var vKeys = Object.keys(vote);
+    for (var vk = 0; vk < vKeys.length; vk++) {
+      var vv = vote[vKeys[vk]];
+      if (!vv) continue;
+      var hasP = !!(vv.plusCand && vv.plusHits > 0);
+      var hasN = !!(vv.minusCand && vv.minusHits > 0);
+      if (!hasP && !hasN) continue;
+      var pScore = (Number(vv.plusArea) || 0) + (Number(vv.plusMax) || 0) * 0.25;
+      var nScore = (Number(vv.minusArea) || 0) + (Number(vv.minusMax) || 0) * 0.25;
+      if (hasP && !hasN) {
+        plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });
+      } else if (!hasP && hasN) {
+        minusOut.push({ quad: vv.minusCand.quad, selected: !!vv.minusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.minusArea, hitCount: vv.minusHits, rankScore: nScore });
+      } else {
+        if (pScore > nScore + 1e-6) plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });
+        else if (nScore > pScore + 1e-6) minusOut.push({ quad: vv.minusCand.quad, selected: !!vv.minusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.minusArea, hitCount: vv.minusHits, rankScore: nScore });
+        else if ((Number(vv.plusHits) || 0) > (Number(vv.minusHits) || 0)) plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });
+        else if ((Number(vv.minusHits) || 0) > (Number(vv.plusHits) || 0)) minusOut.push({ quad: vv.minusCand.quad, selected: !!vv.minusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.minusArea, hitCount: vv.minusHits, rankScore: nScore });
+        else if (!!vv.plusCand.selected && !vv.minusCand.selected) plusOut.push({ quad: vv.plusCand.quad, selected: true, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });
+        else if (!!vv.minusCand.selected && !vv.plusCand.selected) minusOut.push({ quad: vv.minusCand.quad, selected: true, wallIdx: vv.wallIdx, overlapArea: vv.minusArea, hitCount: vv.minusHits, rankScore: nScore });
+        else plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });
       }
-      for (var j = 0; j < cb.quad.length; j++) {
-        var pb = cb.quad[j];
-        if (!pb) continue;
-        var tb = (Number(pb.x) || 0) * ux + (Number(pb.y) || 0) * uy;
-        if (tb < bMin) bMin = tb;
-        if (tb > bMax) bMax = tb;
-      }
-      if (!isFinite(aMin) || !isFinite(aMax) || !isFinite(bMin) || !isFinite(bMax)) return 0;
-      var ov = Math.max(0, Math.min(aMax, bMax) - Math.max(aMin, bMin));
-      var den = Math.max(1e-6, Math.min(aMax - aMin, bMax - bMin));
-      return ov / den;
     }
-    // ㄷ자 코너 보정: 같은 부호의 인접 평행 후보가 크게 겹치면 점수 큰 후보만 남긴다.
-    function pruneDominatedCandidates(arr) {
-      if (!Array.isArray(arr) || arr.length < 2) return Array.isArray(arr) ? arr : [];
-      var keep = new Array(arr.length);
-      for (var i0 = 0; i0 < arr.length; i0++) keep[i0] = true;
-      for (var i = 0; i < arr.length; i++) {
-        if (!keep[i]) continue;
-        var ci = arr[i];
-        var ai = candAxis(ci);
-        var bi = (typeof frameDef2aV2QuadBBox === 'function' && ci && ci.quad) ? frameDef2aV2QuadBBox(ci.quad) : null;
-        var ciCtr = candCenter(ci);
-        var iArea = quadAreaAbs(ci && ci.quad);
-        if (!ai || !bi || !ciCtr || !(iArea > 1e-6)) continue;
-        var iScore = Number(ci.rankScore);
-        if (!isFinite(iScore)) iScore = Number(ci.overlapArea) || 0;
-        for (var j = i + 1; j < arr.length; j++) {
-          if (!keep[j]) continue;
-          var cj = arr[j];
-          var aj = candAxis(cj);
-          var bj = (typeof frameDef2aV2QuadBBox === 'function' && cj && cj.quad) ? frameDef2aV2QuadBBox(cj.quad) : null;
-          var cjCtr = candCenter(cj);
-          var jArea = quadAreaAbs(cj && cj.quad);
-          if (!aj || !bj || !cjCtr || !(jArea > 1e-6)) continue;
-          var dot = Math.abs((Number(ai.ux) || 0) * (Number(aj.ux) || 0) + (Number(ai.uy) || 0) * (Number(aj.uy) || 0));
-          if (dot < 0.965) continue;
-          if (typeof frameDef2aV2BBoxIntersects2d === 'function' && !frameDef2aV2BBoxIntersects2d(bi, bj)) continue;
-          var sep = Math.abs((Number(cjCtr.x) - Number(ciCtr.x)) * (Number(ai.nx) || 0) + (Number(cjCtr.y) - Number(ciCtr.y)) * (Number(ai.ny) || 0));
-          var iTh = Math.max(1, Math.hypot((Number(ci.quad[3].x) || 0) - (Number(ci.quad[0].x) || 0), (Number(ci.quad[3].y) || 0) - (Number(ci.quad[0].y) || 0)));
-          var jTh = Math.max(1, Math.hypot((Number(cj.quad[3].x) || 0) - (Number(cj.quad[0].x) || 0), (Number(cj.quad[3].y) || 0) - (Number(cj.quad[0].y) || 0)));
-          if (sep > Math.max(iTh, jTh) * 1.05) continue;
-          var projOv = projOverlapRatio(ci, cj, ai);
-          var nearDupByProj = (projOv >= 0.72 && sep <= Math.max(iTh, jTh) * 0.70);
-          var ovPoly = frameDef2aV2QuadQuadOverlapPoly(ci.quad, cj.quad, bi, bj);
-          var ovArea = ovPoly ? (Number(frameDefPolygonAreaAbs(ovPoly)) || 0) : 0;
-          var ovRatio = ovArea / Math.max(1e-6, Math.min(iArea, jArea));
-          if (!(nearDupByProj || ovRatio >= 0.34)) continue;
-          var jScore = Number(cj.rankScore);
-          if (!isFinite(jScore)) jScore = Number(cj.overlapArea) || 0;
-          if (iScore > jScore + 1e-6) keep[j] = false;
-          else if (jScore > iScore + 1e-6) { keep[i] = false; break; }
-          else if (!!ci.selected && !cj.selected) keep[j] = false;
-          else if (!!cj.selected && !ci.selected) { keep[i] = false; break; }
-        }
-      }
-      var out = [];
-      for (var kx = 0; kx < arr.length; kx++) if (keep[kx]) out.push(arr[kx]);
-      return out;
-    }
-    // ㄷ자 보정 강화: 부호가 달라도 같은 위치/방향에서 겹치는 후보면 우세 후보만 남김.
-    function pruneDominatedAcrossSigns(plusArr, minusArr) {
-      var merged = [];
-      for (var ip = 0; ip < plusArr.length; ip++) merged.push({ sign: 1, rec: plusArr[ip] });
-      for (var im = 0; im < minusArr.length; im++) merged.push({ sign: -1, rec: minusArr[im] });
-      if (merged.length < 2) return { plus: plusArr, minus: minusArr };
-      var keep = new Array(merged.length);
-      for (var ki = 0; ki < merged.length; ki++) keep[ki] = true;
-      for (var a = 0; a < merged.length; a++) {
-        if (!keep[a]) continue;
-        var ra = merged[a].rec;
-        var ax = candAxis(ra);
-        var ba = (typeof frameDef2aV2QuadBBox === 'function' && ra && ra.quad) ? frameDef2aV2QuadBBox(ra.quad) : null;
-        var ca = candCenter(ra);
-        var aArea = quadAreaAbs(ra && ra.quad);
-        if (!ax || !ba || !ca || !(aArea > 1e-6)) continue;
-        var aScore = Number(ra.rankScore); if (!isFinite(aScore)) aScore = Number(ra.overlapArea) || 0;
-        for (var b = a + 1; b < merged.length; b++) {
-          if (!keep[b]) continue;
-          var rb = merged[b].rec;
-          var bx = candAxis(rb);
-          var bb = (typeof frameDef2aV2QuadBBox === 'function' && rb && rb.quad) ? frameDef2aV2QuadBBox(rb.quad) : null;
-          var cb = candCenter(rb);
-          var bArea = quadAreaAbs(rb && rb.quad);
-          if (!bx || !bb || !cb || !(bArea > 1e-6)) continue;
-          var dotAB = Math.abs((Number(ax.ux) || 0) * (Number(bx.ux) || 0) + (Number(ax.uy) || 0) * (Number(bx.uy) || 0));
-          if (dotAB < 0.965) continue;
-          if (typeof frameDef2aV2BBoxIntersects2d === 'function' && !frameDef2aV2BBoxIntersects2d(ba, bb)) continue;
-          var sepAB = Math.abs((Number(cb.x) - Number(ca.x)) * (Number(ax.nx) || 0) + (Number(cb.y) - Number(ca.y)) * (Number(ax.ny) || 0));
-          var aTh = Math.max(1, Math.hypot((Number(ra.quad[3].x) || 0) - (Number(ra.quad[0].x) || 0), (Number(ra.quad[3].y) || 0) - (Number(ra.quad[0].y) || 0)));
-          var bTh = Math.max(1, Math.hypot((Number(rb.quad[3].x) || 0) - (Number(rb.quad[0].x) || 0), (Number(rb.quad[3].y) || 0) - (Number(rb.quad[0].y) || 0)));
-          if (sepAB > Math.max(aTh, bTh) * 1.05) continue;
-          var projAB = projOverlapRatio(ra, rb, ax);
-          var nearDupByProjAB = (projAB >= 0.74 && sepAB <= Math.max(aTh, bTh) * 0.72);
-          var ovAB = frameDef2aV2QuadQuadOverlapPoly(ra.quad, rb.quad, ba, bb);
-          var ovABArea = ovAB ? (Number(frameDefPolygonAreaAbs(ovAB)) || 0) : 0;
-          var ovABRatio = ovABArea / Math.max(1e-6, Math.min(aArea, bArea));
-          if (!(nearDupByProjAB || ovABRatio >= 0.40)) continue;
-          var bScore = Number(rb.rankScore); if (!isFinite(bScore)) bScore = Number(rb.overlapArea) || 0;
-          if (aScore > bScore + 1e-6) keep[b] = false;
-          else if (bScore > aScore + 1e-6) { keep[a] = false; break; }
-          else if (!!ra.selected && !rb.selected) keep[b] = false;
-          else if (!!rb.selected && !ra.selected) { keep[a] = false; break; }
-        }
-      }
-      var outP = [], outN = [];
-      for (var mi = 0; mi < merged.length; mi++) {
-        if (!keep[mi]) continue;
-        if (merged[mi].sign > 0) outP.push(merged[mi].rec);
-        else outN.push(merged[mi].rec);
-      }
-      return { plus: outP, minus: outN };
-    }
+
     function capCandidates(arr) {
       var maxDraw = (typeof FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS))
-        ? Math.max(60, Math.floor(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS)) : 260;
+        ? Math.max(80, Math.floor(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS)) : 220;
       if (!Array.isArray(arr) || arr.length <= maxDraw) return Array.isArray(arr) ? arr : [];
       arr.sort(function(a, b) {
         var sa = isFinite(Number(a && a.rankScore)) ? Number(a.rankScore) : (Number(a && a.overlapArea) || 0);
@@ -24887,12 +24703,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       });
       return arr.slice(0, maxDraw);
     }
-    plusOut = pruneDominatedCandidates(plusOut);
-    minusOut = pruneDominatedCandidates(minusOut);
-    var cross = pruneDominatedAcrossSigns(plusOut, minusOut);
-    plusOut = capCandidates(cross.plus || []);
-    minusOut = capCandidates(cross.minus || []);
-    return { plus: plusOut, minus: minusOut };
+
+    return { plus: capCandidates(plusOut), minus: capCandidates(minusOut) };
   }
   var candsP = buildSignCandidates(1);
   var candsN = buildSignCandidates(-1);
@@ -24906,11 +24718,11 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     ts: Date.now(),
     cached: false
   };
-  cache.listRef = list;
+  cache.listRef = null;
   cache.key = cacheKey;
   cache.plus = plusPolys.slice();
   cache.minus = minusPolys.slice();
-  cache.sig = listSig;
+  cache.sig = '';
   cache.stat = {
     plus: plusPolys.length,
     minus: minusPolys.length,

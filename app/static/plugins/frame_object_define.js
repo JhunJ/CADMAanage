@@ -24717,24 +24717,6 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           hitCount: 0,
           rankScore: 0
         });
-      } else if (rr.plus) {
-        plusOut.push({
-          quad: rr.plus.quad,
-          selected: !!rr.plus.selected,
-          wallIdx: rr.wallIdx,
-          overlapArea: 0,
-          hitCount: 0,
-          rankScore: 0
-        });
-      } else if (rr.minus) {
-        minusOut.push({
-          quad: rr.minus.quad,
-          selected: !!rr.minus.selected,
-          wallIdx: rr.wallIdx,
-          overlapArea: 0,
-          hitCount: 0,
-          rankScore: 0
-        });
       }
     }
 

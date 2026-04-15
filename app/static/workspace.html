@@ -1679,6 +1679,34 @@
       const progressLabel = document.getElementById('progressLabel');
       const progressDetail = document.getElementById('progressDetail');
       const ctx = canvas.getContext('2d');
+
+      window.addEventListener('message', function ml5WorkbenchParentMessage(ev) {
+        var d = ev.data;
+        if (!d || typeof d !== 'object' || d.channel !== 'ml5-cadmanage') return;
+        if (d.type !== 'requestSelectionPayload') return;
+        var replyOrigin = ev.origin || '*';
+        function toParent(msg) {
+          try {
+            if (window.parent && window.parent !== window)
+              window.parent.postMessage(msg, replyOrigin);
+          } catch (e) {}
+        }
+        try {
+          var built = ml5BuildSelectionImportPayload();
+          if (built && built.error) {
+            toParent({ channel: 'ml5-cadmanage', type: 'selectionImportError', message: built.error });
+            return;
+          }
+          toParent({ channel: 'ml5-cadmanage', type: 'selectionImportPayload', payload: built });
+        } catch (e) {
+          toParent({
+            channel: 'ml5-cadmanage',
+            type: 'selectionImportError',
+            message: e && e.message ? e.message : String(e)
+          });
+        }
+      });
+
       let pollTimer = null, userListCache = [], allEntities = [];
       let loadEntitiesSeq = 0;
       let loadViewCommitsGen = 0;
@@ -6208,56 +6236,244 @@
       }
 
       function updateRightDetail() {
-        var el = document.getElementById('selectionDetail');
-        if (!el) return;
-        if (selectedBlockPathKey != null) {
-          var labels = getDisplayLabelsForSelectedPath();
-          var blockCount = getSelectedPathEntities().length;
-          el.innerHTML = '<div><strong>블록 위계 선택</strong></div>' +
-            renderHierarchyRows(labels) +
-            '<div>경로: ' + selectedBlockPathKey + '</div><div>객체 수 ' + blockCount + '개</div>';
-          updateCadPropsPanel();
-          return;
-        }
-        if (selectedBlockInsertId != null) {
-          var blockName = blockInsertIdToName[selectedBlockInsertId] || '';
-          var blockCount = allEntities.filter(function(e) { return e.block_insert_id === selectedBlockInsertId; }).length;
-          el.innerHTML = '<div><strong>블록객체</strong></div><div>블록명: ' + (blockName || '-') + '</div><div>배치 #' + selectedBlockInsertId + '</div><div>객체 수 ' + blockCount + '개</div>';
-          updateCadPropsPanel();
-          return;
-        }
-        if (selectedEntityIds.length > 1) {
-          var byType = {};
-          for (var i = 0; i < selectedEntityIds.length; i++) {
-            var ent = allEntities.find(function(e) { return e.id === selectedEntityIds[i]; });
-            if (ent) { var t = ent.entity_type || '?'; byType[t] = (byType[t] || 0) + 1; }
-          }
-          var summary = Object.keys(byType).map(function(t) { return t + ' ' + byType[t] + ' items'; }).join(', ');
-          el.innerHTML = '<div><strong>' + selectedEntityIds.length + '개 객체 선택</strong></div><div>' + summary + '</div>';
-          updateCadPropsPanel();
-          return;
-        }
-        if (selectedEntityIds.length === 1) {
-          var ent = allEntities.find(function(e) { return e.id === selectedEntityIds[0]; });
-          if (ent) {
-            var blockInfo = '';
-            if (ent.block_insert_id != null) {
-              var blockName = blockInsertIdToName[ent.block_insert_id] || ('배치 #' + ent.block_insert_id);
-              blockInfo = '<div><strong>블록객체</strong> ' + blockName + ' (배치 #' + ent.block_insert_id + ')</div><div><strong>블록 안의 객체</strong></div>';
-            }
-            if (ent.block_insert_id != null) {
-              var labelsForEnt = (Array.isArray(ent.__bhLabels) && ent.__bhLabels.length > 0)
-                ? ent.__bhLabels
-                : [((blockInsertIdToName[ent.block_insert_id] || ('배치 #' + ent.block_insert_id)) + ' (배치 #' + ent.block_insert_id + ')')];
-              blockInfo = '<div><strong>블록 위계</strong></div>' + renderHierarchyRows(labelsForEnt);
-            }
-            el.innerHTML = blockInfo + '<div><strong>엔티티 #' + selectedEntityIds[0] + '</strong></div><div>레이어: ' + (ent.layer || '') + '</div>' + (ent.point && ent.text ? '<div>텍스트: ' + (ent.text || '').substring(0, 80) + '</div>' : '');
+        try {
+          var el = document.getElementById('selectionDetail');
+          if (!el) return;
+          if (selectedBlockPathKey != null) {
+            var labels = getDisplayLabelsForSelectedPath();
+            var blockCount = getSelectedPathEntities().length;
+            el.innerHTML = '<div><strong>블록 위계 선택</strong></div>' +
+              renderHierarchyRows(labels) +
+              '<div>경로: ' + selectedBlockPathKey + '</div><div>객체 수 ' + blockCount + '개</div>';
             updateCadPropsPanel();
             return;
           }
+          if (selectedBlockInsertId != null) {
+            var blockName = blockInsertIdToName[selectedBlockInsertId] || '';
+            var blockCount = allEntities.filter(function(e) { return e.block_insert_id === selectedBlockInsertId; }).length;
+            el.innerHTML = '<div><strong>블록객체</strong></div><div>블록명: ' + (blockName || '-') + '</div><div>배치 #' + selectedBlockInsertId + '</div><div>객체 수 ' + blockCount + '개</div>';
+            updateCadPropsPanel();
+            return;
+          }
+          if (selectedEntityIds.length > 1) {
+            var byType = {};
+            for (var i = 0; i < selectedEntityIds.length; i++) {
+              var ent = allEntities.find(function(e) { return e.id === selectedEntityIds[i]; });
+              if (ent) { var t = ent.entity_type || '?'; byType[t] = (byType[t] || 0) + 1; }
+            }
+            var summary = Object.keys(byType).map(function(t) { return t + ' ' + byType[t] + ' items'; }).join(', ');
+            el.innerHTML = '<div><strong>' + selectedEntityIds.length + '개 객체 선택</strong></div><div>' + summary + '</div>';
+            updateCadPropsPanel();
+            return;
+          }
+          if (selectedEntityIds.length === 1) {
+            var ent = allEntities.find(function(e) { return e.id === selectedEntityIds[0]; });
+            if (ent) {
+              var blockInfo = '';
+              if (ent.block_insert_id != null) {
+                var blockName = blockInsertIdToName[ent.block_insert_id] || ('배치 #' + ent.block_insert_id);
+                blockInfo = '<div><strong>블록객체</strong> ' + blockName + ' (배치 #' + ent.block_insert_id + ')</div><div><strong>블록 안의 객체</strong></div>';
+              }
+              if (ent.block_insert_id != null) {
+                var labelsForEnt = (Array.isArray(ent.__bhLabels) && ent.__bhLabels.length > 0)
+                  ? ent.__bhLabels
+                  : [((blockInsertIdToName[ent.block_insert_id] || ('배치 #' + ent.block_insert_id)) + ' (배치 #' + ent.block_insert_id + ')')];
+                blockInfo = '<div><strong>블록 위계</strong></div>' + renderHierarchyRows(labelsForEnt);
+              }
+              el.innerHTML = blockInfo + '<div><strong>엔티티 #' + selectedEntityIds[0] + '</strong></div><div>레이어: ' + (ent.layer || '') + '</div>' + (ent.point && ent.text ? '<div>텍스트: ' + (ent.text || '').substring(0, 80) + '</div>' : '');
+              updateCadPropsPanel();
+              return;
+            }
+          }
+          el.innerHTML = '<span style="color:#57606a;">캔버스에서 객체·블록을 선택하면 여기에 표시됩니다.</span>';
+          updateCadPropsPanel();
+        } finally {
+          try { notifyMl5StudioSelection(); } catch (eMl5) {}
         }
-        el.innerHTML = '<span style="color:#57606a;">캔버스에서 객체·블록을 선택하면 여기에 표시됩니다.</span>';
-        updateCadPropsPanel();
+      }
+
+      /** ML5 워크벤치(부모 iframe)로 선택 요약 postMessage — channel/type은 workbench.html 과 동일 */
+      function ml5StudioPickSizeLabel(ent) {
+        if (!ent) return null;
+        try {
+          var parsed = parseComparePoints(ent);
+          var pts = parsed.points || [];
+          var centroid = parseWktPoint(ent.centroid) || pointListCentroid(pts, parsed.point);
+          var bb = pointListBBox(pts, centroid || parsed.point);
+          if (bb && (bb.w > 0.001 || bb.h > 0.001))
+            return Math.round(bb.w) + '×' + Math.round(bb.h);
+          var len = pointListLength(pts);
+          if (len > 0.001) return '길이 ' + Math.round(len);
+        } catch (e) {}
+        return null;
+      }
+
+      function notifyMl5StudioSelection() {
+        if (typeof window === 'undefined' || window.parent === window) return;
+        var targetOrigin = '*';
+        var ML5_CH = 'ml5-cadmanage';
+        var commitId = '';
+        try {
+          if (typeof getActiveViewCommitId === 'function') {
+            var cid = getActiveViewCommitId();
+            if (cid != null && String(cid) !== '') commitId = String(cid);
+          } else if (viewCommitSelect && viewCommitSelect.value) {
+            commitId = String(viewCommitSelect.value);
+          }
+        } catch (eC) {}
+        var payload = { channel: ML5_CH, type: 'selection' };
+        if (commitId) payload.commitId = commitId;
+
+        if (selectedBlockPathKey != null) {
+          var labels = getDisplayLabelsForSelectedPath();
+          var pathEnts = getSelectedPathEntities();
+          payload.count = pathEnts.length;
+          payload.entityIds = pathEnts.map(function(e) { return e.id; }).filter(function(id) { return id != null; });
+          payload.hierarchy = Array.isArray(labels) ? labels.join(' › ') : '';
+          payload.label = '블록 위계 · ' + pathEnts.length + '개';
+          payload.objectKind = 'BLOCK_PATH';
+          payload.visionDetails = {
+            pathKey: selectedBlockPathKey,
+            depth: selectedBlockDepth
+          };
+          window.parent.postMessage(payload, targetOrigin);
+          return;
+        }
+        if (selectedBlockInsertId != null) {
+          var entsIns = allEntities.filter(function(e) { return e.block_insert_id === selectedBlockInsertId; });
+          payload.count = entsIns.length;
+          payload.entityIds = entsIns.map(function(e) { return e.id; }).filter(function(id) { return id != null; });
+          var bnIns = blockInsertIdToName[selectedBlockInsertId] || '';
+          payload.label = (bnIns ? bnIns + ' · ' : '') + '블록 배치 #' + selectedBlockInsertId + ' (' + entsIns.length + '개)';
+          payload.objectKind = 'BLOCK_INSERT';
+          payload.visionDetails = { blockInsertId: selectedBlockInsertId, blockName: bnIns || undefined };
+          window.parent.postMessage(payload, targetOrigin);
+          return;
+        }
+        var sids = selectedEntityIds.slice();
+        payload.count = sids.length;
+        if (sids.length > 1) {
+          var byTypeM = {};
+          for (var j = 0; j < sids.length; j++) {
+            var entM = allEntities.find(function(e) { return e.id === sids[j]; });
+            if (entM) { var tm = entM.entity_type || '?'; byTypeM[tm] = (byTypeM[tm] || 0) + 1; }
+          }
+          payload.entityIds = sids.slice();
+          payload.label = sids.length + '개 객체 선택';
+          payload.objectKind = 'MULTI';
+          payload.visionDetails = { byType: byTypeM };
+          window.parent.postMessage(payload, targetOrigin);
+          return;
+        }
+        if (sids.length === 1) {
+          var ent1 = allEntities.find(function(e) { return e.id === sids[0]; });
+          if (ent1) {
+            payload.entityId = ent1.id;
+            payload.entityIds = [ent1.id];
+            payload.layer = ent1.layer || '';
+            payload.objectKind = ent1.entity_type || '';
+            var sz1 = ml5StudioPickSizeLabel(ent1);
+            if (sz1) payload.sizeLabel = sz1;
+            var hierParts = [];
+            if (Array.isArray(ent1.__bhLabels) && ent1.__bhLabels.length) hierParts = ent1.__bhLabels.slice();
+            else if (ent1.block_insert_id != null) {
+              var bnm1 = blockInsertIdToName[ent1.block_insert_id] || ('배치 #' + ent1.block_insert_id);
+              hierParts.push(bnm1);
+            }
+            if (hierParts.length) payload.hierarchy = hierParts.join(' › ');
+            payload.label = entityTypeLabel(ent1.entity_type) + ' #' + ent1.id;
+            var txt1 = (ent1.props && ent1.props.text) ? String(ent1.props.text).trim() : (ent1.text ? String(ent1.text).trim() : '');
+            payload.visionDetails = {
+              entity_type: ent1.entity_type,
+              color: ent1.color,
+              block_insert_id: ent1.block_insert_id,
+              block_name: ent1.block_name || null,
+              text_snippet: txt1 ? txt1.substring(0, 200) : undefined,
+              centroid: ent1.centroid || undefined
+            };
+            if (ent1.props && typeof ent1.props === 'object') payload.props = ent1.props;
+            window.parent.postMessage(payload, targetOrigin);
+            return;
+          }
+        }
+        payload.count = 0;
+        payload.label = '(선택 없음)';
+        window.parent.postMessage(payload, targetOrigin);
+      }
+
+      function ml5CloneEntityForMl5(ent) {
+        if (!ent || ent.id == null) return null;
+        try {
+          var propsCopy = ent.props;
+          if (propsCopy && typeof propsCopy === 'object') {
+            try {
+              propsCopy = JSON.parse(JSON.stringify(propsCopy));
+            } catch (e0) {
+              propsCopy = ent.props;
+            }
+          }
+          return {
+            id: ent.id,
+            entity_type: ent.entity_type,
+            layer: ent.layer,
+            geom: ent.geom,
+            points: ent.points,
+            point: ent.point,
+            fill: ent.fill,
+            wipeout: ent.wipeout,
+            props: propsCopy,
+            centroid: ent.centroid,
+            bbox: ent.bbox,
+            color: ent.color,
+            block_insert_id: ent.block_insert_id,
+            block_name: ent.block_name,
+            text: ent.text
+          };
+        } catch (e) {
+          return { id: ent.id, entity_type: ent.entity_type, layer: ent.layer };
+        }
+      }
+
+      /** ML5 워크벤치 requestSelectionPayload — 현재 캔버스 선택 엔티티만 JSON으로 */
+      function ml5BuildSelectionImportPayload() {
+        var list = [];
+        if (selectedBlockPathKey != null && typeof getSelectedPathEntities === 'function') {
+          list = getSelectedPathEntities();
+        } else if (selectedBlockInsertId != null) {
+          list = allEntities.filter(function (e) { return e.block_insert_id === selectedBlockInsertId; });
+        } else if (selectedEntityIds && selectedEntityIds.length) {
+          for (var i = 0; i < selectedEntityIds.length; i++) {
+            var ent = allEntities.find(function (e) { return e.id === selectedEntityIds[i]; });
+            if (ent) list.push(ent);
+          }
+        }
+        if (!list.length) return { error: 'CAD에서 선택된 객체가 없습니다.' };
+        var maxN = 5000;
+        if (list.length > maxN) list = list.slice(0, maxN);
+        var entities = [];
+        var ids = [];
+        for (var j = 0; j < list.length; j++) {
+          var c = ml5CloneEntityForMl5(list[j]);
+          if (c) {
+            entities.push(c);
+            ids.push(c.id);
+          }
+        }
+        if (!ids.length) return { error: '선택에서보낼 엔티티가 없습니다.' };
+        var cid = '';
+        try {
+          if (typeof getActiveViewCommitId === 'function') cid = String(getActiveViewCommitId() || '');
+          else if (viewCommitSelect && viewCommitSelect.value) cid = String(viewCommitSelect.value);
+        } catch (e2) {}
+        return {
+          schema_version: 'cad_selection_import/v1',
+          commit_id: cid || undefined,
+          entity_ids: ids,
+          entities: entities,
+          wall_step2a_source_segs: [],
+          wall_pairs: [],
+          teacher_walls_step2a: []
+        };
       }
 
       function cadPropRow(label, value) {

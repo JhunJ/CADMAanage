@@ -31,6 +31,8 @@ htmlcov/
 # Local uploads and converter output (size / personal data)
 data/uploads/
 data/oda_check_output/
+data/ml/step2b/*.joblib
+data/ml/step2b/*.pt
 
 # OS
 Thumbs.db

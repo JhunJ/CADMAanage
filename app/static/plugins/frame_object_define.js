@@ -25062,13 +25062,20 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var sy0 = Math.min(Number(p1.y) || 0, Number(p2.y) || 0), sy1 = Math.max(Number(p1.y) || 0, Number(p2.y) || 0);
       if (sx1 < bx.minx || sx0 > bx.maxx || sy1 < bx.miny || sy0 > bx.maxy) return false;
     }
-    var mid = { x: ((Number(p1.x) || 0) + (Number(p2.x) || 0)) * 0.5, y: ((Number(p1.y) || 0) + (Number(p2.y) || 0)) * 0.5 };
-    if (pointInPolyStrict(mid, poly, edgeEps)) return true;
-    if (pointInPolyStrict(p1, poly, edgeEps) || pointInPolyStrict(p2, poly, edgeEps)) return true;
-    if (typeof frameDefSegSegIntersectInclusive !== 'function') return false;
     var ax = Number(p1.x) || 0, ay = Number(p1.y) || 0, bx2 = Number(p2.x) || 0, by2 = Number(p2.y) || 0;
+    var dxL = bx2 - ax, dyL = by2 - ay;
+    var lenL = Math.hypot(dxL, dyL);
+    if (!(lenL > 1e-6)) return false;
+    var centerBandLo = 0.30, centerBandHi = 0.70;
+    function ptAt(t) { return { x: ax + dxL * t, y: ay + dyL * t }; }
+    var centerSamples = [0.35, 0.50, 0.65];
+    // ②-3은 "맞닿음"이 아니라 "중앙부 관통"만 인정한다.
+    for (var si = 0; si < centerSamples.length; si++) {
+      if (pointInPolyStrict(ptAt(centerSamples[si]), poly, edgeEps)) return true;
+    }
+    if (typeof frameDefSegSegIntersectInclusive !== 'function') return false;
     var hitMap = {};
-    var hitN = 0;
+    var hitTs = [];
     for (var ei = 0; ei < poly.length; ei++) {
       var q1 = poly[ei], q2 = poly[(ei + 1) % poly.length];
       if (!q1 || !q2) continue;
@@ -25077,13 +25084,23 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var den = (bx2 - ax) * (dy - cy) - (by2 - ay) * (dx - cx);
       if (Math.abs(den) < 1e-9) continue;
       var t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / den;
-      var ix = ax + (bx2 - ax) * t;
-      var iy = ay + (by2 - ay) * t;
-      var key = String(Math.round(ix * 10)) + ',' + String(Math.round(iy * 10));
+      if (!(t > 1e-6 && t < 1 - 1e-6)) continue;
+      var key = String(Math.round(t * 10000));
       if (hitMap[key]) continue;
       hitMap[key] = true;
-      hitN++;
-      if (hitN >= 2) return true;
+      hitTs.push(t);
+    }
+    if (hitTs.length < 2) return false;
+    hitTs.sort(function(a, b) { return a - b; });
+    var minInsideLen = Math.max(80, lenL * 0.06);
+    for (var hi = 0; hi < hitTs.length - 1; hi++) {
+      var t0 = hitTs[hi];
+      var t1 = hitTs[hi + 1];
+      if (!(t1 > t0 + 1e-6)) continue;
+      var tm = (t0 + t1) * 0.5;
+      if (!pointInPolyStrict(ptAt(tm), poly, edgeEps)) continue;
+      if ((t1 - t0) * lenL < minInsideLen) continue;
+      if (Math.max(t0, centerBandLo) < Math.min(t1, centerBandHi)) return true;
     }
     return false;
   }

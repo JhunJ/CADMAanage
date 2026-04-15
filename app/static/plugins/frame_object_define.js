@@ -10335,9 +10335,6 @@ function frameDef2aV2OppositeBoundaryResolved(seg, inwardSign, sourceSegs, segIn
   var thCap = Math.max(FRAME_DEF_WALL_MIN_THICKNESS_MM, Math.min(FRAME_DEF_WALL_MAX_THICKNESS_MM, Number(thFullCap) || 170));
   var useMeasGap = typeof FRAME_DEF_STEP2A_V2_OPPOSITE_THICKNESS_USE_MEASURED_GAP === 'boolean' ? FRAME_DEF_STEP2A_V2_OPPOSITE_THICKNESS_USE_MEASURED_GAP : true;
   var req = typeof FRAME_DEF_STEP2A_V2_REQUIRE_OPPOSITE_BOUNDARY === 'boolean' ? FRAME_DEF_STEP2A_V2_REQUIRE_OPPOSITE_BOUNDARY : true;
-  if (!req) {
-    return { ok: true, p1: { x: x1, y: y1 }, p2: { x: x2, y: y2 }, thUse: thCap, fromPairFallback: false, oppSegIndex: -1, extraEntityIds: [], outlineInwardSign: inwardSign };
-  }
   var minS = Math.max(4, typeof FRAME_DEF_STEP2A_V2_OPPOSITE_BOUNDARY_MIN_MM === 'number' ? FRAME_DEF_STEP2A_V2_OPPOSITE_BOUNDARY_MIN_MM : 12);
   var maxS = Math.max(minS + 20, typeof FRAME_DEF_STEP2A_V2_OPPOSITE_BOUNDARY_MAX_MM === 'number' ? FRAME_DEF_STEP2A_V2_OPPOSITE_BOUNDARY_MAX_MM : 920);
   var parDot = typeof FRAME_DEF_STEP2A_V2_OPPOSITE_PARALLEL_DOT_MIN === 'number' ? FRAME_DEF_STEP2A_V2_OPPOSITE_PARALLEL_DOT_MIN : 0.88;
@@ -10450,6 +10447,20 @@ function frameDef2aV2OppositeBoundaryResolved(seg, inwardSign, sourceSegs, segIn
     }
   }
   var allowUnp = typeof FRAME_DEF_STEP2A_V2_ALLOW_UNPAIRED_DEFAULT_THICKNESS === 'boolean' ? FRAME_DEF_STEP2A_V2_ALLOW_UNPAIRED_DEFAULT_THICKNESS : false;
+  // 누락 최소화 모드(req=false): 맞은편 실측/쌍 탐색을 먼저 시도하고, 실패 시에만 기존처럼 기본 두께로 폴백.
+  if (!req) {
+    return {
+      ok: true,
+      p1: { x: x1, y: y1 },
+      p2: { x: x2, y: y2 },
+      thUse: thCap,
+      fromPairFallback: false,
+      oppSegIndex: -1,
+      extraEntityIds: [],
+      unpairedFallback: true,
+      outlineInwardSign: inwardSign
+    };
+  }
   if (allowUnp && req) {
     return {
       ok: true,
@@ -10812,8 +10823,6 @@ function frameDef2aV2MaxSingleHatchOverlapDbg(p1, p2, thicknessFullMm, hatchBBox
 function frameDef2aV2FindParallelOppositesBothSigns(seg, sourceSegs, segIndex) {
   var out = { bestP: null, bestN: null };
   if (!seg || !seg.p1 || !seg.p2 || !Array.isArray(sourceSegs)) return out;
-  var req = typeof FRAME_DEF_STEP2A_V2_REQUIRE_OPPOSITE_BOUNDARY === 'boolean' ? FRAME_DEF_STEP2A_V2_REQUIRE_OPPOSITE_BOUNDARY : true;
-  if (!req) return out;
   var x1 = Number(seg.p1.x) || 0, y1 = Number(seg.p1.y) || 0, x2 = Number(seg.p2.x) || 0, y2 = Number(seg.p2.y) || 0;
   var dx = x2 - x1, dy = y2 - y1, slen = Math.hypot(dx, dy);
   if (slen < 1e-6) return out;

@@ -24701,9 +24701,22 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
 
     // 누락 방지(축소): 주변과 비교 자체가 불가능했고(고립), 맞은편 선분 정보가 없는 경우만 기본 선택 후보를 유지한다.
     // 주변과 비교했는데도 hit가 0이면 비겹침으로 보고 유지하지 않는다.
+    // 또한 같은 sourceSeg에서 여러 벽이 만들어진 경우(분할/중복)는 2차 보존 루프에서 제외해
+    // 2차 사이클이 1차 겹침 판정을 덮어쓰는 과보존을 줄인다.
     function candLen(c) {
       if (!c || !Array.isArray(c.quad) || c.quad.length < 2 || !c.quad[0] || !c.quad[1]) return 0;
       return Math.hypot((Number(c.quad[1].x) || 0) - (Number(c.quad[0].x) || 0), (Number(c.quad[1].y) || 0) - (Number(c.quad[0].y) || 0));
+    }
+    var keepBaseMinLen = 180;
+    var sourceWallCount = {};
+    for (var rsi = 0; rsi < rows.length; rsi++) {
+      var rs = rows[rsi];
+      if (!rs || !isFinite(Number(rs.wallIdx))) continue;
+      var wSrc = list[Math.floor(Number(rs.wallIdx))];
+      var srcIdxNum = wSrc && isFinite(Number(wSrc.__step2aV2SourceIndex)) ? Math.floor(Number(wSrc.__step2aV2SourceIndex)) : -1;
+      if (srcIdxNum < 0) continue;
+      var sk = String(srcIdxNum);
+      sourceWallCount[sk] = (Number(sourceWallCount[sk]) || 0) + 1;
     }
     for (var ri = 0; ri < rows.length; ri++) {
       var rr = rows[ri];
@@ -24713,9 +24726,12 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (vv0 && ((Number(vv0.plusHits) || 0) > 0 || (Number(vv0.minusHits) || 0) > 0)) continue;
       if ((Number(compareSeen[rk]) || 0) > 0) continue;
       if (isFinite(Number(rr.oppIdx)) && Number(rr.oppIdx) >= 0) continue;
+      var rrWall = list[isFinite(Number(rr.wallIdx)) ? Math.floor(Number(rr.wallIdx)) : -1];
+      var rrSrcIdx = rrWall && isFinite(Number(rrWall.__step2aV2SourceIndex)) ? Math.floor(Number(rrWall.__step2aV2SourceIndex)) : -1;
+      if (!(rrSrcIdx >= 0 && Number(sourceWallCount[String(rrSrcIdx)]) === 1)) continue;
       if (rr.plus && rr.plus.selected) {
         var lp = candLen(rr.plus);
-        if (!(lp >= 120)) continue;
+        if (!(lp >= keepBaseMinLen)) continue;
         plusOut.push({
           quad: rr.plus.quad,
           selected: true,
@@ -24726,7 +24742,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         });
       } else if (rr.minus && rr.minus.selected) {
         var ln = candLen(rr.minus);
-        if (!(ln >= 120)) continue;
+        if (!(ln >= keepBaseMinLen)) continue;
         minusOut.push({
           quad: rr.minus.quad,
           selected: true,

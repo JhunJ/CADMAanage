@@ -3235,13 +3235,37 @@ function frameDefTrimWallOverlapSegments(segs) {
       return String(a.seg && a.seg.id || '').localeCompare(String(b.seg && b.seg.id || ''));
     });
     var occ = [];
+    var kept = [];
+    function propagateSuppressedEntityIds(baseSeg, s, e) {
+      var ids = frameDefSegEntityIds(baseSeg);
+      if (!ids.length || !(e > s + 1e-6)) return;
+      for (var kk = 0; kk < kept.length; kk++) {
+        var kIt = kept[kk];
+        if (!kIt || !kIt.seg) continue;
+        var os = Math.max(Number(s) || 0, Number(kIt.s) || 0);
+        var oe = Math.min(Number(e) || 0, Number(kIt.e) || 0);
+        if (!(oe > os + 2.4)) continue;
+        var curIds = frameDefSegEntityIds(kIt.seg);
+        var nextIds = frameDefUniqueEntityIds(curIds.concat(ids));
+        if (nextIds.length > curIds.length) {
+          kIt.seg.entity_ids = nextIds;
+          if (!(isFinite(Number(kIt.seg.ent_id)) && Number(kIt.seg.ent_id) > 0)) {
+            kIt.seg.ent_id = nextIds[0] || 0;
+          }
+        }
+      }
+    }
     for (var ai = 0; ai < arr.length; ai++) {
       var it = arr[ai];
       var s0 = Number(it.t_start) || 0;
       var e0 = Number(it.t_end) || 0;
       if (!(e0 > s0 + 1e-6)) continue;
       var remain = frameDefIntervalSubtract(s0, e0, occ, 2.4);
-      if (!remain.length) continue;
+      if (!remain.length) {
+        // 완전히 덮여 드롭되는 세그도 ID 추적을 위해 이미 채택된 구간에 entity_ids를 보존.
+        propagateSuppressedEntityIds(it.seg, s0, e0);
+        continue;
+      }
       for (var ri = 0; ri < remain.length; ri++) {
         var segIv = remain[ri];
         var rs = Number(segIv.s) || 0, re = Number(segIv.e) || 0;
@@ -3279,6 +3303,7 @@ function frameDefTrimWallOverlapSegments(segs) {
         if (base.merged_poly_count != null) clone.merged_poly_count = Number(base.merged_poly_count) || 0;
         if (base.merged_def_count != null) clone.merged_def_count = Number(base.merged_def_count) || 0;
         out.push(clone);
+        kept.push({ s: rs, e: re, seg: clone });
       }
       occ = frameDefIntervalInsertMerge(occ, s0, e0, 2.4);
     }

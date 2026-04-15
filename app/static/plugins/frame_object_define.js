@@ -89,8 +89,8 @@ var FRAME_DEF_STEP2A_V2_OUTLINE_BOUNDARY_INTERIOR = true;
 var FRAME_DEF_STEP2A_V2_BOUNDARY_INTERIOR_PROBE_MM = 55;
 /** 2a v2: 안쪽 법선 방향에 평행한 *반대 외곽*(다른 원천 선 또는 쌍 반대 트랙)이 없으면 벽체 생성 안 함(한쪽만 있는 선에서 주황이 새는 것 방지) */
 var FRAME_DEF_STEP2A_V2_REQUIRE_OPPOSITE_BOUNDARY = true;
-/** 반대 외곽까지 허용 최대(mm). 더 멀면 다른 벽으로 보지 않음 */
-var FRAME_DEF_STEP2A_V2_OPPOSITE_BOUNDARY_MAX_MM = 920;
+/** 반대 외곽까지 허용 최대(mm). 더 멀면 다른 벽으로 보지 않음 (벽 최대 두께 상한과 정합) */
+var FRAME_DEF_STEP2A_V2_OPPOSITE_BOUNDARY_MAX_MM = 1000;
 /** 반대 외곽으로 인정할 최소 간격(mm). 그보다 가까우면 동일선·노이즈 — 낮출수록 좁은 이중선도 인정 */
 var FRAME_DEF_STEP2A_V2_OPPOSITE_BOUNDARY_MIN_MM = 6;
 /** 원천 세그끼리 평행 |dot(u_a,u_b)| 하한 — 낮출수록 약간 기울어진 이중선도 맞은편으로 인정 */
@@ -1650,7 +1650,7 @@ function frameDefStateDefaults() {
     debugStep1240Show114Hatch: false,
     debugStep2aUserHatchTraceEnabled: false,
     debugStep2aUserTraceEntityIds: [], debugStep2aUiFlowWatchEntityIds: [], debugStep2aUserTraceSlab: null, debugStep2aUserTraceSummary: '',
-    debugStep2aEntityFlowReport: null,
+    debugStep2aEntityFlowReport: null, debugStep2aSourceDropReasonsByEntity: {},
     wallStep2bByBackend: { cnn: [], xgb: [], rf: [], mlp: [], gnn: [] },
     debugStep2bShowCnn: false, debugStep2bShowXgb: false, debugStep2bShowRf: false, debugStep2bShowMlp: false, debugStep2bShowGnn: false,
     debugStep2bLastMessage: '',
@@ -1735,6 +1735,9 @@ function frameDefGetState() {
   if (window.frameDefState.debugStep2aUserTraceSlab != null && (typeof window.frameDefState.debugStep2aUserTraceSlab !== 'object' || Array.isArray(window.frameDefState.debugStep2aUserTraceSlab))) window.frameDefState.debugStep2aUserTraceSlab = null;
   if (typeof window.frameDefState.debugStep2aUserTraceSummary !== 'string') window.frameDefState.debugStep2aUserTraceSummary = '';
   if (window.frameDefState.debugStep2aEntityFlowReport != null && typeof window.frameDefState.debugStep2aEntityFlowReport !== 'object') window.frameDefState.debugStep2aEntityFlowReport = null;
+  if (!window.frameDefState.debugStep2aSourceDropReasonsByEntity || typeof window.frameDefState.debugStep2aSourceDropReasonsByEntity !== 'object' || Array.isArray(window.frameDefState.debugStep2aSourceDropReasonsByEntity)) {
+    window.frameDefState.debugStep2aSourceDropReasonsByEntity = {};
+  }
   if (!window.frameDefState.wallStep2bByBackend || typeof window.frameDefState.wallStep2bByBackend !== 'object' || Array.isArray(window.frameDefState.wallStep2bByBackend)) {
     window.frameDefState.wallStep2bByBackend = { cnn: [], xgb: [], rf: [], mlp: [], gnn: [] };
   } else {
@@ -6853,6 +6856,7 @@ function frameDefAssignStep2aEntityFlowReport(stIf, ctx) {
   if (ctx.sourceSegFillMode === true) {
     var sourceSegsSf = ctx.sourceSegs || [];
     var finalSf = ctx.finalWalls || [];
+    var dropReasonsByEntitySf = ctx.dropReasonsByEntity || (stIf && stIf.debugStep2aSourceDropReasonsByEntity) || {};
     var byIdSf = {};
     for (var wiSf = 0; wiSf < watch.length; wiSf++) {
       var eidSf = Number(watch[wiSf]);
@@ -6866,6 +6870,13 @@ function frameDefAssignStep2aEntityFlowReport(stIf, ctx) {
       }
       stepsSf.push({ phase: '2a-v2', mermaid: '벽체', text: '②·③: 선분=외곽면 → 안쪽으로 두께만큼 쿼드 — 닫힘·복도·124 없음' });
       var wlistSf = typeof frameDefStep2aWallsForEntity === 'function' ? frameDefStep2aWallsForEntity(finalSf, eidSf) : [];
+      if (nSrcSf > 0 && wlistSf.length === 0) {
+        var dr = dropReasonsByEntitySf[String(eidSf)] || {};
+        var noOppCnt = Number(dr.noOppositeBoundary) || 0;
+        if (noOppCnt > 0) {
+          stepsSf.push({ phase: '탈락', mermaid: '조건', text: '③ 맞은편 경계 미검출로 생성 실패 ' + noOppCnt + '회 (OPPOSITE_BOUNDARY 조건)' });
+        }
+      }
       stepsSf.push({ phase: '출력', mermaid: '출력', text: '④ dedupe 후 2a 벽 ' + wlistSf.length + '개 (wallStep2aHatchWalls)' });
       byIdSf[String(eidSf)] = {
         steps: stepsSf,
@@ -10870,10 +10881,21 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
   var hatchPolys2aV2 = (useCadHatchInward && typeof frameDefCollectHatchPolys === 'function') ? frameDefCollectHatchPolys() : [];
   var hatchBBox2aV2 = (useCadHatchInward && hatchPolys2aV2.length && typeof frameDef2aV2HatchPolyBboxList === 'function')
     ? frameDef2aV2HatchPolyBboxList(hatchPolys2aV2) : [];
+  var dropReasonsByEntity = {};
 
   function entIds2a(seg) {
     var raw = (typeof frameDefSegEntityIds === 'function' ? frameDefSegEntityIds(seg) : []) || [];
     return typeof frameDefUniqueEntityIds === 'function' ? frameDefUniqueEntityIds(raw) : raw;
+  }
+  function addDropReason(ids, reasonKey) {
+    if (!Array.isArray(ids) || !ids.length || !reasonKey) return;
+    for (var di = 0; di < ids.length; di++) {
+      var eidD = Number(ids[di]);
+      if (!isFinite(eidD) || eidD <= 0) continue;
+      var key = String(eidD);
+      if (!dropReasonsByEntity[key] || typeof dropReasonsByEntity[key] !== 'object') dropReasonsByEntity[key] = {};
+      dropReasonsByEntity[key][reasonKey] = (Number(dropReasonsByEntity[key][reasonKey]) || 0) + 1;
+    }
   }
 
   var wallSeq = 0;
@@ -11083,6 +11105,7 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
       }
     }
     if (!resOpp || !resOpp.ok) {
+      addDropReason(entIds2a(sg), 'noOppositeBoundary');
       if (focusThis) {
         try {
           if (typeof window !== 'undefined') window.__dbg2aFocusFail = { stage: 'noResOpp', si: i, ent_id: sg.ent_id, t: Date.now() };
@@ -11280,6 +11303,7 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
   }
 
   if (stIf) {
+    stIf.debugStep2aSourceDropReasonsByEntity = dropReasonsByEntity;
     stIf.wallStep2aSplitChainCounts = {
       mode: '2a-v2',
       sourceSegs: sourceSegs.length,
@@ -11299,7 +11323,8 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
         sandRemoved: 0,
         step11Skipped: 0,
         finalWalls: out,
-        sourceSegFillMode: true
+        sourceSegFillMode: true,
+        dropReasonsByEntity: dropReasonsByEntity
       });
     }
   }

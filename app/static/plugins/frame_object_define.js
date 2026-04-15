@@ -101,8 +101,8 @@ var FRAME_DEF_STEP2A_V2_OPPOSITE_MIN_OVERLAP_MM = 22;
 var FRAME_DEF_STEP2A_V2_OPPOSITE_MIN_LEN_RATIO = 0.2;
 /** true: 원천 맞은편 평행선이 없을 때 2.1 쌍(rho)으로 전 세그 길이 벽 — 선분 최대 활용(단독 누수 가능성 있음) */
 var FRAME_DEF_STEP2A_V2_OPPOSITE_ALLOW_PAIR_FALLBACK = true;
-/** true: 맞은편·쌍 모두 없어도 기본 두께로 벽 1개(한쪽 외곽만). 오생성 ↑ — 필요할 때만 */
-var FRAME_DEF_STEP2A_V2_ALLOW_UNPAIRED_DEFAULT_THICKNESS = false;
+/** true: 맞은편·쌍 모두 없어도 기본 두께로 벽 1개(한쪽 외곽만). 누락 최소화(대부분 계산) 우선 */
+var FRAME_DEF_STEP2A_V2_ALLOW_UNPAIRED_DEFAULT_THICKNESS = true;
 /** true: 두 외곽선 사이 실측 거리 d를 그대로 두께로(사이를 채움). false: min(쌍/기본 상한, d) — 얇은 띠만 */
 var FRAME_DEF_STEP2A_V2_OPPOSITE_THICKNESS_USE_MEASURED_GAP = true;
 /** >0: 맞은편 투영 겹침 [joLo,joHi]를 축 방향으로 ±이만큼 넓힘(도면 끊김·모서리 근처 빈틈 완화). 누수 가능 → 기본 0 */

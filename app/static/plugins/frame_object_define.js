@@ -3123,10 +3123,26 @@ function frameDefUnionWallSegments(rawSegs, mergedSegs) {
   var out = [], seen = {};
   var raw = Array.isArray(rawSegs) ? rawSegs : [];
   var merged = Array.isArray(mergedSegs) ? mergedSegs : [];
+  var watchIds = (typeof frameDefStep2aMergedUiFlowWatchIds === 'function') ? frameDefStep2aMergedUiFlowWatchIds() : [];
+  var watchMap = {};
+  for (var wi = 0; wi < watchIds.length; wi++) {
+    var wid = Number(watchIds[wi]);
+    if (!isFinite(wid) || wid <= 0) continue;
+    watchMap[String(wid)] = true;
+  }
+  function segHasWatchId(seg) {
+    if (!seg || !Object.keys(watchMap).length || typeof frameDefSegEntityIds !== 'function') return false;
+    var ids = frameDefSegEntityIds(seg);
+    for (var ii = 0; ii < ids.length; ii++) {
+      if (watchMap[String(Number(ids[ii]) || 0)]) return true;
+    }
+    return false;
+  }
   for (var i = 0; i < raw.length; i++) {
     var rs = raw[i];
     if (!rs) continue;
-    if (String(rs.source_type || '').toUpperCase() === 'LINE') continue;
+    // 일반 LINE은 merged 세그로 대체하되, 추적 ID 라인은 병합 흡수 누락 방지를 위해 원본도 유지.
+    if (String(rs.source_type || '').toUpperCase() === 'LINE' && !segHasWatchId(rs)) continue;
     var rk = String(rs.id || '');
     if (rk && seen[rk]) continue;
     if (rk) seen[rk] = true;

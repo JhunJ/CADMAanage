@@ -236,6 +236,12 @@ var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS = 1200;
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_LOCAL_NMS = false;
 /** true면 +/- 교차부호 후보끼리도 NMS를 적용(회귀 방지를 위해 기본 OFF). */
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_CROSS_SIGN_NMS = false;
+/** 2a-2-2 후처리: true면 +/- 양쪽 겹침이 함께 의미 있을 때만 후보를 남긴다. */
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_POST_MUTUAL_ONLY = true;
+/** 2a-2-2 후처리: 약한 쪽 점수가 강한 쪽의 이 비율 이상일 때만 "양쪽 겹침"으로 본다. */
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MUTUAL_REL_MIN = 0.34;
+/** 2a-2-2 후처리: 약한 쪽 최소 점수(mm²). */
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MUTUAL_MIN_MM2 = 80;
 /** 복도 0개 체인 전체 띠 폴백 — false 유지(광역 오생성). watch 체인만 아래 WATCH_ONLY */
 var FRAME_DEF_STEP2A_STRIP_WHEN_CHAIN_HAS_NO_CORRIDOR = false;
 /** 복도 subs가 한 세그도 없을 때: UI/DEBUG watch 엔티티가 체인에 있을 때만 전체 띠 */
@@ -24534,6 +24540,11 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   }
   function collectPairOverlapsDual(candsP, candsN) {
     if (!Array.isArray(candsP) || !Array.isArray(candsN)) return { plus: [], minus: [] };
+    var requireMutual = (typeof FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_POST_MUTUAL_ONLY !== 'boolean') || FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_POST_MUTUAL_ONLY;
+    var mutualRelMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MUTUAL_REL_MIN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MUTUAL_REL_MIN))
+      ? Math.max(0, Math.min(1, FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MUTUAL_REL_MIN)) : 0.34;
+    var mutualMinMm2 = (typeof FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MUTUAL_MIN_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MUTUAL_MIN_MM2))
+      ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MUTUAL_MIN_MM2) : 80;
     var byWall = {};
     function putCand(cand, sign) {
       if (!cand || !isFinite(Number(cand.wallIdx))) return;
@@ -24684,6 +24695,14 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (!hasP && !hasN) continue;
       var pScore = (Number(vv.plusArea) || 0) + (Number(vv.plusMax) || 0) * 0.25;
       var nScore = (Number(vv.minusArea) || 0) + (Number(vv.minusMax) || 0) * 0.25;
+      if (requireMutual) {
+        if (!hasP || !hasN) continue;
+        var strong = Math.max(pScore, nScore);
+        var weak = Math.min(pScore, nScore);
+        if (!(strong > 0)) continue;
+        if (weak < mutualMinMm2) continue;
+        if (weak < strong * mutualRelMin) continue;
+      }
       if (hasP && !hasN) {
         plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });
       } else if (!hasP && hasN) {
@@ -24719,6 +24738,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       sourceWallCount[sk] = (Number(sourceWallCount[sk]) || 0) + 1;
     }
     for (var ri = 0; ri < rows.length; ri++) {
+      if (requireMutual) break;
       var rr = rows[ri];
       if (!rr) continue;
       var rk = String(rr.wallIdx);

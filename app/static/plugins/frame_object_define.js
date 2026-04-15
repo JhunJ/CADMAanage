@@ -87,8 +87,8 @@ var FRAME_DEF_STEP2A_V2_USE_PAIR_THICKNESS = true;
 var FRAME_DEF_STEP2A_V2_OUTLINE_BOUNDARY_INTERIOR = true;
 /** 위 판별 시 세그 중점에서 법선으로 이(mm) 만큼 떨어진 점으로 내부/외부 검사 */
 var FRAME_DEF_STEP2A_V2_BOUNDARY_INTERIOR_PROBE_MM = 55;
-/** 2a v2: 안쪽 법선 방향에 평행한 *반대 외곽*(다른 원천 선 또는 쌍 반대 트랙)이 없으면 벽체 생성 안 함(한쪽만 있는 선에서 주황이 새는 것 방지) */
-var FRAME_DEF_STEP2A_V2_REQUIRE_OPPOSITE_BOUNDARY = true;
+/** 2a v2: 안쪽 법선 방향 반대 외곽 매칭 실패 시에도 기본 두께로 생성(누락 최소화 모드) */
+var FRAME_DEF_STEP2A_V2_REQUIRE_OPPOSITE_BOUNDARY = false;
 /** 반대 외곽까지 허용 최대(mm). 더 멀면 다른 벽으로 보지 않음 (벽 최대 두께 상한과 정합) */
 var FRAME_DEF_STEP2A_V2_OPPOSITE_BOUNDARY_MAX_MM = 1000;
 /** 반대 외곽으로 인정할 최소 간격(mm). 그보다 가까우면 동일선·노이즈 — 낮출수록 좁은 이중선도 인정 */
@@ -7563,6 +7563,8 @@ var FRAME_DEF_STEP2A_DEDUPE_JUNCTION_N_FRAC = 0.98;
 var FRAME_DEF_STEP2A_DEDUPE_JUNCTION_PROJ_OVERLAP_MIN_MM = 6;
 /** 트랙 `axis_angle`과 실제 p1→p2 방향이 어긋날 수 있음 → 단위벡터 내접값 ≤ 이 값이면 직교로 간주(OR) */
 var FRAME_DEF_STEP2A_DEDUPE_JUNCTION_GEOM_DOT_MAX = 0.38;
+/** 누락 최소화 모드: 2a-v2 최종 출력 dedupe를 끄고 원천 후보를 최대한 유지 */
+var FRAME_DEF_STEP2A_V2_DISABLE_OUTPUT_DEDUPE = true;
 /** 2a 닫힘/열림 조인: 원천을 벽 후보(80mm·carrier)보다 넓게 쓴다. `JOIN_MIN_SEG_MM`은 체인·분기에서 짧은 세그 바닥(mm). */
 var FRAME_DEF_STEP2A_JOIN_MIN_SEG_MM = 10;
 /** true: 2a 닫힘·열림 분할 시 `frameDefJoinSegmentsIntoChains`(끝점 스냅 조인)을 쓰지 않고, 후보 선분 각각을 길이 1 체인으로 둔다. 쪼개진 LINE을 벽체·④ 매칭 단위로 살림. 닫힘 폐곡선은 끊기면 124 면 해치가 줄 수 있음. */
@@ -11329,7 +11331,10 @@ function frameDefBuildWallStep2aHatchReviewWalls(sourceSegs, tol) {
     out.push(wallRec);
   }
 
-  if (typeof frameDefDedupeStep2aHatchWalls === 'function' && out.length > 1) out = frameDefDedupeStep2aHatchWalls(out);
+  if ((typeof FRAME_DEF_STEP2A_V2_DISABLE_OUTPUT_DEDUPE !== 'boolean' || !FRAME_DEF_STEP2A_V2_DISABLE_OUTPUT_DEDUPE)
+      && typeof frameDefDedupeStep2aHatchWalls === 'function' && out.length > 1) {
+    out = frameDefDedupeStep2aHatchWalls(out);
+  }
   if ((typeof FRAME_DEF_STEP2A_V2_INWARD_SIGN_USE_DUAL_CAND_OVERLAP !== 'boolean' || FRAME_DEF_STEP2A_V2_INWARD_SIGN_USE_DUAL_CAND_OVERLAP)
       && typeof frameDef2aV2ApplyDualCandidateOverlapSignPickV2 === 'function'
       && out.length > 1) {

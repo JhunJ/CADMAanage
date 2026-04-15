@@ -25025,6 +25025,22 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   }
   function buildStep23GuideLines() {
     var outL = [];
+    // ②-3 관통 판정선은 2a에 쓰는 노란 ① 원천 선(wallStep2aSourceSegs)만 사용한다.
+    var srcGuides = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs : [];
+    if (srcGuides.length) {
+      for (var si = 0; si < srcGuides.length; si++) {
+        var sg = srcGuides[si];
+        if (!sg || !sg.p1 || !sg.p2) continue;
+        var sx1 = Number(sg.p1.x) || 0, sy1 = Number(sg.p1.y) || 0;
+        var sx2 = Number(sg.p2.x) || 0, sy2 = Number(sg.p2.y) || 0;
+        var sdx = sx2 - sx1, sdy = sy2 - sy1;
+        var sl = Math.hypot(sdx, sdy);
+        if (!(sl > 1e-6)) continue;
+        outL.push({ srcIdx: si, p1: { x: sx1, y: sy1 }, p2: { x: sx2, y: sy2 }, len: sl, ux: sdx / sl, uy: sdy / sl });
+      }
+      return outL;
+    }
+    // 원천선이 없을 때만 기존 wall 기반 선으로 폴백
     for (var wi = 0; wi < list.length; wi++) {
       var w = list[wi];
       if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) continue;
@@ -25033,11 +25049,24 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var gp2 = (w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) && isFinite(Number(w.__step2aDualBaseOuterP2.y))
         ? w.__step2aDualBaseOuterP2 : w.seg_a.p2);
       if (!gp1 || !gp2) continue;
-      var gl = Math.hypot((Number(gp2.x) || 0) - (Number(gp1.x) || 0), (Number(gp2.y) || 0) - (Number(gp1.y) || 0));
+      var dxw = (Number(gp2.x) || 0) - (Number(gp1.x) || 0);
+      var dyw = (Number(gp2.y) || 0) - (Number(gp1.y) || 0);
+      var gl = Math.hypot(dxw, dyw);
       if (!(gl > 1e-6)) continue;
-      outL.push({ wallIdx: wi, p1: gp1, p2: gp2, len: gl });
+      outL.push({ wallIdx: wi, p1: gp1, p2: gp2, len: gl, ux: dxw / gl, uy: dyw / gl });
     }
     return outL;
+  }
+  function quadLongAxisUnit(poly) {
+    if (!Array.isArray(poly) || poly.length < 4) return null;
+    var p0 = poly[0], p1 = poly[1], p2 = poly[2], p3 = poly[3];
+    if (!p0 || !p1 || !p2 || !p3) return null;
+    var e01x = (Number(p1.x) || 0) - (Number(p0.x) || 0), e01y = (Number(p1.y) || 0) - (Number(p0.y) || 0);
+    var e12x = (Number(p2.x) || 0) - (Number(p1.x) || 0), e12y = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+    var l01 = Math.hypot(e01x, e01y), l12 = Math.hypot(e12x, e12y);
+    if (!(l01 > 1e-6) && !(l12 > 1e-6)) return null;
+    if (l01 >= l12) return { ux: e01x / Math.max(l01, 1e-9), uy: e01y / Math.max(l01, 1e-9), longLen: l01, shortLen: l12 };
+    return { ux: e12x / Math.max(l12, 1e-9), uy: e12y / Math.max(l12, 1e-9), longLen: l12, shortLen: l01 };
   }
   function pointInPolyStrict(pt, poly, edgeEps) {
     if (!pt || !Array.isArray(poly) || poly.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
@@ -25124,16 +25153,25 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     var guideLines = buildStep23GuideLines();
     var edgeEps = typeof FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM)
       ? Math.max(0.4, FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM) : 1.2;
+    var longParDotMin = (typeof FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN))
+      ? Math.max(0.80, Math.min(0.9999, FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN)) : 0.92;
     var keptP = [], keptN = [], outP = [], outN = [];
     function splitOne(arr, kept, outF) {
       for (var i = 0; i < (arr || []).length; i++) {
         var rec = arr[i];
         if (!rec || !Array.isArray(rec.quad) || rec.quad.length < 3) continue;
         var bbox = (typeof frameDef2aV2QuadBBox === 'function') ? frameDef2aV2QuadBBox(rec.quad) : null;
+        var longAxis = quadLongAxisUnit(rec.quad);
         var filtered = false;
         for (var li = 0; li < guideLines.length; li++) {
           var gl = guideLines[li];
-          if (!gl || gl.wallIdx === rec.wallIdx) continue;
+          if (!gl) continue;
+          if (isFinite(Number(gl.wallIdx)) && isFinite(Number(rec.wallIdx)) && Number(gl.wallIdx) === Number(rec.wallIdx)) continue;
+          // 해치 긴방향과 평행한 후보선만 ②-3 관통 판단에 사용(수직 방향 제외).
+          if (longAxis && isFinite(Number(gl.ux)) && isFinite(Number(gl.uy))) {
+            var dot = Math.abs((Number(gl.ux) || 0) * (Number(longAxis.ux) || 0) + (Number(gl.uy) || 0) * (Number(longAxis.uy) || 0));
+            if (dot < longParDotMin) continue;
+          }
           if (segPassesInsidePoly(gl, rec.quad, bbox, edgeEps)) { filtered = true; break; }
         }
         if (filtered) outF.push(rec);

@@ -24784,6 +24784,18 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     for (var bk = 0; bk < byWallKeys.length; bk++) {
       var r = byWall[byWallKeys[bk]];
       if (!r || (!r.plus && !r.minus)) continue;
+      var rbp = r.plus && r.plus.bbox ? r.plus.bbox : null;
+      var rbn = r.minus && r.minus.bbox ? r.minus.bbox : null;
+      var rbu = unionBBox(rbp, rbn);
+      if (rbu) {
+        r.cx = (Number(rbu.minx) + Number(rbu.maxx)) * 0.5;
+        r.cy = (Number(rbu.miny) + Number(rbu.maxy)) * 0.5;
+      } else {
+        r.cx = 0;
+        r.cy = 0;
+      }
+      r.nx = -(Number(r.uy) || 0);
+      r.ny = (Number(r.ux) || 0);
       rows.push(r);
     }
     if (rows.length < 2) return { plus: [], minus: [] };
@@ -24841,7 +24853,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           minusCand: row.minus || null,
           plusArea: 0, minusArea: 0,
           plusMax: 0, minusMax: 0,
-          plusHits: 0, minusHits: 0
+          plusHits: 0, minusHits: 0,
+          plusFacingArea: 0, minusFacingArea: 0,
+          plusFacingMax: 0, minusFacingMax: 0,
+          plusFacingHits: 0, minusFacingHits: 0
         };
       }
       return vote[k];
@@ -24857,6 +24872,19 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         v.minusArea += area;
         v.minusHits += 1;
         if (area > v.minusMax) v.minusMax = area;
+      }
+    }
+    function addFacingVote(row, sign, area) {
+      if (!(area > 0)) return;
+      var v = ensureVote(row);
+      if (sign > 0) {
+        v.plusFacingArea += area;
+        v.plusFacingHits += 1;
+        if (area > v.plusFacingMax) v.plusFacingMax = area;
+      } else {
+        v.minusFacingArea += area;
+        v.minusFacingHits += 1;
+        if (area > v.minusFacingMax) v.minusFacingMax = area;
       }
     }
 
@@ -24902,6 +24930,21 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         addVote(aRow, -1, anp); addVote(aRow, -1, ann);
         addVote(bRow, 1, app); addVote(bRow, 1, anp);
         addVote(bRow, -1, apn); addVote(bRow, -1, ann);
+
+        // 면적이 유사할 때는 서로 마주보는(서로 상대를 향하는) 방향 조합을 우선 타이브레이크로 사용한다.
+        var dAB = ((Number(bRow.cx) || 0) - (Number(aRow.cx) || 0)) * (Number(aRow.nx) || 0)
+          + ((Number(bRow.cy) || 0) - (Number(aRow.cy) || 0)) * (Number(aRow.ny) || 0);
+        var dBA = ((Number(aRow.cx) || 0) - (Number(bRow.cx) || 0)) * (Number(bRow.nx) || 0)
+          + ((Number(aRow.cy) || 0) - (Number(bRow.cy) || 0)) * (Number(bRow.ny) || 0);
+        var faceSignA = dAB >= 0 ? 1 : -1;
+        var faceSignB = dBA >= 0 ? 1 : -1;
+        var faceArea = 0;
+        if (faceSignA > 0 && faceSignB > 0) faceArea = app;
+        else if (faceSignA > 0 && faceSignB < 0) faceArea = apn;
+        else if (faceSignA < 0 && faceSignB > 0) faceArea = anp;
+        else faceArea = ann;
+        addFacingVote(aRow, faceSignA, faceArea);
+        addFacingVote(bRow, faceSignB, faceArea);
       }
     }
 
@@ -24915,13 +24958,20 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (!hasP && !hasN) continue;
       var pScore = (Number(vv.plusArea) || 0) + (Number(vv.plusMax) || 0) * 0.25;
       var nScore = (Number(vv.minusArea) || 0) + (Number(vv.minusMax) || 0) * 0.25;
+      var pFacingScore = (Number(vv.plusFacingArea) || 0) + (Number(vv.plusFacingMax) || 0) * 0.20;
+      var nFacingScore = (Number(vv.minusFacingArea) || 0) + (Number(vv.minusFacingMax) || 0) * 0.20;
+      var scoreGap = Math.abs(pScore - nScore);
+      var scoreCloseTol = Math.max(120, Math.max(pScore, nScore) * 0.12);
+      var nearTie = scoreGap <= scoreCloseTol;
       if (hasP && !hasN) {
         plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });
       } else if (!hasP && hasN) {
         minusOut.push({ quad: vv.minusCand.quad, selected: !!vv.minusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.minusArea, hitCount: vv.minusHits, rankScore: nScore });
       } else {
-        if (pScore > nScore + 1e-6) plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });
-        else if (nScore > pScore + 1e-6) minusOut.push({ quad: vv.minusCand.quad, selected: !!vv.minusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.minusArea, hitCount: vv.minusHits, rankScore: nScore });
+        if (pScore > nScore + 1e-6 && !nearTie) plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });
+        else if (nScore > pScore + 1e-6 && !nearTie) minusOut.push({ quad: vv.minusCand.quad, selected: !!vv.minusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.minusArea, hitCount: vv.minusHits, rankScore: nScore });
+        else if (nearTie && pFacingScore > nFacingScore + 1e-6) plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore + pFacingScore * 0.1 });
+        else if (nearTie && nFacingScore > pFacingScore + 1e-6) minusOut.push({ quad: vv.minusCand.quad, selected: !!vv.minusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.minusArea, hitCount: vv.minusHits, rankScore: nScore + nFacingScore * 0.1 });
         else if ((Number(vv.plusHits) || 0) > (Number(vv.minusHits) || 0)) plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });
         else if ((Number(vv.minusHits) || 0) > (Number(vv.plusHits) || 0)) minusOut.push({ quad: vv.minusCand.quad, selected: !!vv.minusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.minusArea, hitCount: vv.minusHits, rankScore: nScore });
         else if (!!vv.plusCand.selected && !vv.minusCand.selected) plusOut.push({ quad: vv.plusCand.quad, selected: true, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });

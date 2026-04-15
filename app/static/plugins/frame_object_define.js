@@ -3260,6 +3260,7 @@ function frameDefTrimWallOverlapSegments(segs) {
       var s0 = Number(it.t_start) || 0;
       var e0 = Number(it.t_end) || 0;
       if (!(e0 > s0 + 1e-6)) continue;
+      var pushedAnyForBase = false;
       var remain = frameDefIntervalSubtract(s0, e0, occ, 2.4);
       if (!remain.length) {
         // 완전히 덮여 드롭되는 세그도 ID 추적을 위해 이미 채택된 구간에 entity_ids를 보존.
@@ -3269,7 +3270,11 @@ function frameDefTrimWallOverlapSegments(segs) {
       for (var ri = 0; ri < remain.length; ri++) {
         var segIv = remain[ri];
         var rs = Number(segIv.s) || 0, re = Number(segIv.e) || 0;
-        if (!(re > rs + minKeep)) continue;
+        if (!(re > rs + minKeep)) {
+          // 남은 조각이 너무 짧아 버려지는 경우도 ID는 기존 채택 구간으로 전파.
+          propagateSuppressedEntityIds(it.seg, rs, re);
+          continue;
+        }
         var base = it.seg;
         var baseAxis = frameDefUnit(base);
         var baseOrd = frameDefOrderedSegmentByAxis(base, baseAxis);
@@ -3304,7 +3309,9 @@ function frameDefTrimWallOverlapSegments(segs) {
         if (base.merged_def_count != null) clone.merged_def_count = Number(base.merged_def_count) || 0;
         out.push(clone);
         kept.push({ s: rs, e: re, seg: clone });
+        pushedAnyForBase = true;
       }
+      if (!pushedAnyForBase) propagateSuppressedEntityIds(it.seg, s0, e0);
       occ = frameDefIntervalInsertMerge(occ, s0, e0, 2.4);
     }
   }

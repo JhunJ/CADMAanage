@@ -9206,6 +9206,24 @@ function frameDefStep2aOpenWallSourceForDedupe(source) {
  */
 function frameDefDedupeStep2aHatchWalls(walls) {
   if (!Array.isArray(walls) || walls.length < 2) return walls;
+  function mergeDroppedWallIdsIntoKeeper(keeper, dropped) {
+    if (!keeper || !dropped || typeof frameDefSegEntityIds !== 'function' || typeof frameDefUniqueEntityIds !== 'function') return;
+    var kIds = Array.isArray(keeper.entity_ids) ? keeper.entity_ids.slice() : [];
+    var dIds = Array.isArray(dropped.entity_ids) ? dropped.entity_ids.slice() : [];
+    kIds = kIds.concat(frameDefSegEntityIds(keeper));
+    dIds = dIds.concat(frameDefSegEntityIds(dropped));
+    var mergedIds = frameDefUniqueEntityIds(kIds.concat(dIds));
+    if (!mergedIds.length) return;
+    keeper.entity_ids = mergedIds;
+    if (keeper.seg_a) {
+      if (!(isFinite(Number(keeper.seg_a.ent_id)) && Number(keeper.seg_a.ent_id) > 0)) keeper.seg_a.ent_id = mergedIds[0];
+      if (!Array.isArray(keeper.seg_a.entity_ids) || !keeper.seg_a.entity_ids.length) keeper.seg_a.entity_ids = mergedIds.slice();
+    }
+    if (keeper.seg_b) {
+      if (!(isFinite(Number(keeper.seg_b.ent_id)) && Number(keeper.seg_b.ent_id) > 0)) keeper.seg_b.ent_id = mergedIds[0];
+      if (!Array.isArray(keeper.seg_b.entity_ids) || !keeper.seg_b.entity_ids.length) keeper.seg_b.entity_ids = mergedIds.slice();
+    }
+  }
   var cMax = typeof FRAME_DEF_STEP2A_DEDUPE_CENTER_MAX_MM === 'number' ? FRAME_DEF_STEP2A_DEDUPE_CENTER_MAX_MM : 72;
   var nMax = typeof FRAME_DEF_STEP2A_DEDUPE_NORMAL_MAX_MM === 'number' ? FRAME_DEF_STEP2A_DEDUPE_NORMAL_MAX_MM : 110;
   var ovMin = typeof FRAME_DEF_STEP2A_DEDUPE_ALONG_OVERLAP_MIN_FRAC === 'number' ? FRAME_DEF_STEP2A_DEDUPE_ALONG_OVERLAP_MIN_FRAC : 0.22;
@@ -9231,6 +9249,7 @@ function frameDefDedupeStep2aHatchWalls(walls) {
     var mx = (wx1 + wx2) * 0.5, my = (wy1 + wy2) * 0.5;
     var ax = typeof frameDefNormAxis === 'function' ? Number(w.seg_a.axis_angle) || 0 : 0;
     var dup = false;
+    var dupKeeper = null;
     for (var j = 0; j < kept.length; j++) {
       var k = kept[j];
       if (!k || !k.seg_a || !k.seg_a.p1 || !k.seg_a.p2) continue;
@@ -9279,6 +9298,7 @@ function frameDefDedupeStep2aHatchWalls(walls) {
             var ovJNeed = typeof FRAME_DEF_STEP2A_DEDUPE_JUNCTION_PROJ_OVERLAP_MIN_MM === 'number' ? FRAME_DEF_STEP2A_DEDUPE_JUNCTION_PROJ_OVERLAP_MIN_MM : 6;
             if (dWeK <= ntj && ovJMm >= ovJNeed) {
               dup = true;
+              dupKeeper = k;
               junctionStubDupN++;
               break;
             }
@@ -9310,10 +9330,12 @@ function frameDefDedupeStep2aHatchWalls(walls) {
       var ocPair = frameDefStep2aOpenWallSourceForDedupe(w.source) && frameDefStep2aOpenWallSourceForDedupe(k.source);
       if (stackDup || (!ocPair && midNear)) {
         dup = true;
+        dupKeeper = k;
         break;
       }
     }
     if (!dup) kept.push(w);
+    else if (dupKeeper) mergeDroppedWallIdsIntoKeeper(dupKeeper, w);
   }
   return kept;
 }

@@ -24962,7 +24962,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var nFacingScore = (Number(vv.minusFacingArea) || 0) + (Number(vv.minusFacingMax) || 0) * 0.20;
       var scoreGap = Math.abs(pScore - nScore);
       // 유사면적(near tie) 판정 범위를 넓혀 마주보는 방향 타이브레이커 적용 빈도를 높인다.
-      var scoreCloseTol = Math.max(220, Math.max(pScore, nScore) * 0.20);
+      var scoreCloseTol = Math.max(340, Math.max(pScore, nScore) * 0.30);
       var nearTie = scoreGap <= scoreCloseTol;
       if (hasP && !hasN) {
         plusOut.push({ quad: vv.plusCand.quad, selected: !!vv.plusCand.selected, wallIdx: vv.wallIdx, overlapArea: vv.plusArea, hitCount: vv.plusHits, rankScore: pScore });

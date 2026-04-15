@@ -24526,6 +24526,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         bbox: bq,
         ux: ux,
         uy: uy,
+        oppIdx: isFinite(Number(w.__step2aV2OppositeSegIndex)) ? Math.floor(Number(w.__step2aV2OppositeSegIndex)) : -1,
         selected: (Number(w.__step2aOutlineInwardSign) < 0 ? -1 : 1) === signVal
       });
     }
@@ -24538,10 +24539,11 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (!cand || !isFinite(Number(cand.wallIdx))) return;
       var idx = Math.floor(Number(cand.wallIdx));
       var k = String(idx);
-      if (!byWall[k]) byWall[k] = { wallIdx: idx, plus: null, minus: null, ux: 0, uy: 0 };
+      if (!byWall[k]) byWall[k] = { wallIdx: idx, plus: null, minus: null, ux: 0, uy: 0, oppIdx: -1 };
       if (sign > 0) byWall[k].plus = cand; else byWall[k].minus = cand;
       byWall[k].ux = Number(cand.ux) || byWall[k].ux;
       byWall[k].uy = Number(cand.uy) || byWall[k].uy;
+      if (isFinite(Number(cand.oppIdx)) && Number(cand.oppIdx) >= 0) byWall[k].oppIdx = Math.floor(Number(cand.oppIdx));
     }
     for (var p0 = 0; p0 < candsP.length; p0++) putCand(candsP[p0], 1);
     for (var n0 = 0; n0 < candsN.length; n0++) putCand(candsN[n0], -1);
@@ -24598,6 +24600,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       return ar >= minOverlapAreaMm2 ? ar : 0;
     }
     var vote = {};
+    var compareSeen = {};
     function ensureVote(row) {
       var k = String(row.wallIdx);
       if (!vote[k]) {
@@ -24652,6 +24655,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         if (!bRow) continue;
         var dot = Math.abs((Number(aRow.ux) || 0) * (Number(bRow.ux) || 0) + (Number(aRow.uy) || 0) * (Number(bRow.uy) || 0));
         if (dot < parDotMin) continue;
+        var ka = String(aRow.wallIdx);
+        var kb = String(bRow.wallIdx);
+        compareSeen[ka] = (Number(compareSeen[ka]) || 0) + 1;
+        compareSeen[kb] = (Number(compareSeen[kb]) || 0) + 1;
 
         // 2a-2-1의 4가지 조합 면적
         var app = areaVal(aRow.plus, bRow.plus);
@@ -24692,14 +24699,23 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       }
     }
 
-    // 누락 방지: 4면적 hit가 전혀 없는 선분도 기본 선택 후보는 유지한다.
+    // 누락 방지(축소): 주변과 비교 자체가 불가능했고(고립), 맞은편 선분 정보가 없는 경우만 기본 선택 후보를 유지한다.
+    // 주변과 비교했는데도 hit가 0이면 비겹침으로 보고 유지하지 않는다.
+    function candLen(c) {
+      if (!c || !Array.isArray(c.quad) || c.quad.length < 2 || !c.quad[0] || !c.quad[1]) return 0;
+      return Math.hypot((Number(c.quad[1].x) || 0) - (Number(c.quad[0].x) || 0), (Number(c.quad[1].y) || 0) - (Number(c.quad[0].y) || 0));
+    }
     for (var ri = 0; ri < rows.length; ri++) {
       var rr = rows[ri];
       if (!rr) continue;
       var rk = String(rr.wallIdx);
       var vv0 = vote[rk];
       if (vv0 && ((Number(vv0.plusHits) || 0) > 0 || (Number(vv0.minusHits) || 0) > 0)) continue;
+      if ((Number(compareSeen[rk]) || 0) > 0) continue;
+      if (isFinite(Number(rr.oppIdx)) && Number(rr.oppIdx) >= 0) continue;
       if (rr.plus && rr.plus.selected) {
+        var lp = candLen(rr.plus);
+        if (!(lp >= 120)) continue;
         plusOut.push({
           quad: rr.plus.quad,
           selected: true,
@@ -24709,6 +24725,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           rankScore: 0
         });
       } else if (rr.minus && rr.minus.selected) {
+        var ln = candLen(rr.minus);
+        if (!(ln >= 120)) continue;
         minusOut.push({
           quad: rr.minus.quad,
           selected: true,

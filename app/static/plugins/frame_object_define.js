@@ -929,6 +929,11 @@ function frameDefRenderDebugPanel() {
   var dualOvPlus = dualOvStat && isFinite(Number(dualOvStat.plus)) ? Math.max(0, Math.floor(Number(dualOvStat.plus))) : 0;
   var dualOvMinus = dualOvStat && isFinite(Number(dualOvStat.minus)) ? Math.max(0, Math.floor(Number(dualOvStat.minus))) : 0;
   var dualOvStatTxt = ' <code style="font-size:0.60rem;">' + dualOvVer + ' +' + String(dualOvPlus) + '/-' + String(dualOvMinus) + '</code>';
+  var dualStep23Stat = st.debugStep2aDualStep23Stat && typeof st.debugStep2aDualStep23Stat === 'object' ? st.debugStep2aDualStep23Stat : null;
+  var dualStep23Plus = dualStep23Stat && isFinite(Number(dualStep23Stat.plus)) ? Math.max(0, Math.floor(Number(dualStep23Stat.plus))) : 0;
+  var dualStep23Minus = dualStep23Stat && isFinite(Number(dualStep23Stat.minus)) ? Math.max(0, Math.floor(Number(dualStep23Stat.minus))) : 0;
+  var dualStep23Total = dualStep23Stat && isFinite(Number(dualStep23Stat.total)) ? Math.max(0, Math.floor(Number(dualStep23Stat.total))) : (dualStep23Plus + dualStep23Minus);
+  var dualStep23StatTxt = ' <code style="font-size:0.60rem;">제외 ' + String(dualStep23Total) + '개 (+' + String(dualStep23Plus) + '/-' + String(dualStep23Minus) + ')</code>';
   var n2aLoop = Array.isArray(st.wallStep2aClosedLoopChains) ? st.wallStep2aClosedLoopChains.length : 0;
   var n2aSrcSeg = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs.length : 0;
   var sc2a = st.wallStep2aSplitChainCounts && typeof st.wallStep2aSplitChainCounts === 'object' ? st.wallStep2aSplitChainCounts : null;
@@ -961,6 +966,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aHatchOvLblChk" style="margin-top:2px;" ' + (st.debugStep2aShowHatchOverlapLabels ? 'checked' : '') + ' /><span><b>방향 비교 ±겹침(mm²) 라벨</b> — 현재 최종 방향은 <b>2-1 양방향 후보끼리의 겹침 점수</b>로 재선택되며, 라벨은 참고용 수치(최대/합계)를 함께 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualCandidatesChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualCandidates ? 'checked' : '') + ' /><span><b>②-1 방향 비교 후보 해치(+/-) 표시</b> — +후보(파랑), -후보(주황)를 동시에 표시하고, 선택 방향은 진하게/비선택은 옅게 그립니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualOverlapChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualOverlapPatches ? 'checked' : '') + ' /><span><b>②-2 방향 비교 후보끼리 겹침면 표시</b>' + dualOvStatTxt + ' — CAD 해치가 아니라 ②-1 양방향 벽체 후보(+/-)끼리의 교집합만 표시합니다. +겹침(청록), -겹침(주황).</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep23Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep23FilteredPatches ? 'checked' : '') + ' /><span><b>②-3 내부 관통 선 필터(제외분)</b>' + dualStep23StatTxt + ' — ②-2 해치 내부를 <b>다른 벽체 후보 중심선</b>이 지나가면 해당 해치를 ②-2에서 제외하고 ②-3으로 분리 표시합니다.</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push('</div>');
@@ -1481,6 +1487,14 @@ function frameDefRenderDebugPanel() {
       if (typeof draw === 'function') draw();
     };
   }
+  var step2aDualStep23Chk = document.getElementById('frameDefDebugStep2aDualStep23Chk');
+  if (step2aDualStep23Chk) {
+    step2aDualStep23Chk.onchange = function() {
+      var s = frameDefGetState();
+      s.debugStep2aShowDualStep23FilteredPatches = !!step2aDualStep23Chk.checked;
+      if (typeof draw === 'function') draw();
+    };
+  }
   var step2bCnnChk = document.getElementById('frameDefDebugStep2bCnnChk');
   if (step2bCnnChk) {
     step2bCnnChk.onchange = function() {
@@ -1637,7 +1651,7 @@ function frameDefStateDefaults() {
     autoRotatedWallKeys: {}, editDragState: null, editSnapGuide: null,
     rawSegs: [], descs: [], debugColumns: [],
     wallCandidates: [], wallPairs: [], wallStep2Segs: [], wallStep2aHatchWalls: [], wallStep2aSourceSegs: [], wallStep2aSourcePairs: [], wallStep2aClosedLoopChains: [], wallStep2aClosedLoopDebug: [], wallStep2aSplitChainCounts: { closed: 0, open: 0, openWalls: 0 }, wallCandidatesStep11: [], wallCandidatesStep11Rings: [], wallStep11ClosedChains: [], wallStep11ByCategory: {}, wallStep11Debug: null, wallStep12Walls: { '121': [], '122': [], '123': [], '124': [] },
-    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep2aShowDualOverlapPatches: false, debugStep11ShowHatch: false,
+    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep2aShowDualOverlapPatches: false, debugStep2aShowDualStep23FilteredPatches: false, debugStep11ShowHatch: false,
     debugStep111ShowHatch: false, debugStep112ShowHatch: false, debugStep113ShowHatch: false, debugStep114ShowHatch: false, debugStep115ShowHatch: false, debugStep116ShowHatch: false,
     debugStep121ShowHatch: false, debugStep122ShowHatch: false, debugStep123ShowHatch: false, debugStep123ShowPreSwapHatch: false, debugStep124ShowHatch: false,
     debugStep124ShowSplitCandidates: false,
@@ -1706,6 +1720,7 @@ function frameDefGetState() {
   if (window.frameDefState.debugStep2aShowHatchOverlapLabels !== true && window.frameDefState.debugStep2aShowHatchOverlapLabels !== false) window.frameDefState.debugStep2aShowHatchOverlapLabels = false;
   if (window.frameDefState.debugStep2aShowDualCandidates !== true && window.frameDefState.debugStep2aShowDualCandidates !== false) window.frameDefState.debugStep2aShowDualCandidates = false;
   if (window.frameDefState.debugStep2aShowDualOverlapPatches !== true && window.frameDefState.debugStep2aShowDualOverlapPatches !== false) window.frameDefState.debugStep2aShowDualOverlapPatches = false;
+  if (window.frameDefState.debugStep2aShowDualStep23FilteredPatches !== true && window.frameDefState.debugStep2aShowDualStep23FilteredPatches !== false) window.frameDefState.debugStep2aShowDualStep23FilteredPatches = false;
   if (window.frameDefState.debugStep11ShowHatch !== true && window.frameDefState.debugStep11ShowHatch !== false) window.frameDefState.debugStep11ShowHatch = false;
   if (window.frameDefState.debugStep111ShowHatch !== true && window.frameDefState.debugStep111ShowHatch !== false) window.frameDefState.debugStep111ShowHatch = false;
   if (window.frameDefState.debugStep112ShowHatch !== true && window.frameDefState.debugStep112ShowHatch !== false) window.frameDefState.debugStep112ShowHatch = false;
@@ -23243,7 +23258,7 @@ function frameDefDrawStep2bTrainLabelOverlays() {
 function frameDefDrawPreviewOverlays() {
   var st = typeof frameDefGetState === 'function' ? frameDefGetState() : {};
   var frameFeatureActive = (typeof selectedFeatureId === 'undefined' || selectedFeatureId === 'frame-object-define');
-  var force2aDebugDraw = st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true;
+  var force2aDebugDraw = st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true;
   /** 미리보기 끔에도 해치 ±겹침 라벨은 표시(캔버스 상단 오버레이와 동일 경로). */
   var allowWhenPreviewOff = st.debugStep2aShowHatchOverlapLabels === true;
   if (st.previewVisible === false && !allowWhenPreviewOff) return;
@@ -23251,7 +23266,7 @@ function frameDefDrawPreviewOverlays() {
   var groups = frameDefPreviewGroups();
   var _lblMap = st.step2bTrainLabelsByWallKey;
   var _hasTrainLbl = _lblMap && typeof _lblMap === 'object' && !Array.isArray(_lblMap) && Object.keys(_lblMap).length > 0;
-  var hasExtras = (st.showGapIssues !== false) || !!st.selectedWallKey || !!st.editSnapGuide || (st.gapIssues && st.gapIssues.length) || st.debugStep2ShowHatch === true || st.debugStep21ShowHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2bShowCnn === true || st.debugStep2bShowXgb === true || st.debugStep2bShowRf === true || st.debugStep2bShowMlp === true || st.debugStep2bShowGnn === true || st.step2bTrainPickMode === true || _hasTrainLbl || st.debugStep11ShowHatch === true || st.debugStep111ShowHatch === true || st.debugStep112ShowHatch === true || st.debugStep113ShowHatch === true || st.debugStep114ShowHatch === true || st.debugStep115ShowHatch === true || st.debugStep116ShowHatch === true || st.debugStep121ShowHatch === true || st.debugStep122ShowHatch === true || st.debugStep123ShowHatch === true || st.debugStep123ShowPreSwapHatch === true || st.debugStep124ShowHatch === true || st.debugStep124ShowSplitCandidates === true || st.debugStep124ShowInteriorStep2 === true || st.debugStep124ShowInteriorStep3 === true || st.debugStep124ShowInteriorStep4 === true || st.debugStep124ShowInteriorStep5 === true || st.debugStep124ShowInteriorStep6 === true || st.debugStep124ShowInteriorStep7 === true || st.debugStep1240Show114Hatch === true;
+  var hasExtras = (st.showGapIssues !== false) || !!st.selectedWallKey || !!st.editSnapGuide || (st.gapIssues && st.gapIssues.length) || st.debugStep2ShowHatch === true || st.debugStep21ShowHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true || st.debugStep2bShowCnn === true || st.debugStep2bShowXgb === true || st.debugStep2bShowRf === true || st.debugStep2bShowMlp === true || st.debugStep2bShowGnn === true || st.step2bTrainPickMode === true || _hasTrainLbl || st.debugStep11ShowHatch === true || st.debugStep111ShowHatch === true || st.debugStep112ShowHatch === true || st.debugStep113ShowHatch === true || st.debugStep114ShowHatch === true || st.debugStep115ShowHatch === true || st.debugStep116ShowHatch === true || st.debugStep121ShowHatch === true || st.debugStep122ShowHatch === true || st.debugStep123ShowHatch === true || st.debugStep123ShowPreSwapHatch === true || st.debugStep124ShowHatch === true || st.debugStep124ShowSplitCandidates === true || st.debugStep124ShowInteriorStep2 === true || st.debugStep124ShowInteriorStep3 === true || st.debugStep124ShowInteriorStep4 === true || st.debugStep124ShowInteriorStep5 === true || st.debugStep124ShowInteriorStep6 === true || st.debugStep124ShowInteriorStep7 === true || st.debugStep1240Show114Hatch === true;
   if (!groups.length && !hasExtras) return;
   ctx.save(); ctx.font = '11px sans-serif';
   for (var i = 0; i < groups.length; i++) {
@@ -24594,7 +24609,9 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
 /** 2a: ②-1에서 만든 양방향 벽 후보(+/−)끼리의 실제 겹침 면적만 별도 표시. */
 function frameDefDrawDebugStep2aDualOverlapPatches() {
   var st = frameDefGetState();
-  if (st.debugStep2aShowDualOverlapPatches !== true) return;
+  var showStep22 = st.debugStep2aShowDualOverlapPatches === true;
+  var showStep23 = st.debugStep2aShowDualStep23FilteredPatches === true;
+  if (!showStep22 && !showStep23) return;
   var list = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
   if (!list.length || typeof toScreen !== 'function' || typeof frameDefDrawHatchPolygon !== 'function') return;
   if (typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function') return;
@@ -24616,27 +24633,40 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     if (screenPoly.length < 3) return;
     frameDefDrawHatchPolygon(screenPoly, color, hatchOpts);
   }
-  function renderCandidateLists(plusPolys, minusPolys) {
+  function renderCandidateLists(plusPolys, minusPolys, palette) {
+    var pal = palette || {};
+    var plusSel = pal.plusSel || '#06b6d4';
+    var plusOpp = pal.plusOpp || '#67e8f9';
+    var minusSel = pal.minusSel || '#f59e0b';
+    var minusOpp = pal.minusOpp || '#fdba74';
+    var plusSelFill = isFinite(Number(pal.plusSelFill)) ? Number(pal.plusSelFill) : 0.30;
+    var plusOppFill = isFinite(Number(pal.plusOppFill)) ? Number(pal.plusOppFill) : 0.12;
+    var minusSelFill = isFinite(Number(pal.minusSelFill)) ? Number(pal.minusSelFill) : 0.30;
+    var minusOppFill = isFinite(Number(pal.minusOppFill)) ? Number(pal.minusOppFill) : 0.12;
+    var plusSelHatch = isFinite(Number(pal.plusSelHatch)) ? Number(pal.plusSelHatch) : 0.48;
+    var plusOppHatch = isFinite(Number(pal.plusOppHatch)) ? Number(pal.plusOppHatch) : 0.22;
+    var minusSelHatch = isFinite(Number(pal.minusSelHatch)) ? Number(pal.minusSelHatch) : 0.48;
+    var minusOppHatch = isFinite(Number(pal.minusOppHatch)) ? Number(pal.minusOppHatch) : 0.22;
     for (var pi = 0; pi < plusPolys.length; pi++) {
       var pp = plusPolys[pi];
-      drawWorldPoly(pp.quad, pp.selected ? '#06b6d4' : '#67e8f9', {
-        fillAlpha: pp.selected ? 0.30 : 0.12,
-        hatchAlpha: pp.selected ? 0.48 : 0.22,
+      drawWorldPoly(pp.quad, pp.selected ? plusSel : plusOpp, {
+        fillAlpha: pp.selected ? plusSelFill : plusOppFill,
+        hatchAlpha: pp.selected ? plusSelHatch : plusOppHatch,
         step: FRAME_DEF_DEBUG_HATCH_STEP_PX
       }, pp.selected ? 0.84 : 0.46);
     }
     for (var ni = 0; ni < minusPolys.length; ni++) {
       var np = minusPolys[ni];
-      drawWorldPoly(np.quad, np.selected ? '#f59e0b' : '#fdba74', {
-        fillAlpha: np.selected ? 0.30 : 0.12,
-        hatchAlpha: np.selected ? 0.48 : 0.22,
+      drawWorldPoly(np.quad, np.selected ? minusSel : minusOpp, {
+        fillAlpha: np.selected ? minusSelFill : minusOppFill,
+        hatchAlpha: np.selected ? minusSelHatch : minusOppHatch,
         step: FRAME_DEF_DEBUG_HATCH_STEP_PX
       }, np.selected ? 0.84 : 0.46);
     }
   }
   // 성능: 2a-2-2는 계산량이 커서, 벽 배열 참조/핵심 파라미터가 같으면 이전 계산 결과를 재사용.
   if (!st.__debugStep2aDualOverlapCache || typeof st.__debugStep2aDualOverlapCache !== 'object') {
-    st.__debugStep2aDualOverlapCache = { listRef: null, key: '', plus: [], minus: [], stat: null };
+    st.__debugStep2aDualOverlapCache = { listRef: null, key: '', plus: [], minus: [], plus23: [], minus23: [], stat: null, stat23: null };
   }
   function dualOverlapGeomSig(arr) {
     if (!Array.isArray(arr) || !arr.length) return '0';
@@ -24664,7 +24694,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     dualOverlapGeomSig(list)
   ].join('|');
   var cache = st.__debugStep2aDualOverlapCache;
-  if (cache.key === cacheKey && Array.isArray(cache.plus) && Array.isArray(cache.minus)) {
+  if (cache.key === cacheKey && Array.isArray(cache.plus) && Array.isArray(cache.minus) && Array.isArray(cache.plus23) && Array.isArray(cache.minus23)) {
     st.debugStep2aDualOverlapStat = cache.stat || {
       plus: cache.plus.length,
       minus: cache.minus.length,
@@ -24672,7 +24702,24 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       ts: Date.now(),
       cached: true
     };
-    renderCandidateLists(cache.plus, cache.minus);
+    st.debugStep2aDualStep23Stat = cache.stat23 || {
+      plus: cache.plus23.length,
+      minus: cache.minus23.length,
+      total: cache.plus23.length + cache.minus23.length,
+      ts: Date.now(),
+      cached: true
+    };
+    if (showStep22) renderCandidateLists(cache.plus, cache.minus);
+    if (showStep23) {
+      renderCandidateLists(cache.plus23, cache.minus23, {
+        plusSel: '#dc2626', plusOpp: '#fca5a5',
+        minusSel: '#7c2d12', minusOpp: '#fdba74',
+        plusSelFill: 0.32, plusOppFill: 0.18,
+        minusSelFill: 0.32, minusOppFill: 0.18,
+        plusSelHatch: 0.52, plusOppHatch: 0.30,
+        minusSelHatch: 0.52, minusOppHatch: 0.30
+      });
+    }
     return;
   }
   function buildSignCandidates(signVal) {
@@ -24967,11 +25014,102 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     minusOut = dedupeByWallIdxPreferScore(minusOut);
     return { plus: capCandidates(plusOut), minus: capCandidates(minusOut) };
   }
+  function buildStep23GuideLines() {
+    var outL = [];
+    for (var wi = 0; wi < list.length; wi++) {
+      var w = list[wi];
+      if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) continue;
+      var gp1 = (w.__step2aDualBaseOuterP1 && isFinite(Number(w.__step2aDualBaseOuterP1.x)) && isFinite(Number(w.__step2aDualBaseOuterP1.y))
+        ? w.__step2aDualBaseOuterP1 : w.seg_a.p1);
+      var gp2 = (w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) && isFinite(Number(w.__step2aDualBaseOuterP2.y))
+        ? w.__step2aDualBaseOuterP2 : w.seg_a.p2);
+      if (!gp1 || !gp2) continue;
+      var gl = Math.hypot((Number(gp2.x) || 0) - (Number(gp1.x) || 0), (Number(gp2.y) || 0) - (Number(gp1.y) || 0));
+      if (!(gl > 1e-6)) continue;
+      outL.push({ wallIdx: wi, p1: gp1, p2: gp2, len: gl });
+    }
+    return outL;
+  }
+  function pointInPolyStrict(pt, poly, edgeEps) {
+    if (!pt || !Array.isArray(poly) || poly.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
+    if (!frameDefPointInPolygon(pt, poly)) return false;
+    var eps = Math.max(0.6, Number(edgeEps) || 1.2);
+    var minD = Infinity;
+    for (var i = 0; i < poly.length; i++) {
+      var a = poly[i], b = poly[(i + 1) % poly.length];
+      var pr = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(pt, { p1: a, p2: b }) : null;
+      if (!pr) continue;
+      var d = Number(pr.dist) || 0;
+      if (d < minD) minD = d;
+    }
+    return minD > eps;
+  }
+  function segPassesInsidePoly(line, poly, polyBBox, edgeEps) {
+    if (!line || !line.p1 || !line.p2 || !Array.isArray(poly) || poly.length < 3) return false;
+    var p1 = line.p1, p2 = line.p2;
+    var bx = polyBBox || (typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(poly) : null);
+    if (bx) {
+      var sx0 = Math.min(Number(p1.x) || 0, Number(p2.x) || 0), sx1 = Math.max(Number(p1.x) || 0, Number(p2.x) || 0);
+      var sy0 = Math.min(Number(p1.y) || 0, Number(p2.y) || 0), sy1 = Math.max(Number(p1.y) || 0, Number(p2.y) || 0);
+      if (sx1 < bx.minx || sx0 > bx.maxx || sy1 < bx.miny || sy0 > bx.maxy) return false;
+    }
+    var mid = { x: ((Number(p1.x) || 0) + (Number(p2.x) || 0)) * 0.5, y: ((Number(p1.y) || 0) + (Number(p2.y) || 0)) * 0.5 };
+    if (pointInPolyStrict(mid, poly, edgeEps)) return true;
+    if (pointInPolyStrict(p1, poly, edgeEps) || pointInPolyStrict(p2, poly, edgeEps)) return true;
+    if (typeof frameDefSegSegIntersectInclusive !== 'function') return false;
+    var ax = Number(p1.x) || 0, ay = Number(p1.y) || 0, bx2 = Number(p2.x) || 0, by2 = Number(p2.y) || 0;
+    var hitMap = {};
+    var hitN = 0;
+    for (var ei = 0; ei < poly.length; ei++) {
+      var q1 = poly[ei], q2 = poly[(ei + 1) % poly.length];
+      if (!q1 || !q2) continue;
+      var cx = Number(q1.x) || 0, cy = Number(q1.y) || 0, dx = Number(q2.x) || 0, dy = Number(q2.y) || 0;
+      if (!frameDefSegSegIntersectInclusive(ax, ay, bx2, by2, cx, cy, dx, dy, 1e-7)) continue;
+      var den = (bx2 - ax) * (dy - cy) - (by2 - ay) * (dx - cx);
+      if (Math.abs(den) < 1e-9) continue;
+      var t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / den;
+      var ix = ax + (bx2 - ax) * t;
+      var iy = ay + (by2 - ay) * t;
+      var key = String(Math.round(ix * 10)) + ',' + String(Math.round(iy * 10));
+      if (hitMap[key]) continue;
+      hitMap[key] = true;
+      hitN++;
+      if (hitN >= 2) return true;
+    }
+    return false;
+  }
+  function splitStep23Filtered(plusArr, minusArr) {
+    var guideLines = buildStep23GuideLines();
+    var edgeEps = typeof FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM)
+      ? Math.max(0.4, FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM) : 1.2;
+    var keptP = [], keptN = [], outP = [], outN = [];
+    function splitOne(arr, kept, outF) {
+      for (var i = 0; i < (arr || []).length; i++) {
+        var rec = arr[i];
+        if (!rec || !Array.isArray(rec.quad) || rec.quad.length < 3) continue;
+        var bbox = (typeof frameDef2aV2QuadBBox === 'function') ? frameDef2aV2QuadBBox(rec.quad) : null;
+        var filtered = false;
+        for (var li = 0; li < guideLines.length; li++) {
+          var gl = guideLines[li];
+          if (!gl || gl.wallIdx === rec.wallIdx) continue;
+          if (segPassesInsidePoly(gl, rec.quad, bbox, edgeEps)) { filtered = true; break; }
+        }
+        if (filtered) outF.push(rec);
+        else kept.push(rec);
+      }
+    }
+    splitOne(plusArr, keptP, outP);
+    splitOne(minusArr, keptN, outN);
+    return { keptPlus: keptP, keptMinus: keptN, outPlus: outP, outMinus: outN };
+  }
   var candsP = buildSignCandidates(1);
   var candsN = buildSignCandidates(-1);
   var dualPolys = collectPairOverlapsDual(candsP, candsN);
-  var plusPolys = dualPolys.plus || [];
-  var minusPolys = dualPolys.minus || [];
+  var split23 = splitStep23Filtered(dualPolys.plus || [], dualPolys.minus || []);
+  var plusPolys = split23.keptPlus || [];
+  var minusPolys = split23.keptMinus || [];
+  var plusPolys23 = split23.outPlus || [];
+  var minusPolys23 = split23.outMinus || [];
   st.debugStep2aDualOverlapStat = {
     plus: plusPolys.length,
     minus: minusPolys.length,
@@ -24979,10 +25117,19 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     ts: Date.now(),
     cached: false
   };
+  st.debugStep2aDualStep23Stat = {
+    plus: plusPolys23.length,
+    minus: minusPolys23.length,
+    total: plusPolys23.length + minusPolys23.length,
+    ts: st.debugStep2aDualOverlapStat.ts,
+    cached: false
+  };
   cache.listRef = null;
   cache.key = cacheKey;
   cache.plus = plusPolys.slice();
   cache.minus = minusPolys.slice();
+  cache.plus23 = plusPolys23.slice();
+  cache.minus23 = minusPolys23.slice();
   cache.sig = '';
   cache.stat = {
     plus: plusPolys.length,
@@ -24991,7 +25138,24 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     ts: st.debugStep2aDualOverlapStat.ts,
     cached: false
   };
-  renderCandidateLists(plusPolys, minusPolys);
+  cache.stat23 = {
+    plus: plusPolys23.length,
+    minus: minusPolys23.length,
+    total: plusPolys23.length + minusPolys23.length,
+    ts: st.debugStep2aDualOverlapStat.ts,
+    cached: false
+  };
+  if (showStep22) renderCandidateLists(plusPolys, minusPolys);
+  if (showStep23) {
+    renderCandidateLists(plusPolys23, minusPolys23, {
+      plusSel: '#dc2626', plusOpp: '#fca5a5',
+      minusSel: '#7c2d12', minusOpp: '#fdba74',
+      plusSelFill: 0.32, plusOppFill: 0.18,
+      minusSelFill: 0.32, minusOppFill: 0.18,
+      plusSelHatch: 0.52, plusOppHatch: 0.30,
+      minusSelHatch: 0.52, minusOppHatch: 0.30
+    });
+  }
 }
 
 /** 2a: `__step2aHatchOverlapDbg` + `__step2aDualSignEval` — 양방향(+1/-1) 비교 여부, 선택/반대 겹침(mm²·%)과 판정(정상/주의) 표시. */

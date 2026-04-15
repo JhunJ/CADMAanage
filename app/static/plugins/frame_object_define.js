@@ -229,9 +229,9 @@ var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS = 700;
 /** 양방향 후보끼리 비교 시 부호별 최대 쌍 테스트 수(초과 시 중단 후 현재 점수 사용). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN = 120000;
 /** 2a-2-2 보존 전략 버전(화면 반영 확인용). */
-var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v14-pair4-area';
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'preserve-v15-pair4-keepbase';
 /** 2a-2-2 표시용 후보 최대 개수(부호별) — 과도한 그리기로 인한 팬/줌 버벅임 방지 */
-var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS = 220;
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS = 1200;
 /** true면 동일 부호 후보 간 NMS를 적용(성능/회귀 이슈로 기본 OFF). */
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_LOCAL_NMS = false;
 /** true면 +/- 교차부호 후보끼리도 NMS를 적용(회귀 방지를 위해 기본 OFF). */
@@ -24692,6 +24692,74 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       }
     }
 
+    // 누락 방지: 4면적 hit가 전혀 없는 선분도 기본 선택 후보는 유지한다.
+    for (var ri = 0; ri < rows.length; ri++) {
+      var rr = rows[ri];
+      if (!rr) continue;
+      var rk = String(rr.wallIdx);
+      var vv0 = vote[rk];
+      if (vv0 && ((Number(vv0.plusHits) || 0) > 0 || (Number(vv0.minusHits) || 0) > 0)) continue;
+      if (rr.plus && rr.plus.selected) {
+        plusOut.push({
+          quad: rr.plus.quad,
+          selected: true,
+          wallIdx: rr.wallIdx,
+          overlapArea: 0,
+          hitCount: 0,
+          rankScore: 0
+        });
+      } else if (rr.minus && rr.minus.selected) {
+        minusOut.push({
+          quad: rr.minus.quad,
+          selected: true,
+          wallIdx: rr.wallIdx,
+          overlapArea: 0,
+          hitCount: 0,
+          rankScore: 0
+        });
+      } else if (rr.plus) {
+        plusOut.push({
+          quad: rr.plus.quad,
+          selected: !!rr.plus.selected,
+          wallIdx: rr.wallIdx,
+          overlapArea: 0,
+          hitCount: 0,
+          rankScore: 0
+        });
+      } else if (rr.minus) {
+        minusOut.push({
+          quad: rr.minus.quad,
+          selected: !!rr.minus.selected,
+          wallIdx: rr.wallIdx,
+          overlapArea: 0,
+          hitCount: 0,
+          rankScore: 0
+        });
+      }
+    }
+
+    function dedupeByWallIdxPreferScore(arr) {
+      var out = [];
+      var byIdx = {};
+      if (!Array.isArray(arr)) return out;
+      for (var di = 0; di < arr.length; di++) {
+        var rec = arr[di];
+        if (!rec) continue;
+        var k = String(isFinite(Number(rec.wallIdx)) ? Math.floor(Number(rec.wallIdx)) : -1);
+        var old = byIdx[k];
+        if (!old) { byIdx[k] = rec; continue; }
+        var sOld = isFinite(Number(old.rankScore)) ? Number(old.rankScore) : (Number(old.overlapArea) || 0);
+        var sNew = isFinite(Number(rec.rankScore)) ? Number(rec.rankScore) : (Number(rec.overlapArea) || 0);
+        if (sNew > sOld + 1e-6) byIdx[k] = rec;
+        else if (Math.abs(sNew - sOld) <= 1e-6) {
+          if (!!rec.selected && !old.selected) byIdx[k] = rec;
+        }
+      }
+      var ks = Object.keys(byIdx);
+      for (var ki = 0; ki < ks.length; ki++) out.push(byIdx[ks[ki]]);
+      return out;
+    }
+
     function capCandidates(arr) {
       var maxDraw = (typeof FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS))
         ? Math.max(80, Math.floor(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS)) : 220;
@@ -24704,6 +24772,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       return arr.slice(0, maxDraw);
     }
 
+    plusOut = dedupeByWallIdxPreferScore(plusOut);
+    minusOut = dedupeByWallIdxPreferScore(minusOut);
     return { plus: capCandidates(plusOut), minus: capCandidates(minusOut) };
   }
   var candsP = buildSignCandidates(1);

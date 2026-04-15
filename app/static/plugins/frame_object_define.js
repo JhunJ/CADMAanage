@@ -19560,11 +19560,86 @@ function frameDefDetectNow() {
   var segsForStep2Graph = segsForPairs.length ? segsForPairs : segs;
   st.wallStep2Segs = segsForStep2Graph.slice();
   if (typeof frameDefDebugLogTraceEntitySegStages2a === 'function') frameDefDebugLogTraceEntitySegStages2a('detect_segsForStep2Graph', segsForStep2Graph, { segsForPairsN: segsForPairs.length, segsN: segs.length });
+  var keepIds2aSource = typeof frameDefStep2aMergedUiFlowWatchIds === 'function' ? frameDefStep2aMergedUiFlowWatchIds() : [];
+  var keepMap2aSource = {};
+  for (var k2a = 0; k2a < keepIds2aSource.length; k2a++) {
+    var kid2a = Number(keepIds2aSource[k2a]);
+    if (!isFinite(kid2a) || kid2a <= 0) continue;
+    keepMap2aSource[String(kid2a)] = true;
+  }
+  function segHasKeepId2aSource(seg) {
+    if (!seg || !Object.keys(keepMap2aSource).length || typeof frameDefSegEntityIds !== 'function') return false;
+    var ids = frameDefSegEntityIds(seg);
+    for (var i2a = 0; i2a < ids.length; i2a++) {
+      if (keepMap2aSource[String(Number(ids[i2a]) || 0)]) return true;
+    }
+    return false;
+  }
   var segsFor2aSourceOnly = (segs || []).filter(function(s) {
     if (!s) return false;
-    if (columnExcludeOnlyFor2a && Object.keys(columnExcludeOnlyFor2a).length && typeof frameDefSegTouchesExcludeEntity === 'function' && frameDefSegTouchesExcludeEntity(s, columnExcludeOnlyFor2a)) return false;
+    if (columnExcludeOnlyFor2a && Object.keys(columnExcludeOnlyFor2a).length && typeof frameDefSegTouchesExcludeEntity === 'function' && frameDefSegTouchesExcludeEntity(s, columnExcludeOnlyFor2a)) {
+      if (!segHasKeepId2aSource(s)) return false;
+    }
     return true;
   });
+  // 추적 대상 ID는 2a 원천에서 누락되지 않도록 보정(트림/기둥 제외로 빠진 경우 재주입).
+  var forcedKeepAddCount2a = 0;
+  if (Object.keys(keepMap2aSource).length && typeof frameDefSegEntityIds === 'function') {
+    var keepHitMap2a = {};
+    var existingSegId2a = {};
+    function markKeepHitsFromList2a(list) {
+      for (var li2a = 0; li2a < (list || []).length; li2a++) {
+        var s2a = list[li2a];
+        if (!s2a) continue;
+        var sid2a = String(s2a.id || '');
+        if (sid2a) existingSegId2a[sid2a] = true;
+        var ids2a = frameDefSegEntityIds(s2a);
+        for (var ii2a = 0; ii2a < ids2a.length; ii2a++) {
+          var key2a = String(Number(ids2a[ii2a]) || 0);
+          if (keepMap2aSource[key2a]) keepHitMap2a[key2a] = true;
+        }
+      }
+    }
+    function hasMissingKeepId2a() {
+      var keys2a = Object.keys(keepMap2aSource);
+      for (var mi2a = 0; mi2a < keys2a.length; mi2a++) {
+        if (!keepHitMap2a[keys2a[mi2a]]) return true;
+      }
+      return false;
+    }
+    function appendMissingKeepSegs2a(list) {
+      for (var ai2a = 0; ai2a < (list || []).length; ai2a++) {
+        if (!hasMissingKeepId2a()) break;
+        var cand2a = list[ai2a];
+        if (!cand2a) continue;
+        var cids2a = frameDefSegEntityIds(cand2a);
+        var touched2a = false;
+        for (var ci2a = 0; ci2a < cids2a.length; ci2a++) {
+          var ck2a = String(Number(cids2a[ci2a]) || 0);
+          if (keepMap2aSource[ck2a] && !keepHitMap2a[ck2a]) {
+            touched2a = true;
+            break;
+          }
+        }
+        if (!touched2a) continue;
+        var cid2a = String(cand2a.id || '');
+        if (cid2a && existingSegId2a[cid2a]) continue;
+        segsFor2aSourceOnly.push(cand2a);
+        forcedKeepAddCount2a++;
+        if (cid2a) existingSegId2a[cid2a] = true;
+        for (var cj2a = 0; cj2a < cids2a.length; cj2a++) {
+          var hk2a = String(Number(cids2a[cj2a]) || 0);
+          if (keepMap2aSource[hk2a]) keepHitMap2a[hk2a] = true;
+        }
+      }
+    }
+    markKeepHitsFromList2a(segsFor2aSourceOnly);
+    if (hasMissingKeepId2a()) appendMissingKeepSegs2a(segs || []);
+    if (hasMissingKeepId2a()) appendMissingKeepSegs2a(unionSegsForWalls.length ? unionSegsForWalls : unionSegs);
+    if (hasMissingKeepId2a()) appendMissingKeepSegs2a(rawSegs || []);
+  }
+  st.wallStep2aSourceForcedKeepAdded = forcedKeepAddCount2a;
+  st.wallStep2aSourceForcedKeepIds = keepIds2aSource.slice();
   if (typeof FRAME_DEF_STEP2A_PREMERGE_COLLINEAR_SOURCE === 'boolean' && FRAME_DEF_STEP2A_PREMERGE_COLLINEAR_SOURCE
       && typeof frameDefGetSegsForStep2aChainJoin === 'function' && typeof frameDefMergeCollinearOverlappingSegsFor2aChainJoin === 'function') {
     var tol2aPre = Math.max(1, Number(typeof FRAME_DEF_STEP11_JOIN_TOL_MM !== 'undefined' ? FRAME_DEF_STEP11_JOIN_TOL_MM : 25));

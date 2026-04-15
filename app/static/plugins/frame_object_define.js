@@ -25066,33 +25066,31 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     var dxL = bx2 - ax, dyL = by2 - ay;
     var lenL = Math.hypot(dxL, dyL);
     if (!(lenL > 1e-6)) return false;
-    var centerBandLo = 0.25, centerBandHi = 0.75;
     function ptAt(t) { return { x: ax + dxL * t, y: ay + dyL * t }; }
-    function hasCentralOverlap(t0, t1) {
-      return Math.max(t0, centerBandLo) < Math.min(t1, centerBandHi);
-    }
     function insideStrictAt(t) {
       return pointInPolyStrict(ptAt(t), poly, edgeEps);
     }
-    // 1차: 선분 내부 샘플로 "중앙부 내부 구간 + 양쪽 외부(진입/이탈)"를 확인.
-    var sampleTs = [];
-    for (var ts = 0.05; ts <= 0.95 + 1e-9; ts += 0.05) sampleTs.push(Math.min(0.95, ts));
-    var sampleIn = [];
-    for (var ssi = 0; ssi < sampleTs.length; ssi++) sampleIn.push(insideStrictAt(sampleTs[ssi]));
-    var minInsideLen = Math.max(35, lenL * 0.03);
-    for (var si = 0; si < sampleTs.length; si++) {
-      if (!sampleIn[si]) continue;
-      var sj = si;
-      while (sj + 1 < sampleTs.length && sampleIn[sj + 1]) sj++;
-      var t0s = sampleTs[si], t1s = sampleTs[sj];
-      var hasOutBefore = false, hasOutAfter = false;
-      for (var sb = 0; sb < si; sb++) { if (!sampleIn[sb]) { hasOutBefore = true; break; } }
-      for (var sa = sj + 1; sa < sampleTs.length; sa++) { if (!sampleIn[sa]) { hasOutAfter = true; break; } }
-      if (hasOutBefore && hasOutAfter && hasCentralOverlap(t0s, t1s) && ((t1s - t0s) * lenL >= minInsideLen)) return true;
-      si = sj;
+    // ②-3 판정: 경계 맞닿음은 제외하고, "해치 내부에서 실제로 충돌(내부 구간 존재)"만 추출.
+    // 샘플 기반으로 선분 내부 구간이 있는지 먼저 본다.
+    var samples = 17;
+    var dt = 1 / (samples + 1);
+    var inCount = 0;
+    var firstT = 1;
+    var lastT = 0;
+    for (var si = 1; si <= samples; si++) {
+      var ts = dt * si;
+      if (!insideStrictAt(ts)) continue;
+      inCount++;
+      if (ts < firstT) firstT = ts;
+      if (ts > lastT) lastT = ts;
+    }
+    if (inCount >= 1) {
+      var spanT = Math.max(0, lastT - firstT);
+      var spanLen = spanT * lenL;
+      if (spanLen >= Math.max(12, lenL * 0.01) || inCount >= 2) return true;
     }
     if (typeof frameDefSegSegIntersectInclusive !== 'function') return false;
-    // 2차: 경계 교차 기반 보강(샘플로 놓치는 얇은 케이스 보완)
+    // 샘플이 놓친 경우 교차 기반 보강: 내부 중점이 존재하면 내부 충돌로 인정.
     var hitMap = {};
     var hitTs = [];
     for (var ei = 0; ei < poly.length; ei++) {
@@ -25111,18 +25109,14 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     }
     if (hitTs.length < 2) return false;
     hitTs.sort(function(a, b) { return a - b; });
-    var minInsideLen2 = Math.max(35, lenL * 0.03);
     for (var hi = 0; hi < hitTs.length - 1; hi++) {
       var t0 = hitTs[hi];
       var t1 = hitTs[hi + 1];
       if (!(t1 > t0 + 1e-6)) continue;
       var tm = (t0 + t1) * 0.5;
       if (!insideStrictAt(tm)) continue;
-      if ((t1 - t0) * lenL < minInsideLen2) continue;
-      if (!hasCentralOverlap(t0, t1)) continue;
-      var preOut = !insideStrictAt(Math.max(0.02, t0 - 0.03));
-      var postOut = !insideStrictAt(Math.min(0.98, t1 + 0.03));
-      if (preOut && postOut) return true;
+      if ((t1 - t0) * lenL < Math.max(8, lenL * 0.006)) continue;
+      return true;
     }
     return false;
   }

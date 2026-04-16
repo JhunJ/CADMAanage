@@ -987,7 +987,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualCandidatesChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualCandidates ? 'checked' : '') + ' /><span><b>②-1 방향 비교 후보 해치(+/-) 표시</b> — +후보(파랑), -후보(주황)를 동시에 표시하고, 선택 방향은 진하게/비선택은 옅게 그립니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualOverlapChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualOverlapPatches ? 'checked' : '') + ' /><span><b>②-2 방향 비교 후보끼리 겹침면 표시</b>' + dualOvStatTxt + ' — 후보 벽체 해치끼리 겹침을 비교해 <b>남길 ±후보를 선택</b>한 결과만 벽체 쿼드 전체로 표시합니다(교집합 조각을 따로 덧그리지 않음). +선택(청록), -선택(주황).</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep23Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep23FilteredPatches ? 'checked' : '') + ' /><span><b>②-3 내부 관통 선 필터(제외분)</b>' + dualStep23StatTxt + ' — ②-2 해치 내부를 <b>다른 벽체 후보 중심선</b>이 지나가면 해당 해치를 ②-2에서 제외하고 ②-3으로 분리 표시합니다.</span></label>');
-  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep24Chk" style="margin-top:2px;" ' + (st.debugStep2aDualStep24ExcludeIsolated !== false ? 'checked' : '') + ' /><span><b>②-4 가운데 두꺼운 층만(샌드위치, 단독/②-2 모두 동작)</b>' + dualStep24StatTxt + ' — <b>장축 평행 그룹</b>마다 참조 축에서 <b>법선 n 순 정렬</b> 후 <b>연속 세 장</b>만 삼중 후보로 보고, u겹침·인접 맞닿음·가운데 두께&gt;양끝이면 <b>가운데 벽 쿼드만</b> 남깁니다(얇은 양끝·나머지는 숨김). 상수: 간격±' + String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_N_GAP_TOL_MM) + 'mm, 긴 변 겹침≥' + String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC) + ', 두께차≥' + String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM) + 'mm.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep24Chk" style="margin-top:2px;" ' + (st.debugStep2aDualStep24ExcludeIsolated !== false ? 'checked' : '') + ' /><span><b>②-4 가운데 두꺼운 층만(샌드위치, 단독/②-2 모두 동작)</b>' + dualStep24StatTxt + ' — <b>장축 평행 그룹</b>마다 참조 축에서 <b>법선 n 순 정렬</b> 후 <b>연속 세 장</b>만 삼중 후보로 보고, u겹침·인접 맞닿음·가운데 두께&gt;양끝이면 <b>가운데 벽 쿼드만</b> ②-4로 분리 표시합니다(②-2에서는 해당 부분 제외).</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
@@ -25810,15 +25810,39 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     }
   }
   if (!st.__debugStep2aDualStep24Cache || typeof st.__debugStep2aDualStep24Cache !== 'object') {
-    st.__debugStep2aDualStep24Cache = { key: '', plus: [], minus: [], stat: null };
+    st.__debugStep2aDualStep24Cache = { key: '', step22Plus: [], step22Minus: [], step24Plus: [], step24Minus: [], stat: null };
   }
-  function applyStep24ForDisplay(plusIn, minusIn) {
+  function splitByWallIdx(srcArr, keepArr) {
+    var src = Array.isArray(srcArr) ? srcArr : [];
+    var keep = Array.isArray(keepArr) ? keepArr : [];
+    var keepCnt = {};
+    var i;
+    for (i = 0; i < keep.length; i++) {
+      var kr = keep[i];
+      if (!kr || !isFinite(Number(kr.wallIdx))) continue;
+      var kk = String(Math.floor(Number(kr.wallIdx)));
+      keepCnt[kk] = (Number(keepCnt[kk]) || 0) + 1;
+    }
+    var out = [];
+    for (i = 0; i < src.length; i++) {
+      var sr = src[i];
+      if (!sr || !isFinite(Number(sr.wallIdx))) { out.push(sr); continue; }
+      var sk = String(Math.floor(Number(sr.wallIdx)));
+      var left = Number(keepCnt[sk]) || 0;
+      if (left > 0) keepCnt[sk] = left - 1;
+      else out.push(sr);
+    }
+    return out;
+  }
+  function applyStep24SplitForDisplay(plusIn, minusIn) {
+    var plusBase = Array.isArray(plusIn) ? plusIn : [];
+    var minusBase = Array.isArray(minusIn) ? minusIn : [];
     if (st.debugStep2aDualStep24ExcludeIsolated === false) {
-      var pl = plusIn ? plusIn.length : 0;
-      var ms = minusIn ? minusIn.length : 0;
-      st.debugStep2aDualStep24Stat = { excluded: 0, kept: pl + ms, plus: pl, minus: ms, filterOff: true, ts: Date.now() };
-      st.__debugStep2aDualStep24Cache = { key: '', plus: [], minus: [], stat: st.debugStep2aDualStep24Stat };
-      return { plus: plusIn || [], minus: minusIn || [] };
+      var pl = plusBase.length;
+      var ms = minusBase.length;
+      st.debugStep2aDualStep24Stat = { excluded: 0, kept: 0, plus: 0, minus: 0, step22Plus: pl, step22Minus: ms, step24Plus: 0, step24Minus: 0, filterOff: true, ts: Date.now() };
+      st.__debugStep2aDualStep24Cache = { key: '', step22Plus: [], step22Minus: [], step24Plus: [], step24Minus: [], stat: st.debugStep2aDualStep24Stat };
+      return { step22Plus: plusBase, step22Minus: minusBase, step24Plus: [], step24Minus: [] };
     }
     function recSig(rec) {
       if (!rec) return '_';
@@ -25842,25 +25866,51 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC || ''),
       String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM || ''),
       String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN || ''),
-      listSig(plusIn),
-      listSig(minusIn)
+      listSig(plusBase),
+      listSig(minusBase)
     ].join('|');
     var step24Cache = st.__debugStep2aDualStep24Cache;
-    if (step24Cache && step24Cache.key === step24Key && Array.isArray(step24Cache.plus) && Array.isArray(step24Cache.minus)) {
+    if (step24Cache && step24Cache.key === step24Key
+      && Array.isArray(step24Cache.step22Plus) && Array.isArray(step24Cache.step22Minus)
+      && Array.isArray(step24Cache.step24Plus) && Array.isArray(step24Cache.step24Minus)) {
       st.debugStep2aDualStep24Stat = step24Cache.stat || {
-        excluded: 0, kept: step24Cache.plus.length + step24Cache.minus.length, plus: step24Cache.plus.length, minus: step24Cache.minus.length, cached: true, ts: Date.now()
+        excluded: 0,
+        kept: step24Cache.step24Plus.length + step24Cache.step24Minus.length,
+        plus: step24Cache.step24Plus.length,
+        minus: step24Cache.step24Minus.length,
+        step22Plus: step24Cache.step22Plus.length,
+        step22Minus: step24Cache.step22Minus.length,
+        cached: true,
+        ts: Date.now()
       };
-      return { plus: step24Cache.plus.slice(), minus: step24Cache.minus.slice() };
+      return {
+        step22Plus: step24Cache.step22Plus.slice(),
+        step22Minus: step24Cache.step22Minus.slice(),
+        step24Plus: step24Cache.step24Plus.slice(),
+        step24Minus: step24Cache.step24Minus.slice()
+      };
     }
-    var fr = frameDefDualOverlap24FilterSandwichThickOnly(plusIn, minusIn);
-    st.debugStep2aDualStep24Stat = fr.stat;
+    var fr = frameDefDualOverlap24FilterSandwichThickOnly(plusBase, minusBase);
+    var step24Plus = Array.isArray(fr.plusOut) ? fr.plusOut : [];
+    var step24Minus = Array.isArray(fr.minusOut) ? fr.minusOut : [];
+    var step22Plus = splitByWallIdx(plusBase, step24Plus);
+    var step22Minus = splitByWallIdx(minusBase, step24Minus);
+    var stat24 = fr.stat ? Object.assign({}, fr.stat) : {};
+    stat24.step22Plus = step22Plus.length;
+    stat24.step22Minus = step22Minus.length;
+    stat24.step24Plus = step24Plus.length;
+    stat24.step24Minus = step24Minus.length;
+    stat24.splitFromStep22 = true;
+    st.debugStep2aDualStep24Stat = stat24;
     st.__debugStep2aDualStep24Cache = {
       key: step24Key,
-      plus: Array.isArray(fr.plusOut) ? fr.plusOut.slice() : [],
-      minus: Array.isArray(fr.minusOut) ? fr.minusOut.slice() : [],
-      stat: fr.stat ? Object.assign({}, fr.stat, { cached: false }) : null
+      step22Plus: step22Plus.slice(),
+      step22Minus: step22Minus.slice(),
+      step24Plus: step24Plus.slice(),
+      step24Minus: step24Minus.slice(),
+      stat: Object.assign({}, stat24, { cached: false })
     };
-    return { plus: fr.plusOut, minus: fr.minusOut };
+    return { step22Plus: step22Plus, step22Minus: step22Minus, step24Plus: step24Plus, step24Minus: step24Minus };
   }
   // 성능: 2a-2-2는 계산량이 커서, 벽 배열 참조/핵심 파라미터가 같으면 이전 계산 결과를 재사용.
   if (!st.__debugStep2aDualOverlapCache || typeof st.__debugStep2aDualOverlapCache !== 'object') {
@@ -25908,16 +25958,21 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       cached: true
     };
     if (showStep22 || showStep24) {
-      var a24c = applyStep24ForDisplay(cache.plus, cache.minus);
-      renderCandidateLists(a24c.plus, a24c.minus, showStep22 ? null : {
-        useOverlapPolys: false,
-        plusSel: '#16a34a', plusOpp: '#86efac',
-        minusSel: '#15803d', minusOpp: '#bbf7d0',
-        plusSelFill: 0.34, plusOppFill: 0.16,
-        minusSelFill: 0.30, minusOppFill: 0.14,
-        plusSelHatch: 0.50, plusOppHatch: 0.24,
-        minusSelHatch: 0.46, minusOppHatch: 0.22
-      });
+      var a24c = applyStep24SplitForDisplay(cache.plus, cache.minus);
+      if (showStep22) {
+        renderCandidateLists(a24c.step22Plus, a24c.step22Minus);
+      }
+      if (showStep24) {
+        renderCandidateLists(a24c.step24Plus, a24c.step24Minus, {
+          useOverlapPolys: false,
+          plusSel: '#16a34a', plusOpp: '#86efac',
+          minusSel: '#15803d', minusOpp: '#bbf7d0',
+          plusSelFill: 0.34, plusOppFill: 0.16,
+          minusSelFill: 0.30, minusOppFill: 0.14,
+          plusSelHatch: 0.50, plusOppHatch: 0.24,
+          minusSelHatch: 0.46, minusOppHatch: 0.22
+        });
+      }
     }
     if (showStep23) {
       renderCandidateLists(cache.plus23, cache.minus23, {
@@ -26486,16 +26541,21 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     cached: false
   };
   if (showStep22 || showStep24) {
-    var a24f = applyStep24ForDisplay(plusPolys, minusPolys);
-    renderCandidateLists(a24f.plus, a24f.minus, showStep22 ? null : {
-      useOverlapPolys: false,
-      plusSel: '#16a34a', plusOpp: '#86efac',
-      minusSel: '#15803d', minusOpp: '#bbf7d0',
-      plusSelFill: 0.34, plusOppFill: 0.16,
-      minusSelFill: 0.30, minusOppFill: 0.14,
-      plusSelHatch: 0.50, plusOppHatch: 0.24,
-      minusSelHatch: 0.46, minusOppHatch: 0.22
-    });
+    var a24f = applyStep24SplitForDisplay(plusPolys, minusPolys);
+    if (showStep22) {
+      renderCandidateLists(a24f.step22Plus, a24f.step22Minus);
+    }
+    if (showStep24) {
+      renderCandidateLists(a24f.step24Plus, a24f.step24Minus, {
+        useOverlapPolys: false,
+        plusSel: '#16a34a', plusOpp: '#86efac',
+        minusSel: '#15803d', minusOpp: '#bbf7d0',
+        plusSelFill: 0.34, plusOppFill: 0.16,
+        minusSelFill: 0.30, minusOppFill: 0.14,
+        plusSelHatch: 0.50, plusOppHatch: 0.24,
+        minusSelHatch: 0.46, minusOppHatch: 0.22
+      });
+    }
   }
   if (showStep23) {
     renderCandidateLists(plusPolys23, minusPolys23, {

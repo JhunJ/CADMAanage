@@ -244,6 +244,16 @@ var FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC = 0.45;
 var FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM = 2.5;
 /** ②-4: 장축 평행 |dot| 하한. */
 var FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN = 0.982;
+/** ②-3: 해치 장축과 평행한 관통선 판정 |dot| 하한. */
+var FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN = 0.92;
+/** ②-3: 해치 장축과 거의 직교한 관통선도 허용할 때 |dot| 상한(0에 가까울수록 직교). */
+var FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PERP_DOT_MAX = 0.10;
+/** ②-3: 직교 관통선 최소 길이 = max(shortLen*factor, minMm). */
+var FRAME_DEF_STEP2A_V2_STEP23_PERP_MIN_LEN_FACTOR = 0.90;
+/** ②-3: 직교 관통선 최소 절대 길이(mm). */
+var FRAME_DEF_STEP2A_V2_STEP23_PERP_MIN_LEN_MM = 120;
+/** ②-3: 경계 근접 제외 epsilon(mm). */
+var FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM = 1.2;
 /** true면 동일 부호 후보 간 NMS를 적용(성능/회귀 이슈로 기본 OFF). */
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_LOCAL_NMS = false;
 /** true면 +/- 교차부호 후보끼리도 NMS를 적용(회귀 방지를 위해 기본 OFF). */
@@ -1000,6 +1010,10 @@ function frameDefRenderDebugPanel() {
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
   html.push(typeof frameDefFormatStep2aSandwichBaseDebugBlock === 'function' ? frameDefFormatStep2aSandwichBaseDebugBlock(st) : '');
   html.push(typeof frameDefFormatStep2aStep23GuideDebugBlock === 'function' ? frameDefFormatStep2aStep23GuideDebugBlock(st) : '');
+  html.push('<div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">'
+    + '<button type="button" id="frameDefDebugStep2aStep23RefreshBtn" style="padding:4px 8px; font-size:0.72rem; border:1px solid #f97316; border-radius:6px; background:#fff7ed; color:#9a3412; cursor:pointer;">②-3 디버그 새로고침(재계산 없이)</button>'
+    + '<button type="button" id="frameDefDebugStep2aStep23CopyBtn" style="padding:4px 8px; font-size:0.72rem; border:1px solid #f97316; border-radius:6px; background:#ffffff; color:#9a3412; cursor:pointer;">②-3 디버그 JSON 복사</button>'
+    + '</div>');
   html.push('</div>');
   var bb2 = st.wallStep2bByBackend && typeof st.wallStep2bByBackend === 'object' && !Array.isArray(st.wallStep2bByBackend) ? st.wallStep2bByBackend : {};
   var n2bCnn = Array.isArray(bb2.cnn) ? bb2.cnn.length : 0, n2bXgb = Array.isArray(bb2.xgb) ? bb2.xgb.length : 0, n2bRf = Array.isArray(bb2.rf) ? bb2.rf.length : 0, n2bMlp = Array.isArray(bb2.mlp) ? bb2.mlp.length : 0, n2bGnn = Array.isArray(bb2.gnn) ? bb2.gnn.length : 0;
@@ -1540,6 +1554,39 @@ function frameDefRenderDebugPanel() {
       var s = frameDefGetState();
       s.debugStep2aShowDualStep23FilteredPatches = !!step2aDualStep23Chk.checked;
       if (typeof draw === 'function') draw();
+    };
+  }
+  var step2aStep23RefreshBtn = document.getElementById('frameDefDebugStep2aStep23RefreshBtn');
+  if (step2aStep23RefreshBtn) {
+    step2aStep23RefreshBtn.onclick = function() {
+      if (typeof draw === 'function') draw();
+      if (typeof frameDefRenderDebugPanel === 'function') frameDefRenderDebugPanel();
+      if (typeof showMsg === 'function') showMsg('msg', '②-3 디버그를 현재 상태로 갱신했습니다.', 'success');
+    };
+  }
+  var step2aStep23CopyBtn = document.getElementById('frameDefDebugStep2aStep23CopyBtn');
+  if (step2aStep23CopyBtn) {
+    step2aStep23CopyBtn.onclick = function() {
+      var s = frameDefGetState();
+      var payload = s && s.debugStep2aStep23GuideDebug && typeof s.debugStep2aStep23GuideDebug === 'object'
+        ? s.debugStep2aStep23GuideDebug : null;
+      var txt = payload ? JSON.stringify(payload, null, 2) : '';
+      if (!txt) {
+        if (typeof draw === 'function') draw();
+        payload = s && s.debugStep2aStep23GuideDebug && typeof s.debugStep2aStep23GuideDebug === 'object'
+          ? s.debugStep2aStep23GuideDebug : null;
+        txt = payload ? JSON.stringify(payload, null, 2) : '';
+      }
+      if (!txt) { if (typeof showMsg === 'function') showMsg('msg', '복사할 ②-3 디버그 JSON이 없습니다.', 'info'); return; }
+      if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(txt).then(function() {
+          if (typeof showMsg === 'function') showMsg('msg', '②-3 디버그 JSON을 복사했습니다.', 'success');
+        }).catch(function() {
+          if (typeof showMsg === 'function') showMsg('msg', '②-3 디버그 JSON 복사에 실패했습니다.', 'error');
+        });
+      } else {
+        if (typeof showMsg === 'function') showMsg('msg', '이 환경에서는 자동 복사를 지원하지 않습니다.', 'info');
+      }
     };
   }
   var step2bCnnChk = document.getElementById('frameDefDebugStep2bCnnChk');
@@ -3171,9 +3218,9 @@ function frameDefFormatStep2aStep23GuideDebugBlock(st) {
   if (!ids.length) return '';
   var esc = typeof escapeHtml === 'function' ? escapeHtml : function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
   var dbg = st && st.debugStep2aStep23GuideDebug && typeof st.debugStep2aStep23GuideDebug === 'object' ? st.debugStep2aStep23GuideDebug : null;
-  var txt = dbg ? JSON.stringify(dbg, null, 2) : '(아직 없음 — ②-2/②-3 체크 후 2a 재계산 필요)';
+  var txt = dbg ? JSON.stringify(dbg, null, 2) : '(아직 없음 — ②-2/②-3 체크 후 ②-3 디버그 새로고침 버튼 또는 draw 필요)';
   return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#f97316; cursor:pointer; font-weight:600;">②-3 내부 관통선 필터 디버그 (ent ' + esc(ids.join(' · ')) + ')</summary>'
-    + '<div style="font-size:0.65rem; color:#57606a; margin:6px 0 4px; line-height:1.4;">guide source가 <code style="font-size:0.62rem;">wallStep2aSourceSegs</code>인지(없을 때만 wall fallback), 대상 ent 라인이 각 quad에 대해 <code>dot</code> / <code>passDot</code> / <code>passInside</code>에서 어디서 탈락하는지 확인합니다.</div>'
+    + '<div style="font-size:0.65rem; color:#57606a; margin:6px 0 4px; line-height:1.4;">guide source가 <code style="font-size:0.62rem;">wallStep2aSourceSegs</code>인지(없을 때만 wall fallback), 대상 ent 라인이 각 quad에 대해 <code>dot</code> / <code>passDot</code> / <code>passInside</code>에서 어디서 탈락하는지 확인합니다. 또한 <code style="font-size:0.62rem;">passDotBypassOrtho</code>가 true면 직교 관통 허용 규칙으로 dot 컷을 우회한 경우입니다.</div>'
     + '<pre style="margin:0;padding:8px;background:#3f1d0d;color:#ffedd5;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:420px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
 }
 
@@ -26480,7 +26527,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     }
     return minD > eps;
   }
-  function segPassesInsidePoly(line, poly, polyBBox, edgeEps) {
+  function segPassesInsidePoly(line, poly, polyBBox, edgeEps, allowEdgeTouch) {
     if (!line || !line.p1 || !line.p2 || !Array.isArray(poly) || poly.length < 3) return false;
     var p1 = line.p1, p2 = line.p2;
     var bx = polyBBox || (typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(poly) : null);
@@ -26494,8 +26541,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     var lenL = Math.hypot(dxL, dyL);
     if (!(lenL > 1e-6)) return false;
     function ptAt(t) { return { x: ax + dxL * t, y: ay + dyL * t }; }
-    function insideStrictAt(t) {
-      return pointInPolyStrict(ptAt(t), poly, edgeEps);
+    function insideAt(t) {
+      var pt = ptAt(t);
+      if (!allowEdgeTouch) return pointInPolyStrict(pt, poly, edgeEps);
+      return typeof frameDefPointInPolygon === 'function' ? !!frameDefPointInPolygon(pt, poly) : false;
     }
     // ②-3 판정: 경계 맞닿음은 제외하고, "해치 내부에서 실제로 충돌(내부 구간 존재)"만 추출.
     // 샘플 기반으로 선분 내부 구간이 있는지 먼저 본다.
@@ -26506,7 +26555,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     var lastT = 0;
     for (var si = 1; si <= samples; si++) {
       var ts = dt * si;
-      if (!insideStrictAt(ts)) continue;
+      if (!insideAt(ts)) continue;
       inCount++;
       if (ts < firstT) firstT = ts;
       if (ts > lastT) lastT = ts;
@@ -26541,7 +26590,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var t1 = hitTs[hi + 1];
       if (!(t1 > t0 + 1e-6)) continue;
       var tm = (t0 + t1) * 0.5;
-      if (!insideStrictAt(tm)) continue;
+      if (!insideAt(tm)) continue;
       if ((t1 - t0) * lenL < Math.max(8, lenL * 0.006)) continue;
       return true;
     }
@@ -26599,8 +26648,17 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       ? Math.max(0.4, FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM) : 1.2;
     var longParDotMin = (typeof FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN))
       ? Math.max(0.80, Math.min(0.9999, FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN)) : 0.92;
+    var orthoDotMax = (typeof FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PERP_DOT_MAX === 'number' && isFinite(FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PERP_DOT_MAX))
+      ? Math.max(0.0, Math.min(0.30, FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PERP_DOT_MAX)) : 0.10;
+    var orthoMinLenFactor = (typeof FRAME_DEF_STEP2A_V2_STEP23_PERP_MIN_LEN_FACTOR === 'number' && isFinite(FRAME_DEF_STEP2A_V2_STEP23_PERP_MIN_LEN_FACTOR))
+      ? Math.max(0.1, Math.min(4, FRAME_DEF_STEP2A_V2_STEP23_PERP_MIN_LEN_FACTOR)) : 0.90;
+    var orthoMinLenMm = (typeof FRAME_DEF_STEP2A_V2_STEP23_PERP_MIN_LEN_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_STEP23_PERP_MIN_LEN_MM))
+      ? Math.max(30, FRAME_DEF_STEP2A_V2_STEP23_PERP_MIN_LEN_MM) : 120;
     guideDbg.longParallelDotMin = longParDotMin;
     guideDbg.edgeEps = edgeEps;
+    guideDbg.orthoDotMax = orthoDotMax;
+    guideDbg.orthoMinLenFactor = orthoMinLenFactor;
+    guideDbg.orthoMinLenMm = orthoMinLenMm;
     var keptP = [], keptN = [], outP = [], outN = [];
     function splitOne(arr, kept, outF) {
       for (var i = 0; i < (arr || []).length; i++) {
@@ -26616,9 +26674,20 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           // 해치 긴방향과 평행한 후보선만 ②-3 관통 판단에 사용(수직 방향 제외).
           var dot = null;
           var passDot = true;
+          var passDotBypassOrtho = false;
           if (longAxis && isFinite(Number(gl.ux)) && isFinite(Number(gl.uy))) {
             dot = Math.abs((Number(gl.ux) || 0) * (Number(longAxis.ux) || 0) + (Number(gl.uy) || 0) * (Number(longAxis.uy) || 0));
             passDot = dot >= longParDotMin;
+            if (!passDot && dot <= orthoDotMax) {
+              // 직교 관통(십자/티자)도 내부를 충분히 가로지르면 ②-3 필터 대상으로 인정한다.
+              var glLen = Number(gl.len) || 0;
+              var shortLen = longAxis && isFinite(Number(longAxis.shortLen)) ? Math.max(0, Number(longAxis.shortLen)) : 0;
+              var orthoMinLen = Math.max(orthoMinLenMm, shortLen * orthoMinLenFactor);
+              if (glLen >= orthoMinLen) {
+                passDot = true;
+                passDotBypassOrtho = true;
+              }
+            }
             if (!passDot) {
               if (dbgIds.length && lineHasDebugId(gl)) {
                 guideDbg.tests.push({
@@ -26626,6 +26695,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
                   sign: rec.selected ? 'selected' : 'alt',
                   guideEntityIds: lineEntityIds(gl),
                   passDot: false,
+                  passDotBypassOrtho: false,
                   dot: Math.round((Number(dot) || 0) * 10000) / 10000,
                   passInside: false,
                   filtered: false,
@@ -26635,13 +26705,14 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
               continue;
             }
           }
-          var passInside = segPassesInsidePoly(gl, rec.quad, bbox, edgeEps);
+          var passInside = segPassesInsidePoly(gl, rec.quad, bbox, edgeEps, passDotBypassOrtho);
           if (dbgIds.length && lineHasDebugId(gl)) {
             guideDbg.tests.push({
               wallIdx: rec.wallIdx,
               sign: rec.selected ? 'selected' : 'alt',
               guideEntityIds: lineEntityIds(gl),
               passDot: passDot,
+              passDotBypassOrtho: passDotBypassOrtho,
               dot: dot == null ? null : (Math.round((Number(dot) || 0) * 10000) / 10000),
               passInside: passInside,
               filtered: passInside

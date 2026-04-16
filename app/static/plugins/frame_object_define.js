@@ -25827,36 +25827,46 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   if (!st.__debugStep2aDualStep24Cache || typeof st.__debugStep2aDualStep24Cache !== 'object') {
     st.__debugStep2aDualStep24Cache = { key: '', step22Plus: [], step22Minus: [], step24Plus: [], step24Minus: [], step25Plus: [], step25Minus: [], stat: null };
   }
-  function splitByWallIdx(srcArr, keepArr) {
+  function recSigForSplit(rec) {
+    if (!rec) return '_';
+    var wi = isFinite(Number(rec.wallIdx)) ? Math.floor(Number(rec.wallIdx)) : -1;
+    var q = Array.isArray(rec.quad) ? rec.quad : [];
+    var parts = [String(wi), ':', String(q.length)];
+    for (var qi = 0; qi < q.length; qi++) {
+      var p = q[qi] || {};
+      parts.push(',', String(Math.round((Number(p.x) || 0) * 10) / 10), ',', String(Math.round((Number(p.y) || 0) * 10) / 10));
+    }
+    return parts.join('');
+  }
+  function splitByRecSig(srcArr, removeArr) {
     var src = Array.isArray(srcArr) ? srcArr : [];
-    var keep = Array.isArray(keepArr) ? keepArr : [];
-    var keepCnt = {};
+    var remove = Array.isArray(removeArr) ? removeArr : [];
+    var rmCnt = {};
     var i;
-    for (i = 0; i < keep.length; i++) {
-      var kr = keep[i];
-      if (!kr || !isFinite(Number(kr.wallIdx))) continue;
-      var kk = String(Math.floor(Number(kr.wallIdx)));
-      keepCnt[kk] = (Number(keepCnt[kk]) || 0) + 1;
+    for (i = 0; i < remove.length; i++) {
+      var rk = recSigForSplit(remove[i]);
+      rmCnt[rk] = (Number(rmCnt[rk]) || 0) + 1;
     }
     var out = [];
     for (i = 0; i < src.length; i++) {
-      var sr = src[i];
-      if (!sr || !isFinite(Number(sr.wallIdx))) { out.push(sr); continue; }
-      var sk = String(Math.floor(Number(sr.wallIdx)));
-      var left = Number(keepCnt[sk]) || 0;
-      if (left > 0) keepCnt[sk] = left - 1;
-      else out.push(sr);
+      var sk = recSigForSplit(src[i]);
+      var left = Number(rmCnt[sk]) || 0;
+      if (left > 0) rmCnt[sk] = left - 1;
+      else out.push(src[i]);
     }
     return out;
   }
   function applyStep24SplitForDisplay(plusIn, minusIn) {
     var plusBase = Array.isArray(plusIn) ? plusIn : [];
     var minusBase = Array.isArray(minusIn) ? minusIn : [];
-    if (st.debugStep2aDualStep24ExcludeIsolated === false) {
+    // ②-4 체크가 꺼져 있어도 ②-5 체크가 켜져 있으면
+    // "②-2 원본 - ②-4 대상" 계산을 위해 ②-4 분리 계산은 수행해야 한다.
+    var needStep24Split = (st.debugStep2aDualStep24ExcludeIsolated !== false) || showStep25;
+    if (!needStep24Split) {
       var pl = plusBase.length;
       var ms = minusBase.length;
       st.debugStep2aDualStep24Stat = { excluded: 0, kept: 0, plus: 0, minus: 0, step22Plus: pl, step22Minus: ms, step24Plus: 0, step24Minus: 0, filterOff: true, ts: Date.now() };
-      st.__debugStep2aDualStep24Cache = { key: '', step22Plus: [], step22Minus: [], step24Plus: [], step24Minus: [], stat: st.debugStep2aDualStep24Stat };
+      st.__debugStep2aDualStep24Cache = { key: '', step22Plus: [], step22Minus: [], step24Plus: [], step24Minus: [], step25Plus: [], step25Minus: [], stat: st.debugStep2aDualStep24Stat };
       return { step22Plus: plusBase, step22Minus: minusBase, step24Plus: [], step24Minus: [] };
     }
     function recSig(rec) {
@@ -25866,7 +25876,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var parts = [String(wi), ':', String(q.length)];
       for (var qi = 0; qi < q.length; qi++) {
         var p = q[qi] || {};
-        parts.push(',', String(Math.round(Number(p.x) || 0)), ',', String(Math.round(Number(p.y) || 0)));
+        parts.push(',', String(Math.round((Number(p.x) || 0) * 10) / 10), ',', String(Math.round((Number(p.y) || 0) * 10) / 10));
       }
       return parts.join('');
     }
@@ -25908,8 +25918,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     var fr = frameDefDualOverlap24FilterSandwichThickOnly(plusBase, minusBase);
     var step24Plus = Array.isArray(fr.plusOut) ? fr.plusOut : [];
     var step24Minus = Array.isArray(fr.minusOut) ? fr.minusOut : [];
-    var step22Plus = splitByWallIdx(plusBase, step24Plus);
-    var step22Minus = splitByWallIdx(minusBase, step24Minus);
+    var step22Plus = splitByRecSig(plusBase, step24Plus);
+    var step22Minus = splitByRecSig(minusBase, step24Minus);
     var stat24 = fr.stat ? Object.assign({}, fr.stat) : {};
     stat24.step22Plus = step22Plus.length;
     stat24.step22Minus = step22Minus.length;

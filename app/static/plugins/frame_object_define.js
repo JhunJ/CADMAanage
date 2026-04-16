@@ -1711,7 +1711,11 @@ function frameDefStateDefaults() {
   };
 }
 function frameDefGetState() {
-  if (typeof frameDefState === 'object' && frameDefState) return frameDefState;
+  // workspace.html에서 먼저 만든 얕은 frameDefState가 있어도
+  // 여기의 기본값/보정 루틴을 반드시 통과시켜 체크박스 초기값이 안정적으로 적용되도록 한다.
+  if (typeof frameDefState === 'object' && frameDefState) {
+    if (!window.frameDefState || window.frameDefState !== frameDefState) window.frameDefState = frameDefState;
+  }
   if (!window.frameDefState || typeof window.frameDefState !== 'object') window.frameDefState = frameDefStateDefaults();
   if (window.frameDefState.dimOthers !== true && window.frameDefState.dimOthers !== false) window.frameDefState.dimOthers = true;
   if (window.frameDefState.useOrientationSplit !== true && window.frameDefState.useOrientationSplit !== false) window.frameDefState.useOrientationSplit = false;

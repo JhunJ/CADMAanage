@@ -25954,7 +25954,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   }
   // 성능: 2a-2-2는 계산량이 커서, 벽 배열 참조/핵심 파라미터가 같으면 이전 계산 결과를 재사용.
   if (!st.__debugStep2aDualOverlapCache || typeof st.__debugStep2aDualOverlapCache !== 'object') {
-    st.__debugStep2aDualOverlapCache = { listRef: null, key: '', plus: [], minus: [], plus23: [], minus23: [], stat: null, stat23: null };
+    st.__debugStep2aDualOverlapCache = { listRef: null, key: '', plus: [], minus: [], plus23: [], minus23: [], stat: null, stat23: null, step23GuideDebug: null };
   }
   function dualOverlapGeomSig(arr) {
     if (!Array.isArray(arr) || !arr.length) return '0';
@@ -25997,6 +25997,20 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       ts: Date.now(),
       cached: true
     };
+    var dbgIdsOnCache = typeof FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS === 'object' && Array.isArray(FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS)
+      ? FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS : [];
+    if (dbgIdsOnCache.length) {
+      if (cache.step23GuideDebug && typeof cache.step23GuideDebug === 'object') {
+        st.debugStep2aStep23GuideDebug = cache.step23GuideDebug;
+      } else {
+        // 캐시가 먼저 적중하면 ②-3 디버그가 "아직 없음"으로 남을 수 있어, 이 경우 한 번 재구성해 캐시에 적재한다.
+        splitStep23Filtered(cache.plus || [], cache.minus || []);
+        cache.step23GuideDebug = st.debugStep2aStep23GuideDebug && typeof st.debugStep2aStep23GuideDebug === 'object'
+          ? st.debugStep2aStep23GuideDebug : null;
+      }
+    } else {
+      st.debugStep2aStep23GuideDebug = null;
+    }
     if (showStep22 || showStep24 || showStep25) {
       var a24c = applyStep24SplitForDisplay(cache.plus, cache.minus);
       if (showStep22) {
@@ -26698,6 +26712,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     ts: st.debugStep2aDualOverlapStat.ts,
     cached: false
   };
+  cache.step23GuideDebug = st.debugStep2aStep23GuideDebug && typeof st.debugStep2aStep23GuideDebug === 'object'
+    ? st.debugStep2aStep23GuideDebug : null;
   if (showStep22 || showStep24 || showStep25) {
     var a24f = applyStep24SplitForDisplay(plusPolys, minusPolys);
     if (showStep22) {

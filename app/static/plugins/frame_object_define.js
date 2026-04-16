@@ -25103,37 +25103,74 @@ function frameDef2aV24WallAxisFromWall(w) {
  */
 function frameDef2aV24WallStackMeta(w, quad) {
   var ax = frameDef2aV24WallAxisFromWall(w);
-  if (!ax || !quad || quad.length < 3) return null;
-  var ux = ax.ux, uy = ax.uy;
+  if ((!ax || !isFinite(Number(ax.ux)) || !isFinite(Number(ax.uy))) && (!quad || quad.length < 2)) return null;
+  if (!quad || quad.length < 3) return null;
+  var ux = ax && isFinite(Number(ax.ux)) ? Number(ax.ux) : 1;
+  var uy = ax && isFinite(Number(ax.uy)) ? Number(ax.uy) : 0;
+
+  // ②-4 기준: 가능하면 쿼드의 가장 긴 변 방향을 장축(u)으로 사용한다.
+  var bestEdgeLen = 0;
+  for (var ei = 0; ei < quad.length; ei++) {
+    var pa = quad[ei], pb = quad[(ei + 1) % quad.length];
+    if (!pa || !pb) continue;
+    var edx = (Number(pb.x) || 0) - (Number(pa.x) || 0);
+    var edy = (Number(pb.y) || 0) - (Number(pa.y) || 0);
+    var el = Math.hypot(edx, edy);
+    if (el > bestEdgeLen) {
+      bestEdgeLen = el;
+      ux = edx / el;
+      uy = edy / el;
+    }
+  }
   var nx = -uy, ny = ux;
-  var tMin = Infinity, tMax = -Infinity, nMin = Infinity, nMax = -Infinity;
-  var i;
-  for (i = 0; i < quad.length; i++) {
-    var px = Number(quad[i].x) || 0, py = Number(quad[i].y) || 0;
-    var tv = px * ux + py * uy;
-    var nv = px * nx + py * ny;
-    if (tv < tMin) tMin = tv;
-    if (tv > tMax) tMax = tv;
-    if (nv < nMin) nMin = nv;
-    if (nv > nMax) nMax = nv;
+
+  function projectStats(axu, axv, axn, ayn) {
+    var tMin0 = Infinity, tMax0 = -Infinity, nMin0 = Infinity, nMax0 = -Infinity;
+    var cU = 0, cN = 0, cCnt = 0;
+    for (var i0 = 0; i0 < quad.length; i0++) {
+      var px0 = Number(quad[i0].x) || 0, py0 = Number(quad[i0].y) || 0;
+      var tv0 = px0 * axu + py0 * axv;
+      var nv0 = px0 * axn + py0 * ayn;
+      if (tv0 < tMin0) tMin0 = tv0;
+      if (tv0 > tMax0) tMax0 = tv0;
+      if (nv0 < nMin0) nMin0 = nv0;
+      if (nv0 > nMax0) nMax0 = nv0;
+      cU += tv0;
+      cN += nv0;
+      cCnt++;
+    }
+    return {
+      tMin: tMin0,
+      tMax: tMax0,
+      nMin: nMin0,
+      nMax: nMax0,
+      spanU: tMax0 - tMin0,
+      spanN: nMax0 - nMin0,
+      centroidU: cCnt ? (cU / cCnt) : 0,
+      centroidN: cCnt ? (cN / cCnt) : 0
+    };
   }
-  var spanU = tMax - tMin;
+
+  var st0 = projectStats(ux, uy, nx, ny);
+  // 안전장치: 투영상 짧은축이 더 길게 나오면 축을 교환해 장축/단축 의미를 보정.
+  if (st0.spanN > st0.spanU) {
+    var sux = nx, suy = ny;
+    var snx = -suy, sny = sux;
+    ux = sux; uy = suy; nx = snx; ny = sny;
+    st0 = projectStats(ux, uy, nx, ny);
+  }
+  var spanU = st0.spanU;
   if (!(spanU > 1e-3)) return null;
-  var centroidN = 0, centroidU = 0, cnt = 0;
-  for (i = 0; i < quad.length; i++) {
-    var px2 = Number(quad[i].x) || 0, py2 = Number(quad[i].y) || 0;
-    centroidN += px2 * nx + py2 * ny;
-    centroidU += px2 * ux + py2 * uy;
-    cnt++;
-  }
-  if (cnt) {
-    centroidN /= cnt;
-    centroidU /= cnt;
-  }
+  var centroidN = st0.centroidN;
+  var centroidU = st0.centroidU;
+  var thGeom = Number(st0.spanN);
+  var thFallback = frameDef2aV24WallThicknessMm(w);
+  var th = (isFinite(thGeom) && thGeom > 1e-3) ? thGeom : thFallback;
+  if (!isFinite(th) || th <= 0) th = thFallback;
   return {
     ux: ux, uy: uy, nx: nx, ny: ny,
-    th: frameDef2aV24WallThicknessMm(w),
-    tMin: tMin, tMax: tMax, spanU: spanU,
+    th: th,
+    tMin: st0.tMin, tMax: st0.tMax, spanU: spanU,
     centroidN: centroidN, centroidU: centroidU
   };
 }
@@ -25175,16 +25212,27 @@ function frameDef2aV24StackedEither(ma, mb, gapTol, uFrac, parDot) {
     || frameDef2aV24StackedLongEdgeTouch(mb, ma, gapTol, uFrac, parDot);
 }
 
-function frameDef2aV24QuadSpanOnAxes(quad, ux, uy) {
+function frameDef2aV24QuadSpanOnAxes(quad, ux, uy, nx, ny) {
   var tMin = Infinity, tMax = -Infinity;
-  if (!quad || !quad.length) return { tMin: 0, tMax: 0, spanU: 0 };
+  var nMin = Infinity, nMax = -Infinity;
+  if (!quad || !quad.length) {
+    return { tMin: 0, tMax: 0, spanU: 0, nMin: 0, nMax: 0, spanN: 0 };
+  }
   for (var i = 0; i < quad.length; i++) {
-    var tv = (Number(quad[i].x) || 0) * ux + (Number(quad[i].y) || 0) * uy;
+    var px = Number(quad[i].x) || 0;
+    var py = Number(quad[i].y) || 0;
+    var tv = px * ux + py * uy;
     if (tv < tMin) tMin = tv;
     if (tv > tMax) tMax = tv;
+    if (isFinite(Number(nx)) && isFinite(Number(ny))) {
+      var nv = px * nx + py * ny;
+      if (nv < nMin) nMin = nv;
+      if (nv > nMax) nMax = nv;
+    }
   }
   var spanU = tMax - tMin;
-  return { tMin: tMin, tMax: tMax, spanU: spanU };
+  var spanN = (nMax > nMin && isFinite(nMin) && isFinite(nMax)) ? (nMax - nMin) : 0;
+  return { tMin: tMin, tMax: tMax, spanU: spanU, nMin: nMin, nMax: nMax, spanN: spanN };
 }
 
 function frameDef2aV24OverlapUThreeMinFrac(sa, sb, sc) {
@@ -25207,9 +25255,19 @@ function frameDef2aV24AvgProjNQuad(quad, nx, ny) {
   return c ? s / c : 0;
 }
 
+function frameDef2aV24OverlapMinFrac(sa, sb) {
+  if (!sa || !sb) return 0;
+  var ov = Math.min(sa.tMax, sb.tMax) - Math.max(sa.tMin, sb.tMin);
+  var spanRef = Math.min(Number(sa.spanU) || 0, Number(sb.spanU) || 0);
+  if (!(spanRef > 1e-3) || !(ov > 0)) return 0;
+  return ov / spanRef;
+}
+
 /**
  * ②-4 샌드위치(n-체인): 평행 벽을 DSU로 묶고, 참조 장축에서 법선 n 순으로 정렬한 뒤 **연속 세 장**만 삼중 후보로 본다.
  * u방향 세 장 겹침 + 인접 맞닿음(stackedEither) + 가운데 두께 > 양끝 + dMin + (가운데 기준) 양끝 반대편.
+ * 추가로, 짧은축(n) 위치가 유사하고 긴축(u)이 충분히 겹치는 벽을 같은 슬롯(그룹)으로 합쳐서
+ * "연속 3개 슬롯(그룹)" 기준으로 샌드위치를 판단한다.
  */
 function frameDef2aV24SandwichNChainFindThicks(byWall, meta, idxList, gapTol, uFrac, dMin, parDot, options) {
   options = options || {};
@@ -25294,7 +25352,7 @@ function frameDef2aV24SandwichNChainFindThicks(byWall, meta, idxList, gapTol, uF
       ent = byWall[String(widx)];
       quad = ent && ent.quad;
       if (!m || !quad || quad.length < 3) continue;
-      sp = frameDef2aV24QuadSpanOnAxes(quad, mr.ux, mr.uy);
+      sp = frameDef2aV24QuadSpanOnAxes(quad, mr.ux, mr.uy, mr.nx, mr.ny);
       cN = frameDef2aV24AvgProjNQuad(quad, mr.nx, mr.ny);
       var tbk = Math.round(m.th * 10) / 10;
       if (!bucketTh[String(tbk)]) bucketTh[String(tbk)] = [];
@@ -25304,7 +25362,8 @@ function frameDef2aV24SandwichNChainFindThicks(byWall, meta, idxList, gapTol, uF
         th: m.th,
         thBucket: tbk,
         centroidN: cN,
-        spanStruct: sp
+        spanStruct: sp,
+        nSpan: Number(sp.spanN) || 0
       });
     }
     if (row.length < 3) continue;
@@ -25327,63 +25386,135 @@ function frameDef2aV24SandwichNChainFindThicks(byWall, meta, idxList, gapTol, uF
     };
     dbgWinGroup = 0;
 
-    for (sk = 0; sk + 2 < row.length; sk++) {
-      L = row[sk];
-      M = row[sk + 1];
-      R = row[sk + 2];
-      wL = L.wallIdx;
-      wM = M.wallIdx;
-      wR = R.wallIdx;
-      mL = meta[wL];
-      mM = meta[wM];
-      mR = meta[wR];
-      if (!mL || !mM || !mR) continue;
+    // 짧은축(n) 위치가 유사하고 긴축(u) 겹침이 큰 벽을 같은 슬롯으로 묶는다.
+    // 사용자가 정의한 "짧은 방향 기준 유사 위치 겹침 그룹"을 ②-4에서 직접 반영.
+    var slotGroups = [];
+    var sg;
+    var slotJoinMinUFrac = Math.max(0.25, Math.min(0.85, (Number(uFrac) || 0.45) * 0.8));
+    for (sk = 0; sk < row.length; sk++) {
+      var rr = row[sk];
+      var assigned = false;
+      if (slotGroups.length) {
+        sg = slotGroups[slotGroups.length - 1];
+        var spanNRef = Math.min(Number(rr.nSpan) || 0, Number(sg.avgSpanN) || 0);
+        var slotNTol = Math.max(2.5, spanNRef * 0.35);
+        var nClose = Math.abs((Number(rr.centroidN) || 0) - (Number(sg.centroidN) || 0)) <= slotNTol;
+        var ovFrac = frameDef2aV24OverlapMinFrac(rr.spanStruct, sg.repSpan);
+        if (nClose && ovFrac >= slotJoinMinUFrac) {
+          sg.members.push(rr);
+          sg.centroidN = (sg.centroidN * (sg.members.length - 1) + (Number(rr.centroidN) || 0)) / sg.members.length;
+          sg.avgSpanN = (sg.avgSpanN * (sg.members.length - 1) + (Number(rr.nSpan) || 0)) / sg.members.length;
+          if ((Number(rr.spanStruct.spanU) || 0) > (Number(sg.repSpan.spanU) || 0)) {
+            sg.repSpan = rr.spanStruct;
+            sg.repWallIdx = rr.wallIdx;
+          }
+          assigned = true;
+        }
+      }
+      if (!assigned) {
+        slotGroups.push({
+          slotId: slotGroups.length,
+          members: [rr],
+          centroidN: Number(rr.centroidN) || 0,
+          avgSpanN: Number(rr.nSpan) || 0,
+          repSpan: rr.spanStruct,
+          repWallIdx: rr.wallIdx
+        });
+      }
+    }
+    if (slotGroups.length < 3) continue;
+    ginfo.nSlots = slotGroups.map(function(sg0) {
+      return {
+        slotId: sg0.slotId,
+        centroidN: Math.round((Number(sg0.centroidN) || 0) * 1000) / 1000,
+        avgSpanN: Math.round((Number(sg0.avgSpanN) || 0) * 100) / 100,
+        repWallIdx: sg0.repWallIdx,
+        members: sg0.members.map(function(mm) { return mm.wallIdx; })
+      };
+    });
 
-      u3 = frameDef2aV24OverlapUThreeMinFrac(L.spanStruct, M.spanStruct, R.spanStruct);
-      passU = u3 >= uFrac;
-      passTh = mM.th > mL.th + dMin && mM.th > mR.th + dMin;
-      stkLM = frameDef2aV24StackedEither(mL, mM, gapTol, uFrac, parDot);
-      stkMR = frameDef2aV24StackedEither(mM, mR, gapTol, uFrac, parDot);
+    for (sk = 0; sk + 2 < slotGroups.length; sk++) {
+      var slotL = slotGroups[sk];
+      var slotM = slotGroups[sk + 1];
+      var slotR = slotGroups[sk + 2];
+      var bestHit = null;
+      var testedTriples = 0;
+      var sli, smi, sri;
+      for (sli = 0; sli < slotL.members.length; sli++) {
+        for (smi = 0; smi < slotM.members.length; smi++) {
+          for (sri = 0; sri < slotR.members.length; sri++) {
+            testedTriples++;
+            L = slotL.members[sli];
+            M = slotM.members[smi];
+            R = slotR.members[sri];
+            wL = L.wallIdx;
+            wM = M.wallIdx;
+            wR = R.wallIdx;
+            mL = meta[wL];
+            mM = meta[wM];
+            mR = meta[wR];
+            if (!mL || !mM || !mR) continue;
 
-      qM = byWall[String(wM)] && byWall[String(wM)].quad;
-      qL = byWall[String(wL)] && byWall[String(wL)].quad;
-      qR = byWall[String(wR)] && byWall[String(wR)].quad;
-      nxm = mM.nx;
-      nym = mM.ny;
-      cM2 = frameDef2aV24AvgProjNQuad(qM, nxm, nym);
-      cL2 = frameDef2aV24AvgProjNQuad(qL, nxm, nym);
-      cR2 = frameDef2aV24AvgProjNQuad(qR, nxm, nym);
-      var passOpp = qM && qL && qR ? (cL2 - cM2) * (cR2 - cM2) < -1e-4 : false;
+            u3 = frameDef2aV24OverlapUThreeMinFrac(L.spanStruct, M.spanStruct, R.spanStruct);
+            passU = u3 >= uFrac;
+            passTh = mM.th > mL.th + dMin && mM.th > mR.th + dMin;
+            stkLM = frameDef2aV24StackedEither(mL, mM, gapTol, uFrac, parDot);
+            stkMR = frameDef2aV24StackedEither(mM, mR, gapTol, uFrac, parDot);
 
-      accepted = passU && passTh && stkLM && stkMR && passOpp;
+            qM = byWall[String(wM)] && byWall[String(wM)].quad;
+            qL = byWall[String(wL)] && byWall[String(wL)].quad;
+            qR = byWall[String(wR)] && byWall[String(wR)].quad;
+            nxm = mM.nx;
+            nym = mM.ny;
+            cM2 = frameDef2aV24AvgProjNQuad(qM, nxm, nym);
+            cL2 = frameDef2aV24AvgProjNQuad(qL, nxm, nym);
+            cR2 = frameDef2aV24AvgProjNQuad(qR, nxm, nym);
+            var passOpp = qM && qL && qR ? (cL2 - cM2) * (cR2 - cM2) < -1e-4 : false;
 
+            accepted = passU && passTh && stkLM && stkMR && passOpp;
+            if (!accepted) continue;
+
+            if (!bestHit || u3 > bestHit.u3 || (u3 === bestHit.u3 && mM.th > bestHit.thMiddle)) {
+              bestHit = {
+                wL: wL, wM: wM, wR: wR,
+                thMiddle: mM.th,
+                thEnds: [mL.th, mR.th],
+                u3: u3
+              };
+            }
+          }
+        }
+      }
+
+      accepted = !!bestHit;
       if (dbgWinGroup < maxDebugWindows) {
         dbgWinGroup++;
         ginfo.windows.push({
-          chain_wallIdx: [wL, wM, wR],
-          uFrac3: Math.round(u3 * 10000) / 10000,
-          passUOverlap: passU,
-          passThickMiddle: passTh,
-          passStackedLM: stkLM,
-          passStackedMR: stkMR,
-          passOppositeEnds: passOpp,
-          accepted: accepted
+          slot_chain: [slotL.slotId, slotM.slotId, slotR.slotId],
+          slot_members: [slotL.members.map(function(mm) { return mm.wallIdx; }), slotM.members.map(function(mm) { return mm.wallIdx; }), slotR.members.map(function(mm) { return mm.wallIdx; })],
+          testedTriples: testedTriples,
+          accepted: accepted,
+          chain_wallIdx: bestHit ? [bestHit.wL, bestHit.wM, bestHit.wR] : null,
+          uFrac3: bestHit ? (Math.round(bestHit.u3 * 10000) / 10000) : 0
         });
       }
 
-      if (accepted) {
-        tripletCount++;
-        thick[String(wM)] = true;
-        tripletsDetail.push({
-          thickMiddle_wallIdx: wM,
-          thinEnds_wallIdx: [wL, wR],
-          thMiddle: mM.th,
-          thEnds: [mL.th, mR.th],
-          chainOrder_wallIdx: [wL, wM, wR],
-          uFrac3: Math.round(u3 * 10000) / 10000,
-          groupId: groupId
-        });
+      if (!bestHit) continue;
+      tripletCount++;
+      // 그룹 기준 판단이므로 가운데 슬롯의 벽은 전체 유지(중앙 그룹 유지).
+      for (smi = 0; smi < slotM.members.length; smi++) {
+        thick[String(slotM.members[smi].wallIdx)] = true;
       }
+      tripletsDetail.push({
+        thickMiddle_wallIdx: bestHit.wM,
+        thickMiddleGroup_wallIdxs: slotM.members.map(function(mm) { return mm.wallIdx; }),
+        thinEnds_wallIdx: [bestHit.wL, bestHit.wR],
+        thMiddle: bestHit.thMiddle,
+        thEnds: bestHit.thEnds,
+        chainOrder_wallIdx: [bestHit.wL, bestHit.wM, bestHit.wR],
+        uFrac3: Math.round(bestHit.u3 * 10000) / 10000,
+        groupId: groupId
+      });
     }
 
     if (groupsDbg.length < maxDebugGroups) groupsDbg.push(ginfo);

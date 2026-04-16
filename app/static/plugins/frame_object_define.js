@@ -1682,7 +1682,7 @@ function frameDefStateDefaults() {
     autoRotatedWallKeys: {}, editDragState: null, editSnapGuide: null,
     rawSegs: [], descs: [], debugColumns: [],
     wallCandidates: [], wallPairs: [], wallStep2Segs: [], wallStep2aHatchWalls: [], wallStep2aSourceSegs: [], wallStep2aSourcePairs: [], wallStep2aClosedLoopChains: [], wallStep2aClosedLoopDebug: [], wallStep2aSplitChainCounts: { closed: 0, open: 0, openWalls: 0 }, wallCandidatesStep11: [], wallCandidatesStep11Rings: [], wallStep11ClosedChains: [], wallStep11ByCategory: {}, wallStep11Debug: null, wallStep12Walls: { '121': [], '122': [], '123': [], '124': [] },
-    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep2aShowDualOverlapPatches: false, debugStep2aDualStep24ExcludeIsolated: true, debugStep2aShowDualStep23FilteredPatches: false, debugStep11ShowHatch: false,
+    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep2aShowDualOverlapPatches: false, debugStep2aDualStep24ExcludeIsolated: false, debugStep2aShowDualStep23FilteredPatches: false, debugStep11ShowHatch: false,
     debugStep111ShowHatch: false, debugStep112ShowHatch: false, debugStep113ShowHatch: false, debugStep114ShowHatch: false, debugStep115ShowHatch: false, debugStep116ShowHatch: false,
     debugStep121ShowHatch: false, debugStep122ShowHatch: false, debugStep123ShowHatch: false, debugStep123ShowPreSwapHatch: false, debugStep124ShowHatch: false,
     debugStep124ShowSplitCandidates: false,
@@ -1751,7 +1751,7 @@ function frameDefGetState() {
   if (window.frameDefState.debugStep2aShowHatchOverlapLabels !== true && window.frameDefState.debugStep2aShowHatchOverlapLabels !== false) window.frameDefState.debugStep2aShowHatchOverlapLabels = false;
   if (window.frameDefState.debugStep2aShowDualCandidates !== true && window.frameDefState.debugStep2aShowDualCandidates !== false) window.frameDefState.debugStep2aShowDualCandidates = false;
   if (window.frameDefState.debugStep2aShowDualOverlapPatches !== true && window.frameDefState.debugStep2aShowDualOverlapPatches !== false) window.frameDefState.debugStep2aShowDualOverlapPatches = false;
-  if (window.frameDefState.debugStep2aDualStep24ExcludeIsolated !== true && window.frameDefState.debugStep2aDualStep24ExcludeIsolated !== false) window.frameDefState.debugStep2aDualStep24ExcludeIsolated = true;
+  if (window.frameDefState.debugStep2aDualStep24ExcludeIsolated !== true && window.frameDefState.debugStep2aDualStep24ExcludeIsolated !== false) window.frameDefState.debugStep2aDualStep24ExcludeIsolated = false;
   if (window.frameDefState.debugStep2aShowDualStep23FilteredPatches !== true && window.frameDefState.debugStep2aShowDualStep23FilteredPatches !== false) window.frameDefState.debugStep2aShowDualStep23FilteredPatches = false;
   if (window.frameDefState.debugStep11ShowHatch !== true && window.frameDefState.debugStep11ShowHatch !== false) window.frameDefState.debugStep11ShowHatch = false;
   if (window.frameDefState.debugStep111ShowHatch !== true && window.frameDefState.debugStep111ShowHatch !== false) window.frameDefState.debugStep111ShowHatch = false;
@@ -25805,15 +25805,57 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       drawRecPolys(minusPolys[ni], minusSel, minusOpp, minusSelFill, minusOppFill, minusSelHatch, minusOppHatch);
     }
   }
+  if (!st.__debugStep2aDualStep24Cache || typeof st.__debugStep2aDualStep24Cache !== 'object') {
+    st.__debugStep2aDualStep24Cache = { key: '', plus: [], minus: [], stat: null };
+  }
   function applyStep24ForDisplay(plusIn, minusIn) {
     if (st.debugStep2aDualStep24ExcludeIsolated === false) {
       var pl = plusIn ? plusIn.length : 0;
       var ms = minusIn ? minusIn.length : 0;
       st.debugStep2aDualStep24Stat = { excluded: 0, kept: pl + ms, plus: pl, minus: ms, filterOff: true, ts: Date.now() };
+      st.__debugStep2aDualStep24Cache = { key: '', plus: [], minus: [], stat: st.debugStep2aDualStep24Stat };
       return { plus: plusIn || [], minus: minusIn || [] };
+    }
+    function recSig(rec) {
+      if (!rec) return '_';
+      var wi = isFinite(Number(rec.wallIdx)) ? Math.floor(Number(rec.wallIdx)) : -1;
+      var q = Array.isArray(rec.quad) ? rec.quad : [];
+      var parts = [String(wi), ':', String(q.length)];
+      for (var qi = 0; qi < q.length; qi++) {
+        var p = q[qi] || {};
+        parts.push(',', String(Math.round(Number(p.x) || 0)), ',', String(Math.round(Number(p.y) || 0)));
+      }
+      return parts.join('');
+    }
+    function listSig(arr) {
+      if (!Array.isArray(arr) || !arr.length) return '0';
+      var out = [String(arr.length)];
+      for (var i = 0; i < arr.length; i++) out.push(recSig(arr[i]));
+      return out.join('|');
+    }
+    var step24Key = [
+      String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_N_GAP_TOL_MM || ''),
+      String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC || ''),
+      String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM || ''),
+      String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN || ''),
+      listSig(plusIn),
+      listSig(minusIn)
+    ].join('|');
+    var step24Cache = st.__debugStep2aDualStep24Cache;
+    if (step24Cache && step24Cache.key === step24Key && Array.isArray(step24Cache.plus) && Array.isArray(step24Cache.minus)) {
+      st.debugStep2aDualStep24Stat = step24Cache.stat || {
+        excluded: 0, kept: step24Cache.plus.length + step24Cache.minus.length, plus: step24Cache.plus.length, minus: step24Cache.minus.length, cached: true, ts: Date.now()
+      };
+      return { plus: step24Cache.plus.slice(), minus: step24Cache.minus.slice() };
     }
     var fr = frameDefDualOverlap24FilterSandwichThickOnly(plusIn, minusIn);
     st.debugStep2aDualStep24Stat = fr.stat;
+    st.__debugStep2aDualStep24Cache = {
+      key: step24Key,
+      plus: Array.isArray(fr.plusOut) ? fr.plusOut.slice() : [],
+      minus: Array.isArray(fr.minusOut) ? fr.minusOut.slice() : [],
+      stat: fr.stat ? Object.assign({}, fr.stat, { cached: false }) : null
+    };
     return { plus: fr.plusOut, minus: fr.minusOut };
   }
   // 성능: 2a-2-2는 계산량이 커서, 벽 배열 참조/핵심 파라미터가 같으면 이전 계산 결과를 재사용.

@@ -954,6 +954,10 @@ function frameDefRenderDebugPanel() {
   var dualStep24Trip = dualStep24Stat && isFinite(Number(dualStep24Stat.sandwichTriplets)) ? Math.max(0, Math.floor(Number(dualStep24Stat.sandwichTriplets))) : 0;
   var dualStep24ThickW = dualStep24Stat && isFinite(Number(dualStep24Stat.thickWallCount)) ? Math.max(0, Math.floor(Number(dualStep24Stat.thickWallCount))) : 0;
   var dualStep24StatTxt = ' <code style="font-size:0.60rem;">샌드위치 ' + String(dualStep24Trip) + ' · 가운데(두꺼운) 벽 ' + String(dualStep24ThickW) + ' · 표시 ' + String(dualStep24Kept) + ' (숨김 ' + String(dualStep24Ex) + ')</code>';
+  var dualStep25Plus = dualStep24Stat && isFinite(Number(dualStep24Stat.step25Plus)) ? Math.max(0, Math.floor(Number(dualStep24Stat.step25Plus))) : 0;
+  var dualStep25Minus = dualStep24Stat && isFinite(Number(dualStep24Stat.step25Minus)) ? Math.max(0, Math.floor(Number(dualStep24Stat.step25Minus))) : 0;
+  var dualStep25Total = dualStep25Plus + dualStep25Minus;
+  var dualStep25StatTxt = ' <code style="font-size:0.60rem;">표시 ' + String(dualStep25Total) + '개 (+' + String(dualStep25Plus) + '/-' + String(dualStep25Minus) + ')</code>';
   var n2aLoop = Array.isArray(st.wallStep2aClosedLoopChains) ? st.wallStep2aClosedLoopChains.length : 0;
   var n2aSrcSeg = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs.length : 0;
   var sc2a = st.wallStep2aSplitChainCounts && typeof st.wallStep2aSplitChainCounts === 'object' ? st.wallStep2aSplitChainCounts : null;
@@ -987,7 +991,8 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualCandidatesChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualCandidates ? 'checked' : '') + ' /><span><b>②-1 방향 비교 후보 해치(+/-) 표시</b> — +후보(파랑), -후보(주황)를 동시에 표시하고, 선택 방향은 진하게/비선택은 옅게 그립니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualOverlapChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualOverlapPatches ? 'checked' : '') + ' /><span><b>②-2 방향 비교 후보끼리 겹침면 표시</b>' + dualOvStatTxt + ' — 후보 벽체 해치끼리 겹침을 비교해 <b>남길 ±후보를 선택</b>한 결과만 벽체 쿼드 전체로 표시합니다(교집합 조각을 따로 덧그리지 않음). +선택(청록), -선택(주황).</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep23Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep23FilteredPatches ? 'checked' : '') + ' /><span><b>②-3 내부 관통 선 필터(제외분)</b>' + dualStep23StatTxt + ' — ②-2 해치 내부를 <b>다른 벽체 후보 중심선</b>이 지나가면 해당 해치를 ②-2에서 제외하고 ②-3으로 분리 표시합니다.</span></label>');
-  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep24Chk" style="margin-top:2px;" ' + (st.debugStep2aDualStep24ExcludeIsolated !== false ? 'checked' : '') + ' /><span><b>②-4 가운데 두꺼운 층만(샌드위치, 단독/②-2 모두 동작)</b>' + dualStep24StatTxt + ' — <b>장축 평행 그룹</b>마다 참조 축에서 <b>법선 n 순 정렬</b> 후 <b>연속 세 장</b>만 삼중 후보로 보고, u겹침·인접 맞닿음·가운데 두께&gt;양끝이면 <b>가운데 벽 쿼드만</b> ②-4로 분리 표시합니다(②-2에서는 해당 부분 제외).</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep24Chk" style="margin-top:2px;" ' + (st.debugStep2aDualStep24ExcludeIsolated !== false ? 'checked' : '') + ' /><span><b>②-4 가운데 두꺼운 층만(샌드위치)</b>' + dualStep24StatTxt + ' — <b>장축 평행 그룹</b>마다 참조 축에서 <b>법선 n 순 정렬</b> 후 <b>연속 세 장</b>만 삼중 후보로 보고, u겹침·인접 맞닿음·가운데 두께&gt;양끝이면 <b>가운데 벽 쿼드만</b> ②-4로 표시합니다.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep25Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep25Remainder ? 'checked' : '') + ' /><span><b>②-5 ②-2 원본에서 ②-4 대상 제외분</b>' + dualStep25StatTxt + ' — ②-2 원본 후보를 유지한 상태에서, ②-4로 분리된 가운데 두꺼운 층을 제외한 나머지(+/-)만 별도로 표시합니다.</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
@@ -1518,6 +1523,14 @@ function frameDefRenderDebugPanel() {
       if (typeof draw === 'function') draw();
     };
   }
+  var step2aDualStep25Chk = document.getElementById('frameDefDebugStep2aDualStep25Chk');
+  if (step2aDualStep25Chk) {
+    step2aDualStep25Chk.onchange = function() {
+      var s = frameDefGetState();
+      s.debugStep2aShowDualStep25Remainder = !!step2aDualStep25Chk.checked;
+      if (typeof draw === 'function') draw();
+    };
+  }
   var step2aDualStep23Chk = document.getElementById('frameDefDebugStep2aDualStep23Chk');
   if (step2aDualStep23Chk) {
     step2aDualStep23Chk.onchange = function() {
@@ -1682,7 +1695,7 @@ function frameDefStateDefaults() {
     autoRotatedWallKeys: {}, editDragState: null, editSnapGuide: null,
     rawSegs: [], descs: [], debugColumns: [],
     wallCandidates: [], wallPairs: [], wallStep2Segs: [], wallStep2aHatchWalls: [], wallStep2aSourceSegs: [], wallStep2aSourcePairs: [], wallStep2aClosedLoopChains: [], wallStep2aClosedLoopDebug: [], wallStep2aSplitChainCounts: { closed: 0, open: 0, openWalls: 0 }, wallCandidatesStep11: [], wallCandidatesStep11Rings: [], wallStep11ClosedChains: [], wallStep11ByCategory: {}, wallStep11Debug: null, wallStep12Walls: { '121': [], '122': [], '123': [], '124': [] },
-    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep2aShowDualOverlapPatches: false, debugStep2aDualStep24ExcludeIsolated: false, debugStep2aShowDualStep23FilteredPatches: false, debugStep11ShowHatch: false,
+    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep2aShowDualOverlapPatches: false, debugStep2aDualStep24ExcludeIsolated: false, debugStep2aShowDualStep25Remainder: false, debugStep2aShowDualStep23FilteredPatches: false, debugStep11ShowHatch: false,
     debugStep111ShowHatch: false, debugStep112ShowHatch: false, debugStep113ShowHatch: false, debugStep114ShowHatch: false, debugStep115ShowHatch: false, debugStep116ShowHatch: false,
     debugStep121ShowHatch: false, debugStep122ShowHatch: false, debugStep123ShowHatch: false, debugStep123ShowPreSwapHatch: false, debugStep124ShowHatch: false,
     debugStep124ShowSplitCandidates: false,
@@ -1757,6 +1770,7 @@ function frameDefGetState() {
   if (window.frameDefState.debugStep2aShowDualOverlapPatches !== true && window.frameDefState.debugStep2aShowDualOverlapPatches !== false) window.frameDefState.debugStep2aShowDualOverlapPatches = false;
   if (window.frameDefState.debugStep2aDualStep24ExcludeIsolated !== true && window.frameDefState.debugStep2aDualStep24ExcludeIsolated !== false) window.frameDefState.debugStep2aDualStep24ExcludeIsolated = false;
   if (window.frameDefState.debugStep2aShowDualStep23FilteredPatches !== true && window.frameDefState.debugStep2aShowDualStep23FilteredPatches !== false) window.frameDefState.debugStep2aShowDualStep23FilteredPatches = false;
+  if (window.frameDefState.debugStep2aShowDualStep25Remainder !== true && window.frameDefState.debugStep2aShowDualStep25Remainder !== false) window.frameDefState.debugStep2aShowDualStep25Remainder = false;
   if (window.frameDefState.debugStep11ShowHatch !== true && window.frameDefState.debugStep11ShowHatch !== false) window.frameDefState.debugStep11ShowHatch = false;
   if (window.frameDefState.debugStep111ShowHatch !== true && window.frameDefState.debugStep111ShowHatch !== false) window.frameDefState.debugStep111ShowHatch = false;
   if (window.frameDefState.debugStep112ShowHatch !== true && window.frameDefState.debugStep112ShowHatch !== false) window.frameDefState.debugStep112ShowHatch = false;
@@ -23735,7 +23749,7 @@ function frameDefDrawStep2bTrainLabelOverlays() {
 function frameDefDrawPreviewOverlays() {
   var st = typeof frameDefGetState === 'function' ? frameDefGetState() : {};
   var frameFeatureActive = (typeof selectedFeatureId === 'undefined' || selectedFeatureId === 'frame-object-define');
-  var force2aDebugDraw = st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true;
+  var force2aDebugDraw = st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true || st.debugStep2aShowDualStep25Remainder === true;
   /** 미리보기 끔에도 해치 ±겹침 라벨은 표시(캔버스 상단 오버레이와 동일 경로). */
   var allowWhenPreviewOff = st.debugStep2aShowHatchOverlapLabels === true;
   if (st.previewVisible === false && !allowWhenPreviewOff) return;
@@ -23743,7 +23757,7 @@ function frameDefDrawPreviewOverlays() {
   var groups = frameDefPreviewGroups();
   var _lblMap = st.step2bTrainLabelsByWallKey;
   var _hasTrainLbl = _lblMap && typeof _lblMap === 'object' && !Array.isArray(_lblMap) && Object.keys(_lblMap).length > 0;
-  var hasExtras = (st.showGapIssues !== false) || !!st.selectedWallKey || !!st.editSnapGuide || (st.gapIssues && st.gapIssues.length) || st.debugStep2ShowHatch === true || st.debugStep21ShowHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true || st.debugStep2bShowCnn === true || st.debugStep2bShowXgb === true || st.debugStep2bShowRf === true || st.debugStep2bShowMlp === true || st.debugStep2bShowGnn === true || st.step2bTrainPickMode === true || _hasTrainLbl || st.debugStep11ShowHatch === true || st.debugStep111ShowHatch === true || st.debugStep112ShowHatch === true || st.debugStep113ShowHatch === true || st.debugStep114ShowHatch === true || st.debugStep115ShowHatch === true || st.debugStep116ShowHatch === true || st.debugStep121ShowHatch === true || st.debugStep122ShowHatch === true || st.debugStep123ShowHatch === true || st.debugStep123ShowPreSwapHatch === true || st.debugStep124ShowHatch === true || st.debugStep124ShowSplitCandidates === true || st.debugStep124ShowInteriorStep2 === true || st.debugStep124ShowInteriorStep3 === true || st.debugStep124ShowInteriorStep4 === true || st.debugStep124ShowInteriorStep5 === true || st.debugStep124ShowInteriorStep6 === true || st.debugStep124ShowInteriorStep7 === true || st.debugStep1240Show114Hatch === true;
+  var hasExtras = (st.showGapIssues !== false) || !!st.selectedWallKey || !!st.editSnapGuide || (st.gapIssues && st.gapIssues.length) || st.debugStep2ShowHatch === true || st.debugStep21ShowHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true || st.debugStep2aShowDualStep25Remainder === true || st.debugStep2bShowCnn === true || st.debugStep2bShowXgb === true || st.debugStep2bShowRf === true || st.debugStep2bShowMlp === true || st.debugStep2bShowGnn === true || st.step2bTrainPickMode === true || _hasTrainLbl || st.debugStep11ShowHatch === true || st.debugStep111ShowHatch === true || st.debugStep112ShowHatch === true || st.debugStep113ShowHatch === true || st.debugStep114ShowHatch === true || st.debugStep115ShowHatch === true || st.debugStep116ShowHatch === true || st.debugStep121ShowHatch === true || st.debugStep122ShowHatch === true || st.debugStep123ShowHatch === true || st.debugStep123ShowPreSwapHatch === true || st.debugStep124ShowHatch === true || st.debugStep124ShowSplitCandidates === true || st.debugStep124ShowInteriorStep2 === true || st.debugStep124ShowInteriorStep3 === true || st.debugStep124ShowInteriorStep4 === true || st.debugStep124ShowInteriorStep5 === true || st.debugStep124ShowInteriorStep6 === true || st.debugStep124ShowInteriorStep7 === true || st.debugStep1240Show114Hatch === true;
   if (!groups.length && !hasExtras) return;
   ctx.save(); ctx.font = '11px sans-serif';
   for (var i = 0; i < groups.length; i++) {
@@ -25728,8 +25742,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   var st = frameDefGetState();
   var showStep22 = st.debugStep2aShowDualOverlapPatches === true;
   var showStep24 = st.debugStep2aDualStep24ExcludeIsolated !== false;
+  var showStep25 = st.debugStep2aShowDualStep25Remainder === true;
   var showStep23 = st.debugStep2aShowDualStep23FilteredPatches === true;
-  if (!showStep22 && !showStep24 && !showStep23) return;
+  if (!showStep22 && !showStep24 && !showStep25 && !showStep23) return;
   var list = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
   if (!list.length || typeof toScreen !== 'function' || typeof frameDefDrawHatchPolygon !== 'function') return;
   if (typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function') return;
@@ -25810,7 +25825,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     }
   }
   if (!st.__debugStep2aDualStep24Cache || typeof st.__debugStep2aDualStep24Cache !== 'object') {
-    st.__debugStep2aDualStep24Cache = { key: '', step22Plus: [], step22Minus: [], step24Plus: [], step24Minus: [], stat: null };
+    st.__debugStep2aDualStep24Cache = { key: '', step22Plus: [], step22Minus: [], step24Plus: [], step24Minus: [], step25Plus: [], step25Minus: [], stat: null };
   }
   function splitByWallIdx(srcArr, keepArr) {
     var src = Array.isArray(srcArr) ? srcArr : [];
@@ -25957,10 +25972,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       ts: Date.now(),
       cached: true
     };
-    if (showStep22 || showStep24) {
+    if (showStep22 || showStep24 || showStep25) {
       var a24c = applyStep24SplitForDisplay(cache.plus, cache.minus);
       if (showStep22) {
-        renderCandidateLists(a24c.step22Plus, a24c.step22Minus);
+        renderCandidateLists(cache.plus, cache.minus);
       }
       if (showStep24) {
         renderCandidateLists(a24c.step24Plus, a24c.step24Minus, {
@@ -25971,6 +25986,17 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           minusSelFill: 0.30, minusOppFill: 0.14,
           plusSelHatch: 0.50, plusOppHatch: 0.24,
           minusSelHatch: 0.46, minusOppHatch: 0.22
+        });
+      }
+      if (showStep25) {
+        renderCandidateLists(a24c.step22Plus, a24c.step22Minus, {
+          useOverlapPolys: false,
+          plusSel: '#7c3aed', plusOpp: '#c4b5fd',
+          minusSel: '#6d28d9', minusOpp: '#ddd6fe',
+          plusSelFill: 0.34, plusOppFill: 0.14,
+          minusSelFill: 0.30, minusOppFill: 0.12,
+          plusSelHatch: 0.50, plusOppHatch: 0.22,
+          minusSelHatch: 0.46, minusOppHatch: 0.20
         });
       }
     }
@@ -26540,10 +26566,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     ts: st.debugStep2aDualOverlapStat.ts,
     cached: false
   };
-  if (showStep22 || showStep24) {
+  if (showStep22 || showStep24 || showStep25) {
     var a24f = applyStep24SplitForDisplay(plusPolys, minusPolys);
     if (showStep22) {
-      renderCandidateLists(a24f.step22Plus, a24f.step22Minus);
+      renderCandidateLists(plusPolys, minusPolys);
     }
     if (showStep24) {
       renderCandidateLists(a24f.step24Plus, a24f.step24Minus, {
@@ -26554,6 +26580,17 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         minusSelFill: 0.30, minusOppFill: 0.14,
         plusSelHatch: 0.50, plusOppHatch: 0.24,
         minusSelHatch: 0.46, minusOppHatch: 0.22
+      });
+    }
+    if (showStep25) {
+      renderCandidateLists(a24f.step22Plus, a24f.step22Minus, {
+        useOverlapPolys: false,
+        plusSel: '#7c3aed', plusOpp: '#c4b5fd',
+        minusSel: '#6d28d9', minusOpp: '#ddd6fe',
+        plusSelFill: 0.34, plusOppFill: 0.14,
+        minusSelFill: 0.30, minusOppFill: 0.12,
+        plusSelHatch: 0.50, plusOppHatch: 0.22,
+        minusSelHatch: 0.46, minusOppHatch: 0.20
       });
     }
   }

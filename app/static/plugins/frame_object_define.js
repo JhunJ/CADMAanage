@@ -236,8 +236,14 @@ var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN = 120000;
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'overlap22-selection-quad-no-intersection-draw';
 /** 2a-2-2 표시용 후보 최대 개수(부호별) — 과도한 그리기로 인한 팬/줌 버벅임 방지 */
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS = 1200;
-/** ②-4: 변만 맞닿은 수준의 극소 교집합은 무시. 본격 중첩으로 볼 최소 면적(mm²). */
-var FRAME_DEF_STEP2A_V2_DUAL_24_MIN_REAL_OVERLAP_MM2 = 6;
+/** ②-4(샌드위치): 평행 장축 벽끼리 법선 간격이 (t1+t2)/2에 가깝게 맞닿았다고 볼 허용 오차(mm). */
+var FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_N_GAP_TOL_MM = 22;
+/** ②-4: 긴 변 방향 투영 겹침 / min(축구간) 하한 비율(맞닿은 긴 변). */
+var FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC = 0.45;
+/** ②-4: 가운데(두꺼운 층)이 양끝보다 두껍다고 볼 최소 차(mm) — 양끝은 가운데보다 이보다 얇아야 함. */
+var FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM = 2.5;
+/** ②-4: 장축 평행 |dot| 하한. */
+var FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN = 0.982;
 /** true면 동일 부호 후보 간 NMS를 적용(성능/회귀 이슈로 기본 OFF). */
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_LOCAL_NMS = false;
 /** true면 +/- 교차부호 후보끼리도 NMS를 적용(회귀 방지를 위해 기본 OFF). */
@@ -285,6 +291,8 @@ var FRAME_DEF_DEBUG_2A_TRACE_ENTITY_IDS = [];
 var FRAME_DEF_DEBUG_2A_FOCUS_ENTITY_IDS = [23619959];
 /** ent_id 머지 후에도 잡기 위한 월드 기준선(수직선 등). y0=ymin, y1=ymax — null이면 좌표 매칭 안 함 */
 var FRAME_DEF_DEBUG_2A_FOCUS_WORLD_LINE = { x: 100457.9100507554, y0: 263087.2148522988, y1: 263337.2148522988, eps: 2.5 };
+/** ②-4 샌드위치 검증: 평행 A-ST 라인 ent — 디버그 패널에서 쿼드·긴변 맞닿음·삼중(가운데 두껍고 양끝 얇음) 리포트 */
+var FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS = [23619682, 23619681, 23619661, 23619662];
 /** 병합 후 trace: 세그 중점 슬랩 { x1,y1,x2,y2,tolY,padX } | null — 프로젝트별 값은 state.debugStep2aUserTraceSlab 우선 */
 var FRAME_DEF_DEBUG_2A_TRACE_LINE_MM = null;
 /** 2a 플로우 리포트·watch 연장 병합용 기본 ID. state.debugStep2aUiFlowWatchEntityIds 와 합집합(추가·중복 제거) */
@@ -943,7 +951,9 @@ function frameDefRenderDebugPanel() {
   var dualStep24Stat = st.debugStep2aDualStep24Stat && typeof st.debugStep2aDualStep24Stat === 'object' ? st.debugStep2aDualStep24Stat : null;
   var dualStep24Ex = dualStep24Stat && isFinite(Number(dualStep24Stat.excluded)) ? Math.max(0, Math.floor(Number(dualStep24Stat.excluded))) : 0;
   var dualStep24Kept = dualStep24Stat && isFinite(Number(dualStep24Stat.kept)) ? Math.max(0, Math.floor(Number(dualStep24Stat.kept))) : 0;
-  var dualStep24StatTxt = ' <code style="font-size:0.60rem;">고립제외 ' + String(dualStep24Ex) + ' · 남음 ' + String(dualStep24Kept) + '</code>';
+  var dualStep24Trip = dualStep24Stat && isFinite(Number(dualStep24Stat.sandwichTriplets)) ? Math.max(0, Math.floor(Number(dualStep24Stat.sandwichTriplets))) : 0;
+  var dualStep24ThickW = dualStep24Stat && isFinite(Number(dualStep24Stat.thickWallCount)) ? Math.max(0, Math.floor(Number(dualStep24Stat.thickWallCount))) : 0;
+  var dualStep24StatTxt = ' <code style="font-size:0.60rem;">샌드위치 ' + String(dualStep24Trip) + ' · 가운데(두꺼운) 벽 ' + String(dualStep24ThickW) + ' · 표시 ' + String(dualStep24Kept) + ' (숨김 ' + String(dualStep24Ex) + ')</code>';
   var n2aLoop = Array.isArray(st.wallStep2aClosedLoopChains) ? st.wallStep2aClosedLoopChains.length : 0;
   var n2aSrcSeg = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs.length : 0;
   var sc2a = st.wallStep2aSplitChainCounts && typeof st.wallStep2aSplitChainCounts === 'object' ? st.wallStep2aSplitChainCounts : null;
@@ -977,10 +987,11 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualCandidatesChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualCandidates ? 'checked' : '') + ' /><span><b>②-1 방향 비교 후보 해치(+/-) 표시</b> — +후보(파랑), -후보(주황)를 동시에 표시하고, 선택 방향은 진하게/비선택은 옅게 그립니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualOverlapChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualOverlapPatches ? 'checked' : '') + ' /><span><b>②-2 방향 비교 후보끼리 겹침면 표시</b>' + dualOvStatTxt + ' — 후보 벽체 해치끼리 겹침을 비교해 <b>남길 ±후보를 선택</b>한 결과만 벽체 쿼드 전체로 표시합니다(교집합 조각을 따로 덧그리지 않음). +선택(청록), -선택(주황).</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep23Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep23FilteredPatches ? 'checked' : '') + ' /><span><b>②-3 내부 관통 선 필터(제외분)</b>' + dualStep23StatTxt + ' — ②-2 해치 내부를 <b>다른 벽체 후보 중심선</b>이 지나가면 해당 해치를 ②-2에서 제외하고 ②-3으로 분리 표시합니다.</span></label>');
-  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep24Chk" style="margin-top:2px;" ' + (st.debugStep2aDualStep24ExcludeIsolated !== false ? 'checked' : '') + ' /><span><b>②-4 고립 벽체 제외(②-2 연동)</b>' + dualStep24StatTxt + ' — ②-2 쿼드끼리 일대다 검사. <b>변만 맞닿음</b>은 겹침이 아니며, 교집합 면적이 <code style="font-size:0.60rem;">' + String(FRAME_DEF_STEP2A_V2_DUAL_24_MIN_REAL_OVERLAP_MM2) + 'mm²</code> 이상(본격 중첩)이거나 <b>변 교차</b>가 있을 때만 상호작용으로 봅니다. 그 외는 고립으로 제외.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep24Chk" style="margin-top:2px;" ' + (st.debugStep2aDualStep24ExcludeIsolated !== false ? 'checked' : '') + ' /><span><b>②-4 가운데 두꺼운 층만(샌드위치, ②-2 연동)</b>' + dualStep24StatTxt + ' — <b>장축 평행 그룹</b>마다 참조 축에서 <b>법선 n 순 정렬</b> 후 <b>연속 세 장</b>만 삼중 후보로 보고, u겹침·인접 맞닿음·가운데 두께&gt;양끝이면 <b>가운데 벽 쿼드만</b> 남깁니다(얇은 양끝·나머지는 숨김). 상수: 간격±' + String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_N_GAP_TOL_MM) + 'mm, 긴 변 겹침≥' + String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC) + ', 두께차≥' + String(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM) + 'mm.</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
+  html.push(typeof frameDefFormatStep2aSandwichBaseDebugBlock === 'function' ? frameDefFormatStep2aSandwichBaseDebugBlock(st) : '');
   html.push('</div>');
   var bb2 = st.wallStep2bByBackend && typeof st.wallStep2bByBackend === 'object' && !Array.isArray(st.wallStep2bByBackend) ? st.wallStep2bByBackend : {};
   var n2bCnn = Array.isArray(bb2.cnn) ? bb2.cnn.length : 0, n2bXgb = Array.isArray(bb2.xgb) ? bb2.xgb.length : 0, n2bRf = Array.isArray(bb2.rf) ? bb2.rf.length : 0, n2bMlp = Array.isArray(bb2.mlp) ? bb2.mlp.length : 0, n2bGnn = Array.isArray(bb2.gnn) ? bb2.gnn.length : 0;
@@ -2991,6 +3002,146 @@ function frameDefFormatStep2aFocusEntityDebugBlock(st) {
   var txt = lines.join('\n');
   return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#0f766e; cursor:pointer; font-weight:600;">2a 포커스 선분 디버그 (ent ' + esc(ids.join(' · ')) + ')</summary>'
     + '<pre style="margin:6px 0 0 0;padding:8px;background:#0d1117;color:#c9d1d9;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:320px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
+}
+
+/** ②-2와 동일 기준으로 최종 방향·두께 벽체 쿼드(디버그 전용). */
+function frameDef2aV24WallQuadForStep2Debug(w) {
+  if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2 || typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function') return null;
+  var p1 = w.__step2aDualBaseOuterP1 && isFinite(Number(w.__step2aDualBaseOuterP1.x)) && isFinite(Number(w.__step2aDualBaseOuterP1.y))
+    ? w.__step2aDualBaseOuterP1 : w.seg_a.p1;
+  var p2 = w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) && isFinite(Number(w.__step2aDualBaseOuterP2.y))
+    ? w.__step2aDualBaseOuterP2 : w.seg_a.p2;
+  var th = Number(w.__step2aDualBaseThicknessMm);
+  if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = Number(w.thickness_mm);
+  if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = 170;
+  var sgn = Number(w.__step2aOutlineInwardSign) < 0 ? -1 : 1;
+  return frameDefSegToWallBodyQuadOutlineWorld(p1, p2, th, sgn);
+}
+
+/**
+ * `FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS`에 해당하는 2a 벽체의 쿼드·쌍별 맞닿음(`pairTests`)·n-체인 삼중(`sandwichNChain`·`sandwichTriplets`) 요약.
+ * 삼중은 평행 DSU → 참조 축에서 n 정렬 → 연속 3장. `st.debugStep2aDualStep24Stat`은 ②-4 실행 후에만 유효.
+ */
+function frameDef2aV24SandwichBaseEntityDebugReport(st) {
+  var ids = typeof FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS === 'object' && Array.isArray(FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS)
+    ? FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS : [];
+  if (!ids.length) return null;
+  var list = st && Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
+  var gapTol = (typeof FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_N_GAP_TOL_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_N_GAP_TOL_MM))
+    ? Math.max(4, Number(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_N_GAP_TOL_MM)) : 22;
+  var uFrac = (typeof FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC))
+    ? Math.max(0.15, Math.min(0.95, Number(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC))) : 0.45;
+  var dMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM))
+    ? Math.max(0, Number(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM)) : 2.5;
+  var parDot = (typeof FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN))
+    ? Math.max(0.88, Math.min(0.9999, Number(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN))) : 0.982;
+
+  var hits = [];
+  var wi, w, ii, matched;
+  for (wi = 0; wi < list.length; wi++) {
+    w = list[wi];
+    if (!w || !Array.isArray(w.entity_ids)) continue;
+    matched = [];
+    for (ii = 0; ii < ids.length; ii++) {
+      if (w.entity_ids.indexOf(ids[ii]) >= 0) matched.push(ids[ii]);
+    }
+    if (!matched.length) continue;
+    var q = typeof frameDef2aV24WallQuadForStep2Debug === 'function' ? frameDef2aV24WallQuadForStep2Debug(w) : null;
+    var ma = (q && typeof frameDef2aV24WallStackMeta === 'function') ? frameDef2aV24WallStackMeta(w, q) : null;
+    if (ma) ma._quadRef = q;
+    var p1o = w.__step2aDualBaseOuterP1 || w.seg_a.p1, p2o = w.__step2aDualBaseOuterP2 || w.seg_a.p2;
+    var ax = p1o && p2o ? Math.hypot((Number(p2o.x) || 0) - (Number(p1o.x) || 0), (Number(p2o.y) || 0) - (Number(p1o.y) || 0)) : 0;
+    hits.push({
+      wallIdx: wi,
+      ent_ids_matched: matched,
+      thickness_mm: typeof frameDef2aV24WallThicknessMm === 'function' ? frameDef2aV24WallThicknessMm(w) : NaN,
+      outlineInwardSign: Number(w.__step2aOutlineInwardSign) < 0 ? -1 : 1,
+      outerSegLen_mm: Math.round(ax * 1000) / 1000,
+      hasQuad: !!(q && q.length >= 4),
+      ma: ma
+    });
+  }
+
+  var pairTests = [];
+  var ai, aj, ha, hb, okAB, okBA;
+  for (ai = 0; ai < hits.length; ai++) {
+    for (aj = ai + 1; aj < hits.length; aj++) {
+      ha = hits[ai];
+      hb = hits[aj];
+      if (!ha.ma || !hb.ma) {
+        pairTests.push({ wallA: ha.wallIdx, wallB: hb.wallIdx, stackedEither: false, note: 'missing_meta' });
+        continue;
+      }
+      okAB = typeof frameDef2aV24StackedLongEdgeTouch === 'function'
+        ? frameDef2aV24StackedLongEdgeTouch(ha.ma, hb.ma, gapTol, uFrac, parDot) : false;
+      okBA = typeof frameDef2aV24StackedLongEdgeTouch === 'function'
+        ? frameDef2aV24StackedLongEdgeTouch(hb.ma, ha.ma, gapTol, uFrac, parDot) : false;
+      pairTests.push({
+        wallA: ha.wallIdx,
+        entA: ha.ent_ids_matched,
+        wallB: hb.wallIdx,
+        entB: hb.ent_ids_matched,
+        stackedAB: okAB,
+        stackedBA: okBA,
+        stackedEither: !!(okAB || okBA)
+      });
+    }
+  }
+
+  var idxList = [];
+  var metaMap = {};
+  var byWall = {};
+  for (ai = 0; ai < hits.length; ai++) {
+    ha = hits[ai];
+    if (!ha.ma) continue;
+    idxList.push(ha.wallIdx);
+    metaMap[ha.wallIdx] = ha.ma;
+    byWall[String(ha.wallIdx)] = { quad: ha.ma._quadRef, wall: list[ha.wallIdx] };
+  }
+
+  var chainDbg = typeof frameDef2aV24SandwichNChainFindThicks === 'function'
+    ? frameDef2aV24SandwichNChainFindThicks(byWall, metaMap, idxList, gapTol, uFrac, dMin, parDot, { maxDebugGroups: 16, maxDebugWindows: 96 })
+    : { tripletsDetail: [], chainDebug: { algorithm: 'nchain-dsu', groups: [], note: 'solver_missing' } };
+  var sandwichTriplets = chainDbg.tripletsDetail || [];
+
+  return {
+    configEntityIds: ids.slice(),
+    params: { gapTol: gapTol, uOverlapMinFrac: uFrac, thickDeltaMin: dMin, parallelDotMin: parDot },
+    sandwichAlgorithm: 'nchain-dsu',
+    sandwichNChain: chainDbg.chainDebug || null,
+    wallCount: list.length,
+    matchedWallCount: hits.length,
+    walls: hits.map(function(h) {
+      return {
+        wallIdx: h.wallIdx,
+        ent_ids_matched: h.ent_ids_matched,
+        thickness_mm: h.thickness_mm,
+        outlineInwardSign: h.outlineInwardSign,
+        outerSegLen_mm: h.outerSegLen_mm,
+        hasQuad: h.hasQuad,
+        spanU_mm: h.ma ? Math.round(h.ma.spanU * 100) / 100 : null,
+        centroidN: h.ma ? Math.round(h.ma.centroidN * 1000) / 1000 : null
+      };
+    }),
+    pairTests: pairTests,
+    sandwichTriplets: sandwichTriplets,
+    step24Stat: st && st.debugStep2aDualStep24Stat ? st.debugStep2aDualStep24Stat : null
+  };
+}
+
+function frameDefFormatStep2aSandwichBaseDebugBlock(st) {
+  var ids = typeof FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS === 'object' && Array.isArray(FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS)
+    ? FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS : [];
+  if (!ids.length) return '';
+  var esc = typeof escapeHtml === 'function' ? escapeHtml : function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  var rep = typeof frameDef2aV24SandwichBaseEntityDebugReport === 'function' ? frameDef2aV24SandwichBaseEntityDebugReport(st) : null;
+  var txt = rep ? JSON.stringify(rep, null, 2) : '(리포트 생성 실패)';
+  if (rep && rep.matchedWallCount === 0) {
+    txt = '매칭된 벽체 없음 — 위 ent가 `wallStep2aHatchWalls[].entity_ids`에 없거나 2a에 미포함.\n\n' + txt;
+  }
+  return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#a855f7; cursor:pointer; font-weight:600;">②-4 샌드위치 기준 선분 쿼드 디버그 (ent ' + esc(ids.join(' · ')) + ')</summary>'
+    + '<div style="font-size:0.65rem; color:#57606a; margin:6px 0 4px; line-height:1.4;">JSON에 <code style="font-size:0.62rem;">sandwichAlgorithm</code>·<code style="font-size:0.62rem;">sandwichNChain</code>이 포함됩니다. 평행(DSU) 그룹 → 참조 장축에서 <b>n 정렬</b> → <b>연속 3장</b> 슬라이딩, 각 창은 <code>pass*</code>·<code>accepted</code>로 어디서 걸렸는지 확인합니다. <code>pairTests</code>는 여전히 두 벽씩 맞닿음입니다. ②-2·②-4 체크 후·2a 재계산 직후가 가장 정확합니다.</div>'
+    + '<pre style="margin:0;padding:8px;background:#1e1b4b;color:#e9d5ff;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:420px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
 }
 
 function frameDefSegHasEntityOverlap(a, b) {
@@ -24928,134 +25079,445 @@ function frameDef2aV2ApplyDualCandidateOverlapSignPickV2(list) {
   }
 }
 
-/** ②-4: 두 선분이 내부에서 서로 관통하는 교차(공선·끝점만 맞닿음은 제외). */
-function frameDef2aV24SegSegProperCrossXY(ax, ay, bx, by, cx, cy, dx, dy) {
-  var EPS = 0.04;
-  function orient(px, py, qx, qy, rx, ry) {
-    return (qx - px) * (ry - py) - (qy - py) * (rx - px);
-  }
-  function sgn(o) {
-    if (o > EPS) return 1;
-    if (o < -EPS) return -1;
-    return 0;
-  }
-  var o1 = orient(ax, ay, bx, by, cx, cy);
-  var o2 = orient(ax, ay, bx, by, dx, dy);
-  var o3 = orient(cx, cy, dx, dy, ax, ay);
-  var o4 = orient(cx, cy, dx, dy, bx, by);
-  var s1 = sgn(o1), s2 = sgn(o2), s3 = sgn(o3), s4 = sgn(o4);
-  if (s1 === 0 && s2 === 0) return false;
-  if (s3 === 0 && s4 === 0) return false;
-  if (s1 !== s2 && s3 !== s4 && s1 !== 0 && s2 !== 0 && s3 !== 0 && s4 !== 0) return true;
-  return false;
+function frameDef2aV24WallThicknessMm(w) {
+  if (!w) return NaN;
+  var th = Number(w.__step2aDualBaseThicknessMm);
+  if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = Number(w.thickness_mm);
+  if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = 170;
+  return th;
 }
 
-function frameDef2aV24QuadEdgesProperCross(qa, qb) {
-  if (!qa || !qb || qa.length < 2 || qb.length < 2) return false;
-  var na = qa.length, nb = qb.length;
-  for (var ia = 0; ia < na; ia++) {
-    var a1 = qa[ia], a2 = qa[(ia + 1) % na];
-    if (!a1 || !a2) continue;
-    var ax = Number(a1.x) || 0, ay = Number(a1.y) || 0, bx = Number(a2.x) || 0, by = Number(a2.y) || 0;
-    for (var ib = 0; ib < nb; ib++) {
-      var c1 = qb[ib], c2 = qb[(ib + 1) % nb];
-      if (!c1 || !c2) continue;
-      var cx = Number(c1.x) || 0, cy = Number(c1.y) || 0, dx = Number(c2.x) || 0, dy = Number(c2.y) || 0;
-      if (frameDef2aV24SegSegProperCrossXY(ax, ay, bx, by, cx, cy, dx, dy)) return true;
+function frameDef2aV24WallAxisFromWall(w) {
+  if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) return null;
+  var p1 = w.__step2aDualBaseOuterP1 && isFinite(Number(w.__step2aDualBaseOuterP1.x)) ? w.__step2aDualBaseOuterP1 : w.seg_a.p1;
+  var p2 = w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) ? w.__step2aDualBaseOuterP2 : w.seg_a.p2;
+  var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0);
+  var dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+  var len = Math.hypot(dx, dy);
+  if (len < 1e-4) return null;
+  return { ux: dx / len, uy: dy / len };
+}
+
+/**
+ * ②-4: 벽 쿼드 + 원천 축 — 긴 변 방향 u·법선 n에서 투영 구간·무게중심 n.
+ */
+function frameDef2aV24WallStackMeta(w, quad) {
+  var ax = frameDef2aV24WallAxisFromWall(w);
+  if (!ax || !quad || quad.length < 3) return null;
+  var ux = ax.ux, uy = ax.uy;
+  var nx = -uy, ny = ux;
+  var tMin = Infinity, tMax = -Infinity, nMin = Infinity, nMax = -Infinity;
+  var i;
+  for (i = 0; i < quad.length; i++) {
+    var px = Number(quad[i].x) || 0, py = Number(quad[i].y) || 0;
+    var tv = px * ux + py * uy;
+    var nv = px * nx + py * ny;
+    if (tv < tMin) tMin = tv;
+    if (tv > tMax) tMax = tv;
+    if (nv < nMin) nMin = nv;
+    if (nv > nMax) nMax = nv;
+  }
+  var spanU = tMax - tMin;
+  if (!(spanU > 1e-3)) return null;
+  var centroidN = 0, centroidU = 0, cnt = 0;
+  for (i = 0; i < quad.length; i++) {
+    var px2 = Number(quad[i].x) || 0, py2 = Number(quad[i].y) || 0;
+    centroidN += px2 * nx + py2 * ny;
+    centroidU += px2 * ux + py2 * uy;
+    cnt++;
+  }
+  if (cnt) {
+    centroidN /= cnt;
+    centroidU /= cnt;
+  }
+  return {
+    ux: ux, uy: uy, nx: nx, ny: ny,
+    th: frameDef2aV24WallThicknessMm(w),
+    tMin: tMin, tMax: tMax, spanU: spanU,
+    centroidN: centroidN, centroidU: centroidU
+  };
+}
+
+function frameDef2aV24StackedLongEdgeTouch(ma, mb, gapTol, uOverlapMinFrac, parDotMin) {
+  if (!ma || !mb) return false;
+  var dotu = Math.abs(ma.ux * mb.ux + ma.uy * mb.uy);
+  if (dotu < parDotMin) return false;
+  var ux = ma.ux, uy = ma.uy, nx = ma.nx, ny = ma.ny;
+  var tMinB = Infinity, tMaxB = -Infinity;
+  var qb = mb._quadRef;
+  if (!qb || qb.length < 2) return false;
+  for (var i = 0; i < qb.length; i++) {
+    var px = Number(qb[i].x) || 0, py = Number(qb[i].y) || 0;
+    var tv = px * ux + py * uy;
+    if (tv < tMinB) tMinB = tv;
+    if (tv > tMaxB) tMaxB = tv;
+  }
+  var spanB = tMaxB - tMinB;
+  var overlapU = Math.min(ma.tMax, tMaxB) - Math.max(ma.tMin, tMinB);
+  var spanRef = Math.min(ma.spanU, spanB);
+  if (!(spanRef > 1e-3) || overlapU / spanRef < uOverlapMinFrac) return false;
+  var nSumB = 0, cntB = 0;
+  for (var j = 0; j < qb.length; j++) {
+    var px2 = Number(qb[j].x) || 0, py2 = Number(qb[j].y) || 0;
+    nSumB += px2 * nx + py2 * ny;
+    cntB++;
+  }
+  var cnb = cntB ? nSumB / cntB : 0;
+  var distN = Math.abs(cnb - ma.centroidN);
+  var expect = (ma.th + mb.th) * 0.5;
+  if (Math.abs(distN - expect) > gapTol) return false;
+  return true;
+}
+
+function frameDef2aV24StackedEither(ma, mb, gapTol, uFrac, parDot) {
+  if (!ma || !mb) return false;
+  return frameDef2aV24StackedLongEdgeTouch(ma, mb, gapTol, uFrac, parDot)
+    || frameDef2aV24StackedLongEdgeTouch(mb, ma, gapTol, uFrac, parDot);
+}
+
+function frameDef2aV24QuadSpanOnAxes(quad, ux, uy) {
+  var tMin = Infinity, tMax = -Infinity;
+  if (!quad || !quad.length) return { tMin: 0, tMax: 0, spanU: 0 };
+  for (var i = 0; i < quad.length; i++) {
+    var tv = (Number(quad[i].x) || 0) * ux + (Number(quad[i].y) || 0) * uy;
+    if (tv < tMin) tMin = tv;
+    if (tv > tMax) tMax = tv;
+  }
+  var spanU = tMax - tMin;
+  return { tMin: tMin, tMax: tMax, spanU: spanU };
+}
+
+function frameDef2aV24OverlapUThreeMinFrac(sa, sb, sc) {
+  if (!sa || !sb || !sc) return 0;
+  var lo = Math.max(sa.tMin, sb.tMin, sc.tMin);
+  var hi = Math.min(sa.tMax, sb.tMax, sc.tMax);
+  var ov = hi - lo;
+  var spanRef = Math.min(sa.spanU, sb.spanU, sc.spanU);
+  if (!(spanRef > 1e-3) || !(ov > 0)) return 0;
+  return ov / spanRef;
+}
+
+function frameDef2aV24AvgProjNQuad(quad, nx, ny) {
+  if (!quad || !quad.length) return 0;
+  var s = 0, c = 0;
+  for (var ii = 0; ii < quad.length; ii++) {
+    s += (Number(quad[ii].x) || 0) * nx + (Number(quad[ii].y) || 0) * ny;
+    c++;
+  }
+  return c ? s / c : 0;
+}
+
+/**
+ * ②-4 샌드위치(n-체인): 평행 벽을 DSU로 묶고, 참조 장축에서 법선 n 순으로 정렬한 뒤 **연속 세 장**만 삼중 후보로 본다.
+ * u방향 세 장 겹침 + 인접 맞닿음(stackedEither) + 가운데 두께 > 양끝 + dMin + (가운데 기준) 양끝 반대편.
+ */
+function frameDef2aV24SandwichNChainFindThicks(byWall, meta, idxList, gapTol, uFrac, dMin, parDot, options) {
+  options = options || {};
+  var maxDebugGroups = options.maxDebugGroups != null ? options.maxDebugGroups : 12;
+  var maxDebugWindows = options.maxDebugWindows != null ? options.maxDebugWindows : 48;
+  var thick = {};
+  var tripletCount = 0;
+  var tripletsDetail = [];
+  var groupsDbg = [];
+
+  var nW = idxList.length;
+  if (nW < 3) {
+    return {
+      thick: thick,
+      tripletCount: 0,
+      tripletsDetail: tripletsDetail,
+      chainDebug: { algorithm: 'nchain-dsu', note: 'need3walls', groups: [] }
+    };
+  }
+
+  var parent = new Array(nW);
+  for (var ii = 0; ii < nW; ii++) parent[ii] = ii;
+  function dsuFind(a) {
+    while (parent[a] !== a) a = parent[a];
+    return a;
+  }
+  function dsuUnion(a, b) {
+    var ra = dsuFind(a), rb = dsuFind(b);
+    if (ra !== rb) parent[rb] = ra;
+  }
+
+  var pi, pj, wa, wb, ma, mb, dotu;
+  for (pi = 0; pi < nW; pi++) {
+    for (pj = pi + 1; pj < nW; pj++) {
+      wa = idxList[pi];
+      wb = idxList[pj];
+      ma = meta[wa];
+      mb = meta[wb];
+      if (!ma || !mb) continue;
+      dotu = Math.abs(ma.ux * mb.ux + ma.uy * mb.uy);
+      if (dotu >= parDot) dsuUnion(pi, pj);
     }
   }
-  return false;
+
+  var buckets = {};
+  for (var bi = 0; bi < nW; bi++) {
+    var r0 = dsuFind(bi);
+    var sr = String(r0);
+    if (!buckets[sr]) buckets[sr] = [];
+    buckets[sr].push(bi);
+  }
+
+  var groupId = 0;
+  var br, memb, refPos, refWi, mr, mj, pos, widx, m, ent, quad, sp, cN, row;
+  var sk, L, M, R, wL, wM, wR, mL, mM, mR, u3, passU, passTh, stkLM, stkMR, accepted;
+  var qM, nxm, nym, cM2, cL2, cR2, qL, qR;
+  var bucketTh = {};
+  var dbgWinGroup = 0;
+
+  for (br in buckets) {
+    memb = buckets[br];
+    if (memb.length < 3) continue;
+
+    refPos = memb[0];
+    refWi = idxList[refPos];
+    for (mj = 1; mj < memb.length; mj++) {
+      widx = idxList[memb[mj]];
+      if (widx < refWi) {
+        refWi = widx;
+        refPos = memb[mj];
+      }
+    }
+    mr = meta[refWi];
+    if (!mr) continue;
+
+    row = [];
+    bucketTh = {};
+    for (mj = 0; mj < memb.length; mj++) {
+      pos = memb[mj];
+      widx = idxList[pos];
+      m = meta[widx];
+      ent = byWall[String(widx)];
+      quad = ent && ent.quad;
+      if (!m || !quad || quad.length < 3) continue;
+      sp = frameDef2aV24QuadSpanOnAxes(quad, mr.ux, mr.uy);
+      cN = frameDef2aV24AvgProjNQuad(quad, mr.nx, mr.ny);
+      var tbk = Math.round(m.th * 10) / 10;
+      if (!bucketTh[String(tbk)]) bucketTh[String(tbk)] = [];
+      bucketTh[String(tbk)].push(widx);
+      row.push({
+        wallIdx: widx,
+        th: m.th,
+        thBucket: tbk,
+        centroidN: cN,
+        spanStruct: sp
+      });
+    }
+    if (row.length < 3) continue;
+
+    row.sort(function(a, b) {
+      if (a.centroidN !== b.centroidN) return a.centroidN - b.centroidN;
+      return a.wallIdx - b.wallIdx;
+    });
+
+    var ginfo = {
+      groupId: groupId,
+      refWallIdx: refWi,
+      memberCount: row.length,
+      thicknessBuckets: bucketTh,
+      axisUxUy: { ux: Math.round(mr.ux * 1e6) / 1e6, uy: Math.round(mr.uy * 1e6) / 1e6 },
+      sortedByN: row.map(function(rr) {
+        return { wallIdx: rr.wallIdx, thBucket: rr.thBucket, centroidN: Math.round(rr.centroidN * 1000) / 1000, spanU: Math.round(rr.spanStruct.spanU * 100) / 100 };
+      }),
+      windows: []
+    };
+    dbgWinGroup = 0;
+
+    for (sk = 0; sk + 2 < row.length; sk++) {
+      L = row[sk];
+      M = row[sk + 1];
+      R = row[sk + 2];
+      wL = L.wallIdx;
+      wM = M.wallIdx;
+      wR = R.wallIdx;
+      mL = meta[wL];
+      mM = meta[wM];
+      mR = meta[wR];
+      if (!mL || !mM || !mR) continue;
+
+      u3 = frameDef2aV24OverlapUThreeMinFrac(L.spanStruct, M.spanStruct, R.spanStruct);
+      passU = u3 >= uFrac;
+      passTh = mM.th > mL.th + dMin && mM.th > mR.th + dMin;
+      stkLM = frameDef2aV24StackedEither(mL, mM, gapTol, uFrac, parDot);
+      stkMR = frameDef2aV24StackedEither(mM, mR, gapTol, uFrac, parDot);
+
+      qM = byWall[String(wM)] && byWall[String(wM)].quad;
+      qL = byWall[String(wL)] && byWall[String(wL)].quad;
+      qR = byWall[String(wR)] && byWall[String(wR)].quad;
+      nxm = mM.nx;
+      nym = mM.ny;
+      cM2 = frameDef2aV24AvgProjNQuad(qM, nxm, nym);
+      cL2 = frameDef2aV24AvgProjNQuad(qL, nxm, nym);
+      cR2 = frameDef2aV24AvgProjNQuad(qR, nxm, nym);
+      var passOpp = qM && qL && qR ? (cL2 - cM2) * (cR2 - cM2) < -1e-4 : false;
+
+      accepted = passU && passTh && stkLM && stkMR && passOpp;
+
+      if (dbgWinGroup < maxDebugWindows) {
+        dbgWinGroup++;
+        ginfo.windows.push({
+          chain_wallIdx: [wL, wM, wR],
+          uFrac3: Math.round(u3 * 10000) / 10000,
+          passUOverlap: passU,
+          passThickMiddle: passTh,
+          passStackedLM: stkLM,
+          passStackedMR: stkMR,
+          passOppositeEnds: passOpp,
+          accepted: accepted
+        });
+      }
+
+      if (accepted) {
+        tripletCount++;
+        thick[String(wM)] = true;
+        tripletsDetail.push({
+          thickMiddle_wallIdx: wM,
+          thinEnds_wallIdx: [wL, wR],
+          thMiddle: mM.th,
+          thEnds: [mL.th, mR.th],
+          chainOrder_wallIdx: [wL, wM, wR],
+          uFrac3: Math.round(u3 * 10000) / 10000,
+          groupId: groupId
+        });
+      }
+    }
+
+    if (groupsDbg.length < maxDebugGroups) groupsDbg.push(ginfo);
+    groupId++;
+  }
+
+  return {
+    thick: thick,
+    tripletCount: tripletCount,
+    tripletsDetail: tripletsDetail,
+    chainDebug: { algorithm: 'nchain-dsu', groups: groupsDbg }
+  };
 }
 
-/** ②-4: 변만 맞닿음이 아닌 본격 중첩(면적≥minReal) 또는 변의 진짜 교차. */
-function frameDef2aV24QuadPairRealInteract(qa, qb, ba, bb, minRealMm2) {
-  if (!qa || !qb || qa.length < 3 || qb.length < 3) return false;
-  if (ba && bb && typeof frameDef2aV2BBoxIntersects2d === 'function' && !frameDef2aV2BBoxIntersects2d(ba, bb)) return false;
-  if (typeof frameDef2aV2QuadQuadOverlapPoly !== 'function' || typeof frameDefPolygonAreaAbs !== 'function') return false;
-  var ov = frameDef2aV2QuadQuadOverlapPoly(qa, qb, ba, bb);
-  var ar = ov ? (Number(frameDefPolygonAreaAbs(ov)) || 0) : 0;
-  if (ar >= minRealMm2) return true;
-  if (frameDef2aV24QuadEdgesProperCross(qa, qb)) return true;
-  return false;
-}
-
-/** 2a: ②-4 — ②-2가 낸 ±벽체 쿼드 가운데, 다른 쿼드와 본격 중첩·교차가 한 번도 없는 벽만 제외(일대다). */
-function frameDefDualOverlap24FilterExcludeIsolated(plusArr, minusArr) {
+/**
+ * ②-4: ②-2 결과 중, 평행한 벽 세 장이 긴 변으로 연속 맞닿고 **가운데가 양끝보다 두껍고** 양끝이 법선 기준 반대편일 때 **가운데(두꺼운 층)만** 남김.
+ */
+function frameDefDualOverlap24FilterSandwichThickOnly(plusArr, minusArr) {
   var plusA = Array.isArray(plusArr) ? plusArr : [];
   var minusA = Array.isArray(minusArr) ? minusArr : [];
-  var items = [];
-  function pushRec(r) {
-    if (!r || !Array.isArray(r.quad) || r.quad.length < 3 || !isFinite(Number(r.wallIdx))) return;
-    items.push({ rec: r, wallIdx: Math.floor(Number(r.wallIdx)) });
-  }
-  for (var ai = 0; ai < plusA.length; ai++) pushRec(plusA[ai]);
-  for (var aj = 0; aj < minusA.length; aj++) pushRec(minusA[aj]);
-  var n = items.length;
   var ts = Date.now();
-  var minReal = (typeof FRAME_DEF_STEP2A_V2_DUAL_24_MIN_REAL_OVERLAP_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_24_MIN_REAL_OVERLAP_MM2))
-    ? Math.max(0.5, Number(FRAME_DEF_STEP2A_V2_DUAL_24_MIN_REAL_OVERLAP_MM2)) : 6;
-  if (typeof frameDef2aV2QuadBBox !== 'function' || typeof frameDef2aV2BBoxIntersects2d !== 'function' || typeof frameDefPolygonAreaAbs !== 'function' || typeof frameDef2aV2QuadQuadOverlapPoly !== 'function') {
+  var gapTol = (typeof FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_N_GAP_TOL_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_N_GAP_TOL_MM))
+    ? Math.max(4, Number(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_N_GAP_TOL_MM)) : 22;
+  var uFrac = (typeof FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC))
+    ? Math.max(0.15, Math.min(0.95, Number(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC))) : 0.45;
+  var dMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM))
+    ? Math.max(0, Number(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM)) : 2.5;
+  var parDot = (typeof FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN))
+    ? Math.max(0.88, Math.min(0.9999, Number(FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN))) : 0.982;
+
+  var st = typeof frameDefGetState === 'function' ? frameDefGetState() : null;
+  var wallList = st && Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
+
+  var byWall = {};
+  function takeRec(r) {
+    if (!r || !Array.isArray(r.quad) || r.quad.length < 3 || !isFinite(Number(r.wallIdx))) return;
+    var wi = Math.floor(Number(r.wallIdx));
+    var w = wallList[wi];
+    if (!w) return;
+    byWall[String(wi)] = { wallIdx: wi, wall: w, quad: r.quad };
+  }
+  for (var ai = 0; ai < plusA.length; ai++) takeRec(plusA[ai]);
+  for (var aj = 0; aj < minusA.length; aj++) takeRec(minusA[aj]);
+
+  var keys = Object.keys(byWall);
+  if (keys.length < 3) {
     return {
       plusOut: plusA.slice(),
       minusOut: minusA.slice(),
-      stat: { excluded: 0, kept: n, plus: plusA.length, minus: minusA.length, pairTests: 0, skip: true, minReal: minReal, ts: ts }
-    };
-  }
-  if (n < 2) {
-    return {
-      plusOut: [],
-      minusOut: [],
-      stat: { excluded: n, kept: 0, plus: 0, minus: 0, pairTests: 0, minReal: minReal, ts: ts }
-    };
-  }
-  var hasPair = new Array(n);
-  for (var h = 0; h < n; h++) hasPair[h] = false;
-  var pairTests = 0;
-  for (var i0 = 0; i0 < n; i0++) {
-    var qi = items[i0].rec.quad;
-    var bi = frameDef2aV2QuadBBox(qi);
-    if (!bi) continue;
-    for (var j0 = i0 + 1; j0 < n; j0++) {
-      var qj = items[j0].rec.quad;
-      var bj = frameDef2aV2QuadBBox(qj);
-      if (!bj || !frameDef2aV2BBoxIntersects2d(bi, bj)) continue;
-      pairTests++;
-      if (frameDef2aV24QuadPairRealInteract(qi, qj, bi, bj, minReal)) {
-        hasPair[i0] = true;
-        hasPair[j0] = true;
+      stat: {
+        mode: 'sandwich-thick',
+        excluded: 0,
+        kept: plusA.length + minusA.length,
+        plus: plusA.length,
+        minus: minusA.length,
+        sandwichTriplets: 0,
+        thickWallCount: 0,
+        passThrough: true,
+        reason: 'need3walls',
+        ts: ts
       }
-    }
+    };
   }
-  var wallHasInteract = {};
-  for (var k = 0; k < n; k++) {
-    var wk = String(items[k].wallIdx);
-    if (!wallHasInteract[wk]) wallHasInteract[wk] = false;
-    if (hasPair[k]) wallHasInteract[wk] = true;
+
+  var meta = {};
+  for (var ki = 0; ki < keys.length; ki++) {
+    var ent = byWall[keys[ki]];
+    var m = frameDef2aV24WallStackMeta(ent.wall, ent.quad);
+    if (!m) continue;
+    m._quadRef = ent.quad;
+    meta[ent.wallIdx] = m;
   }
+
+  var idxList = Object.keys(meta).map(function(x) { return Math.floor(Number(x)); });
+  var chain = frameDef2aV24SandwichNChainFindThicks(byWall, meta, idxList, gapTol, uFrac, dMin, parDot, { maxDebugGroups: 8, maxDebugWindows: 32 });
+  var thick = chain.thick;
+  var triplets = chain.tripletCount;
+  var sandwichNChainDebug = chain.chainDebug;
+
   var plusOut = [], minusOut = [];
   var ex = 0;
-  for (var pi = 0; pi < plusA.length; pi++) {
-    var pr = plusA[pi];
+  for (var pii = 0; pii < plusA.length; pii++) {
+    var pr = plusA[pii];
     if (!pr || !isFinite(Number(pr.wallIdx))) continue;
     var pk = String(Math.floor(Number(pr.wallIdx)));
-    if (wallHasInteract[pk]) plusOut.push(pr); else ex++;
+    if (thick[pk]) plusOut.push(pr); else ex++;
   }
-  for (var mi = 0; mi < minusA.length; mi++) {
-    var mr = minusA[mi];
+  for (var mii = 0; mii < minusA.length; mii++) {
+    var mr = minusA[mii];
     if (!mr || !isFinite(Number(mr.wallIdx))) continue;
-    var mk = String(Math.floor(Number(mr.wallIdx)));
-    if (wallHasInteract[mk]) minusOut.push(mr); else ex++;
+    var mk2 = String(Math.floor(Number(mr.wallIdx)));
+    if (thick[mk2]) minusOut.push(mr); else ex++;
+  }
+
+  var thickCnt = Object.keys(thick).length;
+  if (thickCnt === 0) {
+    return {
+      plusOut: plusA.slice(),
+      minusOut: minusA.slice(),
+      stat: {
+        mode: 'sandwich-thick',
+        excluded: 0,
+        kept: plusA.length + minusA.length,
+        plus: plusA.length,
+        minus: minusA.length,
+        sandwichTriplets: 0,
+        thickWallCount: 0,
+        passThrough: true,
+        noSandwichMatch: true,
+        sandwichAlgorithm: 'nchain-dsu',
+        sandwichNChainDebug: sandwichNChainDebug,
+        gapTol: gapTol,
+        uOverlapMinFrac: uFrac,
+        thickDeltaMin: dMin,
+        ts: ts
+      }
+    };
   }
   return {
     plusOut: plusOut,
     minusOut: minusOut,
     stat: {
+      mode: 'sandwich-thick',
       excluded: ex,
       kept: plusOut.length + minusOut.length,
       plus: plusOut.length,
       minus: minusOut.length,
-      pairTests: pairTests,
-      minReal: minReal,
+      sandwichTriplets: triplets,
+      thickWallCount: thickCnt,
+      sandwichAlgorithm: 'nchain-dsu',
+      sandwichNChainDebug: sandwichNChainDebug,
+      gapTol: gapTol,
+      uOverlapMinFrac: uFrac,
+      thickDeltaMin: dMin,
       ts: ts
     }
   };
@@ -25154,7 +25616,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       st.debugStep2aDualStep24Stat = { excluded: 0, kept: pl + ms, plus: pl, minus: ms, filterOff: true, ts: Date.now() };
       return { plus: plusIn || [], minus: minusIn || [] };
     }
-    var fr = frameDefDualOverlap24FilterExcludeIsolated(plusIn, minusIn);
+    var fr = frameDefDualOverlap24FilterSandwichThickOnly(plusIn, minusIn);
     st.debugStep2aDualStep24Stat = fr.stat;
     return { plus: fr.plusOut, minus: fr.minusOut };
   }

@@ -26360,6 +26360,43 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       if (adx >= ady) return adx > 1e-9 ? ((Number(pt.x) || 0) - e.p1.x) / e.dx : 0;
       return ady > 1e-9 ? ((Number(pt.y) || 0) - e.p1.y) / e.dy : 0;
     }
+    function ringCanonicalKey(poly) {
+      if (!Array.isArray(poly) || poly.length < 3) return '';
+      var pts = [];
+      var qBase = Math.max(0.2, Number(pointEps) || 0.9);
+      for (var iKey = 0; iKey < poly.length; iKey++) {
+        var kp = poly[iKey] || {};
+        var qx = Math.round((Number(kp.x) || 0) / qBase);
+        var qy = Math.round((Number(kp.y) || 0) / qBase);
+        pts.push(String(qx) + ',' + String(qy));
+      }
+      if (pts.length < 3) return '';
+      function minRotationKey(seq) {
+        var best = '';
+        for (var ri = 0; ri < seq.length; ri++) {
+          var rot = seq.slice(ri).concat(seq.slice(0, ri)).join('|');
+          if (!best || rot < best) best = rot;
+        }
+        return best;
+      }
+      var fw = minRotationKey(pts);
+      var rv = minRotationKey(pts.slice().reverse());
+      return fw <= rv ? fw : rv;
+    }
+    function dedupeRingsUndirected(rings) {
+      var srcR = Array.isArray(rings) ? rings : [];
+      var out = [];
+      var seen = {};
+      for (var ri = 0; ri < srcR.length; ri++) {
+        var rg = srcR[ri];
+        if (!Array.isArray(rg) || rg.length < 3) continue;
+        var k = ringCanonicalKey(rg);
+        if (!k || seen[k]) continue;
+        seen[k] = true;
+        out.push(rg);
+      }
+      return out;
+    }
     function buildUnionRings(groupPolys) {
       var gPolys = Array.isArray(groupPolys) ? groupPolys : [];
       if (!gPolys.length) return [];
@@ -26610,6 +26647,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
         if (polygonAreaAbs(ring) < 1) continue;
         rings.push(ring);
       }
+      var uniqRings = dedupeRingsUndirected(rings);
+      if (uniqRings.length) return uniqRings;
       return dedupePolySimple(rings);
     }
     var groupIdxMap = {};
@@ -26646,24 +26685,35 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var outGroups = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
     if (outGroups.length) {
       for (var gi = 0; gi < outGroups.length; gi++) {
-        drawWorldPolyRingsEvenOdd(outGroups[gi], '#9333ea', {
+        var grpRings = outGroups[gi];
+        drawWorldPolyRingsEvenOdd(grpRings, '#9333ea', {
           fillAlpha: 0.30,
           hatchAlpha: 0.00,
           noHatch: true,
           strokeWidth: 1.8,
           step: FRAME_DEF_DEBUG_HATCH_STEP_PX
         }, 0.92);
+        // even-odd 링 중복/상쇄 케이스에서도 경계는 반드시 보이도록 링 외곽선을 한 번 더 그린다.
+        for (var gri = 0; Array.isArray(grpRings) && gri < grpRings.length; gri++) {
+          drawWorldPoly(grpRings[gri], '#6d28d9', {
+            fillAlpha: 0.00,
+            hatchAlpha: 0.00,
+            noHatch: true,
+            strokeWidth: 1.25,
+            step: FRAME_DEF_DEBUG_HATCH_STEP_PX
+          }, 0.72);
+        }
       }
     }
     var outPolys = merged && Array.isArray(merged.polys) ? merged.polys : [];
     for (var i2 = 0; i2 < outPolys.length; i2++) {
       drawWorldPoly(outPolys[i2], '#9333ea', {
-        fillAlpha: outGroups.length ? 0.08 : 0.30,
+        fillAlpha: outGroups.length ? 0.16 : 0.30,
         hatchAlpha: 0.00,
         noHatch: true,
-        strokeWidth: outGroups.length ? 1.1 : 1.8,
+        strokeWidth: outGroups.length ? 1.35 : 1.8,
         step: FRAME_DEF_DEBUG_HATCH_STEP_PX
-      }, outGroups.length ? 0.35 : 0.92);
+      }, outGroups.length ? 0.58 : 0.92);
     }
   }
   function renderCandidateLists(plusPolys, minusPolys, palette) {

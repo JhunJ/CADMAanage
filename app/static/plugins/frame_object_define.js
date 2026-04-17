@@ -26204,7 +26204,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       ts: Date.now(),
       cached: true
     };
-    if (showStep22 || showStep24 || showStep25) {
+    if (forceComputeOnly || showStep22 || showStep24 || showStep25) {
       var a24c = applyStep24SplitForDisplay(cache.plus, cache.minus);
       if (typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
         st.debugStep2aStep25LineProbeText = frameDefBuildStep2aStep25LineProbeText(
@@ -26806,7 +26806,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     ts: st.debugStep2aDualOverlapStat.ts,
     cached: false
   };
-  if (showStep22 || showStep24 || showStep25) {
+  if (forceComputeOnly || showStep22 || showStep24 || showStep25) {
     var a24f = applyStep24SplitForDisplay(plusPolys, minusPolys);
     if (typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
       st.debugStep2aStep25LineProbeText = frameDefBuildStep2aStep25LineProbeText(

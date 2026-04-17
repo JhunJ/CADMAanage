@@ -293,6 +293,16 @@ var FRAME_DEF_DEBUG_2A_FOCUS_ENTITY_IDS = [23619959];
 var FRAME_DEF_DEBUG_2A_FOCUS_WORLD_LINE = { x: 100457.9100507554, y0: 263087.2148522988, y1: 263337.2148522988, eps: 2.5 };
 /** ②-4 샌드위치 검증: 평행 A-ST 라인 ent — 디버그 패널에서 쿼드·긴변 맞닿음·삼중(가운데 두껍고 양끝 얇음) 리포트 */
 var FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS = [23619682, 23619681, 23619661, 23619662];
+/** ②-5 근접 쿼드 디버그: 기준 선분(ent/좌표)과 -5 잔여 쿼드(②-2-②-4) 겹침·두께를 텍스트로 출력 */
+var FRAME_DEF_DEBUG_2A_STEP25_LINE_PROBE = {
+  entityId: 23623333,
+  p1: { x: 68737.91005075385, y: 90382.21485229961 },
+  p2: { x: 68737.91005075525, y: 84302.21485229868 },
+  parallelDotMin: 0.985,
+  nearBboxGapMm: 1800,
+  maxRows: 10,
+  onlyParallel: true
+};
 /** 병합 후 trace: 세그 중점 슬랩 { x1,y1,x2,y2,tolY,padX } | null — 프로젝트별 값은 state.debugStep2aUserTraceSlab 우선 */
 var FRAME_DEF_DEBUG_2A_TRACE_LINE_MM = null;
 /** 2a 플로우 리포트·watch 연장 병합용 기본 ID. state.debugStep2aUiFlowWatchEntityIds 와 합집합(추가·중복 제거) */
@@ -997,6 +1007,7 @@ function frameDefRenderDebugPanel() {
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
   html.push(typeof frameDefFormatStep2aSandwichBaseDebugBlock === 'function' ? frameDefFormatStep2aSandwichBaseDebugBlock(st) : '');
+  html.push(typeof frameDefFormatStep2aStep25LineProbeDebugBlock === 'function' ? frameDefFormatStep2aStep25LineProbeDebugBlock(st) : '');
   html.push('</div>');
   var bb2 = st.wallStep2bByBackend && typeof st.wallStep2bByBackend === 'object' && !Array.isArray(st.wallStep2bByBackend) ? st.wallStep2bByBackend : {};
   var n2bCnn = Array.isArray(bb2.cnn) ? bb2.cnn.length : 0, n2bXgb = Array.isArray(bb2.xgb) ? bb2.xgb.length : 0, n2bRf = Array.isArray(bb2.rf) ? bb2.rf.length : 0, n2bMlp = Array.isArray(bb2.mlp) ? bb2.mlp.length : 0, n2bGnn = Array.isArray(bb2.gnn) ? bb2.gnn.length : 0;
@@ -1707,7 +1718,7 @@ function frameDefStateDefaults() {
     debugStep124ShowInteriorStep7: false,
     debugStep1240Show114Hatch: false,
     debugStep2aUserHatchTraceEnabled: false,
-    debugStep2aUserTraceEntityIds: [], debugStep2aUiFlowWatchEntityIds: [], debugStep2aUserTraceSlab: null, debugStep2aUserTraceSummary: '',
+    debugStep2aUserTraceEntityIds: [], debugStep2aUiFlowWatchEntityIds: [], debugStep2aUserTraceSlab: null, debugStep2aUserTraceSummary: '', debugStep2aStep25LineProbeText: '',
     debugStep2aEntityFlowReport: null, debugStep2aSourceDropReasonsByEntity: {},
     wallStep2bByBackend: { cnn: [], xgb: [], rf: [], mlp: [], gnn: [] },
     debugStep2bShowCnn: false, debugStep2bShowXgb: false, debugStep2bShowRf: false, debugStep2bShowMlp: false, debugStep2bShowGnn: false,
@@ -1799,6 +1810,7 @@ function frameDefGetState() {
   if (!Array.isArray(window.frameDefState.debugStep2aUiFlowWatchEntityIds)) window.frameDefState.debugStep2aUiFlowWatchEntityIds = [];
   if (window.frameDefState.debugStep2aUserTraceSlab != null && (typeof window.frameDefState.debugStep2aUserTraceSlab !== 'object' || Array.isArray(window.frameDefState.debugStep2aUserTraceSlab))) window.frameDefState.debugStep2aUserTraceSlab = null;
   if (typeof window.frameDefState.debugStep2aUserTraceSummary !== 'string') window.frameDefState.debugStep2aUserTraceSummary = '';
+  if (typeof window.frameDefState.debugStep2aStep25LineProbeText !== 'string') window.frameDefState.debugStep2aStep25LineProbeText = '';
   if (window.frameDefState.debugStep2aEntityFlowReport != null && typeof window.frameDefState.debugStep2aEntityFlowReport !== 'object') window.frameDefState.debugStep2aEntityFlowReport = null;
   if (!window.frameDefState.debugStep2aSourceDropReasonsByEntity || typeof window.frameDefState.debugStep2aSourceDropReasonsByEntity !== 'object' || Array.isArray(window.frameDefState.debugStep2aSourceDropReasonsByEntity)) {
     window.frameDefState.debugStep2aSourceDropReasonsByEntity = {};
@@ -3160,6 +3172,194 @@ function frameDefFormatStep2aSandwichBaseDebugBlock(st) {
   return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#a855f7; cursor:pointer; font-weight:600;">②-4 샌드위치 기준 선분 쿼드 디버그 (ent ' + esc(ids.join(' · ')) + ')</summary>'
     + '<div style="font-size:0.65rem; color:#57606a; margin:6px 0 4px; line-height:1.4;">JSON에 <code style="font-size:0.62rem;">sandwichAlgorithm</code>·<code style="font-size:0.62rem;">sandwichNChain</code>이 포함됩니다. 평행(DSU) 그룹 → 참조 장축에서 <b>n 정렬</b> → <b>연속 3장</b> 슬라이딩, 각 창은 <code>pass*</code>·<code>accepted</code>로 어디서 걸렸는지 확인합니다. <code>pairTests</code>는 여전히 두 벽씩 맞닿음입니다. ②-2·②-4 체크 후·2a 재계산 직후가 가장 정확합니다.</div>'
     + '<pre style="margin:0;padding:8px;background:#1e1b4b;color:#e9d5ff;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:420px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
+}
+
+function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, probeCfg) {
+  var cfg = probeCfg && typeof probeCfg === 'object' ? probeCfg : {};
+  var entityId = isFinite(Number(cfg.entityId)) ? Math.floor(Number(cfg.entityId)) : null;
+  var p1 = cfg.p1 && isFinite(Number(cfg.p1.x)) && isFinite(Number(cfg.p1.y)) ? { x: Number(cfg.p1.x), y: Number(cfg.p1.y) } : null;
+  var p2 = cfg.p2 && isFinite(Number(cfg.p2.x)) && isFinite(Number(cfg.p2.y)) ? { x: Number(cfg.p2.x), y: Number(cfg.p2.y) } : null;
+  if ((!p1 || !p2) && entityId != null) {
+    var src = st && Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs : [];
+    for (var si = 0; si < src.length; si++) {
+      var sg = src[si];
+      if (!sg || !sg.p1 || !sg.p2 || !Array.isArray(sg.entity_ids)) continue;
+      if (sg.entity_ids.indexOf(entityId) < 0) continue;
+      p1 = { x: Number(sg.p1.x) || 0, y: Number(sg.p1.y) || 0 };
+      p2 = { x: Number(sg.p2.x) || 0, y: Number(sg.p2.y) || 0 };
+      break;
+    }
+  }
+  if (!p1 || !p2) return 'step25-line-probe: 기준 선분 좌표가 없어 리포트를 만들 수 없습니다.';
+  var dx = p2.x - p1.x, dy = p2.y - p1.y;
+  var len = Math.hypot(dx, dy);
+  if (!(len > 1e-6)) return 'step25-line-probe: 기준 선분 길이가 0입니다.';
+  var ux = dx / len, uy = dy / len;
+  var line = { p1: p1, p2: p2, ux: ux, uy: uy, len: len };
+  var lineBBox = {
+    minx: Math.min(p1.x, p2.x),
+    maxx: Math.max(p1.x, p2.x),
+    miny: Math.min(p1.y, p2.y),
+    maxy: Math.max(p1.y, p2.y)
+  };
+  var dotMin = isFinite(Number(cfg.parallelDotMin)) ? Math.max(0.8, Math.min(0.99999, Number(cfg.parallelDotMin))) : 0.985;
+  var nearGap = isFinite(Number(cfg.nearBboxGapMm)) ? Math.max(0, Number(cfg.nearBboxGapMm)) : 1800;
+  var maxRows = isFinite(Number(cfg.maxRows)) ? Math.max(1, Math.floor(Number(cfg.maxRows))) : 10;
+  var onlyParallel = cfg.onlyParallel !== false;
+  var walls = st && Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
+
+  function bboxGapMm(a, b) {
+    if (!a || !b) return Infinity;
+    var dx0 = 0, dy0 = 0;
+    if (a.maxx < b.minx) dx0 = b.minx - a.maxx;
+    else if (b.maxx < a.minx) dx0 = a.minx - b.maxx;
+    if (a.maxy < b.miny) dy0 = b.miny - a.maxy;
+    else if (b.maxy < a.miny) dy0 = a.miny - b.maxy;
+    return Math.hypot(dx0, dy0);
+  }
+  function quadAxis(quad) {
+    if (!Array.isArray(quad) || quad.length < 4) return null;
+    var p0 = quad[0], p1q = quad[1], p2q = quad[2], p3 = quad[3];
+    if (!p0 || !p1q || !p2q || !p3) return null;
+    var e01x = (Number(p1q.x) || 0) - (Number(p0.x) || 0), e01y = (Number(p1q.y) || 0) - (Number(p0.y) || 0);
+    var e12x = (Number(p2q.x) || 0) - (Number(p1q.x) || 0), e12y = (Number(p2q.y) || 0) - (Number(p1q.y) || 0);
+    var l01 = Math.hypot(e01x, e01y), l12 = Math.hypot(e12x, e12y);
+    if (l01 < 1e-6 && l12 < 1e-6) return null;
+    if (l01 >= l12) return { ux: e01x / Math.max(l01, 1e-9), uy: e01y / Math.max(l01, 1e-9), longLen: l01 };
+    return { ux: e12x / Math.max(l12, 1e-9), uy: e12y / Math.max(l12, 1e-9), longLen: l12 };
+  }
+  function pointInPolyStrict(pt, poly, edgeEps) {
+    if (!pt || !Array.isArray(poly) || poly.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
+    if (!frameDefPointInPolygon(pt, poly)) return false;
+    var eps = Math.max(0.6, Number(edgeEps) || 1.2);
+    var minD = Infinity;
+    for (var i = 0; i < poly.length; i++) {
+      var a = poly[i], b = poly[(i + 1) % poly.length];
+      if (!a || !b || typeof frameDefPointToSegmentProjection !== 'function') continue;
+      var pr = frameDefPointToSegmentProjection(pt, { p1: a, p2: b });
+      if (!pr) continue;
+      var d = Number(pr.dist) || 0;
+      if (d < minD) minD = d;
+    }
+    return minD > eps;
+  }
+  function lineOverlapInfo(ln, poly, edgeEps) {
+    if (!ln || !ln.p1 || !ln.p2 || !Array.isArray(poly) || poly.length < 3) return { pass: false, reason: 'invalid' };
+    var ax = Number(ln.p1.x) || 0, ay = Number(ln.p1.y) || 0;
+    var bx = Number(ln.p2.x) || 0, by = Number(ln.p2.y) || 0;
+    var dlx = bx - ax, dly = by - ay;
+    var ll = Math.hypot(dlx, dly);
+    if (!(ll > 1e-6)) return { pass: false, reason: 'line-len-zero' };
+    function ptAt(t) { return { x: ax + dlx * t, y: ay + dly * t }; }
+    var samples = 25;
+    var inCount = 0, firstT = 1, lastT = 0;
+    for (var si = 1; si <= samples; si++) {
+      var ts = si / (samples + 1);
+      if (!pointInPolyStrict(ptAt(ts), poly, edgeEps)) continue;
+      inCount++;
+      if (ts < firstT) firstT = ts;
+      if (ts > lastT) lastT = ts;
+    }
+    var spanLen = inCount > 0 ? Math.max(0, (lastT - firstT) * ll) : 0;
+    if (spanLen >= Math.max(12, ll * 0.01) || inCount >= 2) {
+      return { pass: true, reason: 'samples', insideCount: inCount, insideSpanMm: Math.round(spanLen * 100) / 100, hitCount: 0 };
+    }
+    var hitCount = 0;
+    if (typeof frameDefSegSegIntersectInclusive === 'function') {
+      var hitMap = {};
+      for (var ei = 0; ei < poly.length; ei++) {
+        var q1 = poly[ei], q2 = poly[(ei + 1) % poly.length];
+        if (!q1 || !q2) continue;
+        var cx = Number(q1.x) || 0, cy = Number(q1.y) || 0;
+        var dxq = Number(q2.x) || 0, dyq = Number(q2.y) || 0;
+        if (!frameDefSegSegIntersectInclusive(ax, ay, bx, by, cx, cy, dxq, dyq, 1e-7)) continue;
+        var den = (bx - ax) * (dyq - cy) - (by - ay) * (dxq - cx);
+        if (Math.abs(den) < 1e-9) continue;
+        var t = ((cx - ax) * (dyq - cy) - (cy - ay) * (dxq - cx)) / den;
+        if (!(t > 1e-6 && t < 1 - 1e-6)) continue;
+        var hk = String(Math.round(t * 10000));
+        if (hitMap[hk]) continue;
+        hitMap[hk] = true;
+        hitCount++;
+      }
+    }
+    return { pass: false, reason: hitCount >= 2 ? 'edge-only' : 'no-inside', insideCount: inCount, insideSpanMm: Math.round(spanLen * 100) / 100, hitCount: hitCount };
+  }
+
+  var rows = [];
+  function pushRows(arr, signTag) {
+    var list = Array.isArray(arr) ? arr : [];
+    for (var i = 0; i < list.length; i++) {
+      var rec = list[i];
+      if (!rec || !Array.isArray(rec.quad) || rec.quad.length < 3) continue;
+      var axis = quadAxis(rec.quad);
+      var dot = axis ? Math.abs((Number(axis.ux) || 0) * ux + (Number(axis.uy) || 0) * uy) : 0;
+      if (onlyParallel && dot < dotMin) continue;
+      var bq = typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(rec.quad) : null;
+      var gap = bboxGapMm(lineBBox, bq);
+      if (isFinite(nearGap) && gap > nearGap) continue;
+      var ov = lineOverlapInfo(line, rec.quad, 1.2);
+      var w = (isFinite(Number(rec.wallIdx)) && Number(rec.wallIdx) >= 0) ? walls[Math.floor(Number(rec.wallIdx))] : null;
+      var th = typeof frameDef2aV24WallThicknessMm === 'function' ? frameDef2aV24WallThicknessMm(w) : Number(w && w.thickness_mm);
+      var ent = (w && Array.isArray(w.entity_ids)) ? w.entity_ids.slice(0, 6) : [];
+      rows.push({
+        sign: signTag,
+        wallIdx: isFinite(Number(rec.wallIdx)) ? Math.floor(Number(rec.wallIdx)) : -1,
+        thicknessMm: isFinite(th) ? Math.round(th * 10) / 10 : null,
+        dot: Math.round(dot * 10000) / 10000,
+        bboxGapMm: isFinite(gap) ? Math.round(gap * 100) / 100 : null,
+        overlap: !!ov.pass,
+        reason: ov.reason,
+        insideSpanMm: isFinite(Number(ov.insideSpanMm)) ? Number(ov.insideSpanMm) : 0,
+        hitCount: isFinite(Number(ov.hitCount)) ? Number(ov.hitCount) : 0,
+        insideCount: isFinite(Number(ov.insideCount)) ? Number(ov.insideCount) : 0,
+        ent: ent
+      });
+    }
+  }
+  pushRows(step25Plus, '+');
+  pushRows(step25Minus, '-');
+  rows.sort(function(a, b) {
+    if (!!a.overlap !== !!b.overlap) return a.overlap ? -1 : 1;
+    var ga = isFinite(Number(a.bboxGapMm)) ? Number(a.bboxGapMm) : Infinity;
+    var gb = isFinite(Number(b.bboxGapMm)) ? Number(b.bboxGapMm) : Infinity;
+    if (Math.abs(ga - gb) > 1e-6) return ga - gb;
+    return (Number(b.dot) || 0) - (Number(a.dot) || 0);
+  });
+  if (rows.length > maxRows) rows = rows.slice(0, maxRows);
+
+  var lines = [];
+  lines.push('=== STEP25 LINE PROBE (복붙용) ===');
+  lines.push('entityId=' + String(entityId != null ? entityId : '(none)') + ' line=(' + p1.x.toFixed(3) + ',' + p1.y.toFixed(3) + ')->(' + p2.x.toFixed(3) + ',' + p2.y.toFixed(3) + ') len=' + (Math.round(len * 1000) / 1000));
+  lines.push('filters: onlyParallel=' + String(onlyParallel) + ' dotMin=' + String(dotMin) + ' nearBboxGapMm=' + String(nearGap) + ' maxRows=' + String(maxRows));
+  lines.push('step25 counts: plus=' + String((Array.isArray(step25Plus) ? step25Plus.length : 0)) + ' minus=' + String((Array.isArray(step25Minus) ? step25Minus.length : 0)) + ' nearMatched=' + String(rows.length));
+  lines.push('idx|sign|wallIdx|thkMm|dot|bboxGapMm|overlap|reason|insideSpanMm|hits|insideCnt|entity_ids');
+  if (!rows.length) {
+    lines.push('(근처 후보 없음 — nearBboxGapMm/parallelDotMin 조건 완화 필요)');
+  } else {
+    for (var ri = 0; ri < rows.length; ri++) {
+      var r = rows[ri];
+      lines.push(
+        String(ri + 1) + '|' + r.sign + '|' + String(r.wallIdx) + '|' + String(r.thicknessMm == null ? '' : r.thicknessMm)
+        + '|' + String(r.dot) + '|' + String(r.bboxGapMm == null ? '' : r.bboxGapMm)
+        + '|' + (r.overlap ? 'Y' : 'N') + '|' + String(r.reason || '')
+        + '|' + String(r.insideSpanMm || 0) + '|' + String(r.hitCount || 0) + '|' + String(r.insideCount || 0)
+        + '|' + JSON.stringify(r.ent || [])
+      );
+    }
+  }
+  return lines.join('\n');
+}
+
+function frameDefFormatStep2aStep25LineProbeDebugBlock(st) {
+  var cfg = typeof FRAME_DEF_DEBUG_2A_STEP25_LINE_PROBE === 'object' && FRAME_DEF_DEBUG_2A_STEP25_LINE_PROBE ? FRAME_DEF_DEBUG_2A_STEP25_LINE_PROBE : null;
+  if (!cfg) return '';
+  var esc = typeof escapeHtml === 'function' ? escapeHtml : function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  var txt = st && typeof st.debugStep2aStep25LineProbeText === 'string' ? st.debugStep2aStep25LineProbeText : '';
+  if (!txt) txt = '리포트 없음 — 2a 재계산 후 이 블록이 채워집니다.';
+  return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#7c3aed; cursor:pointer; font-weight:600;">②-5 근접 쿼드 디버그 (ent ' + esc(String(cfg.entityId)) + ')</summary>'
+    + '<div style="font-size:0.65rem; color:#57606a; margin:6px 0 4px; line-height:1.4;">-5 잔여 쿼드(②-2-②-4) 중 기준선 주변만 표시합니다. 아래 텍스트를 그대로 복사해 공유하면 됩니다.</div>'
+    + '<pre style="margin:0;padding:8px;background:#2e1065;color:#f3e8ff;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:420px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
 }
 
 function frameDefSegHasEntityOverlap(a, b) {
@@ -25865,8 +26065,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     if (!needStep24Split) {
       var pl = plusBase.length;
       var ms = minusBase.length;
-      st.debugStep2aDualStep24Stat = { excluded: 0, kept: 0, plus: 0, minus: 0, step22Plus: pl, step22Minus: ms, step24Plus: 0, step24Minus: 0, filterOff: true, ts: Date.now() };
-      st.__debugStep2aDualStep24Cache = { key: '', step22Plus: [], step22Minus: [], step24Plus: [], step24Minus: [], step25Plus: [], step25Minus: [], stat: st.debugStep2aDualStep24Stat };
+      st.debugStep2aDualStep24Stat = { excluded: 0, kept: 0, plus: 0, minus: 0, step22Plus: pl, step22Minus: ms, step24Plus: 0, step24Minus: 0, step25Plus: pl, step25Minus: ms, filterOff: true, ts: Date.now() };
+      st.__debugStep2aDualStep24Cache = { key: '', step22Plus: [], step22Minus: [], step24Plus: [], step24Minus: [], step25Plus: plusBase.slice(), step25Minus: minusBase.slice(), stat: st.debugStep2aDualStep24Stat };
       return { step22Plus: plusBase, step22Minus: minusBase, step24Plus: [], step24Minus: [] };
     }
     function recSig(rec) {
@@ -25898,6 +26098,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     if (step24Cache && step24Cache.key === step24Key
       && Array.isArray(step24Cache.step22Plus) && Array.isArray(step24Cache.step22Minus)
       && Array.isArray(step24Cache.step24Plus) && Array.isArray(step24Cache.step24Minus)) {
+      var step25PlusCached = Array.isArray(step24Cache.step25Plus) ? step24Cache.step25Plus : step24Cache.step22Plus;
+      var step25MinusCached = Array.isArray(step24Cache.step25Minus) ? step24Cache.step25Minus : step24Cache.step22Minus;
       st.debugStep2aDualStep24Stat = step24Cache.stat || {
         excluded: 0,
         kept: step24Cache.step24Plus.length + step24Cache.step24Minus.length,
@@ -25905,9 +26107,13 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         minus: step24Cache.step24Minus.length,
         step22Plus: step24Cache.step22Plus.length,
         step22Minus: step24Cache.step22Minus.length,
+        step25Plus: step25PlusCached.length,
+        step25Minus: step25MinusCached.length,
         cached: true,
         ts: Date.now()
       };
+      st.__debugStep2aDualStep24Cache.step25Plus = step25PlusCached.slice();
+      st.__debugStep2aDualStep24Cache.step25Minus = step25MinusCached.slice();
       return {
         step22Plus: step24Cache.step22Plus.slice(),
         step22Minus: step24Cache.step22Minus.slice(),
@@ -25925,6 +26131,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     stat24.step22Minus = step22Minus.length;
     stat24.step24Plus = step24Plus.length;
     stat24.step24Minus = step24Minus.length;
+    stat24.step25Plus = step22Plus.length;
+    stat24.step25Minus = step22Minus.length;
     stat24.splitFromStep22 = true;
     st.debugStep2aDualStep24Stat = stat24;
     st.__debugStep2aDualStep24Cache = {
@@ -25933,6 +26141,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       step22Minus: step22Minus.slice(),
       step24Plus: step24Plus.slice(),
       step24Minus: step24Minus.slice(),
+      step25Plus: step22Plus.slice(),
+      step25Minus: step22Minus.slice(),
       stat: Object.assign({}, stat24, { cached: false })
     };
     return { step22Plus: step22Plus, step22Minus: step22Minus, step24Plus: step24Plus, step24Minus: step24Minus };
@@ -25984,6 +26194,14 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     };
     if (showStep22 || showStep24 || showStep25) {
       var a24c = applyStep24SplitForDisplay(cache.plus, cache.minus);
+      if (typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
+        st.debugStep2aStep25LineProbeText = frameDefBuildStep2aStep25LineProbeText(
+          st,
+          a24c && Array.isArray(a24c.step22Plus) ? a24c.step22Plus : [],
+          a24c && Array.isArray(a24c.step22Minus) ? a24c.step22Minus : [],
+          FRAME_DEF_DEBUG_2A_STEP25_LINE_PROBE
+        );
+      }
       if (showStep22) {
         renderCandidateLists(cache.plus, cache.minus);
       }
@@ -26578,6 +26796,14 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   };
   if (showStep22 || showStep24 || showStep25) {
     var a24f = applyStep24SplitForDisplay(plusPolys, minusPolys);
+    if (typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
+      st.debugStep2aStep25LineProbeText = frameDefBuildStep2aStep25LineProbeText(
+        st,
+        a24f && Array.isArray(a24f.step22Plus) ? a24f.step22Plus : [],
+        a24f && Array.isArray(a24f.step22Minus) ? a24f.step22Minus : [],
+        FRAME_DEF_DEBUG_2A_STEP25_LINE_PROBE
+      );
+    }
     if (showStep22) {
       renderCandidateLists(plusPolys, minusPolys);
     }

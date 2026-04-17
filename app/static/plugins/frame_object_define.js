@@ -3247,10 +3247,35 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
     });
     return pts;
   }
+  function pointInConvexQuadByCross(pt, poly, eps) {
+    if (!pt || !Array.isArray(poly) || poly.length < 3) return false;
+    var tol = Math.max(1e-9, Number(eps) || 1e-8);
+    var sign = 0;
+    for (var i = 0; i < poly.length; i++) {
+      var a = poly[i], b = poly[(i + 1) % poly.length];
+      if (!a || !b) continue;
+      var ax = Number(a.x) || 0, ay = Number(a.y) || 0;
+      var bx = Number(b.x) || 0, by = Number(b.y) || 0;
+      var px = Number(pt.x) || 0, py = Number(pt.y) || 0;
+      var c = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+      if (Math.abs(c) <= tol) continue;
+      var s = c > 0 ? 1 : -1;
+      if (sign === 0) sign = s;
+      else if (sign !== s) return false;
+    }
+    return true;
+  }
+  function pointInPolyLoose(pt, polyUse) {
+    if (!pt || !Array.isArray(polyUse) || polyUse.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
+    if (frameDefPointInPolygon(pt, polyUse)) return true;
+    // 드물게 레이캐스팅이 쿼드 점 순서/수치잡음에서 실패하므로 convex-quad 반평면 검사로 보강.
+    if (polyUse.length === 4) return pointInConvexQuadByCross(pt, polyUse, 1e-7);
+    return false;
+  }
   function pointInPolyStrict(pt, poly, edgeEps) {
     var polyUse = normalizeQuadLoop(poly);
-    if (!pt || !Array.isArray(polyUse) || polyUse.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
-    if (!frameDefPointInPolygon(pt, polyUse)) return false;
+    if (!pt || !Array.isArray(polyUse) || polyUse.length < 3) return false;
+    if (!pointInPolyLoose(pt, polyUse)) return false;
     var eps = Math.max(0.6, Number(edgeEps) || 1.2);
     var minD = Infinity;
     for (var i = 0; i < polyUse.length; i++) {
@@ -3293,7 +3318,7 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
     for (var si = 1; si <= samples; si++) {
       var ts = si / (samples + 1);
       var pt = ptAt(ts);
-      var looseIn = (typeof frameDefPointInPolygon === 'function') ? frameDefPointInPolygon(pt, polyUse) : false;
+      var looseIn = pointInPolyLoose(pt, polyUse);
       var dEdge = pointEdgeMinDist(pt);
       if (isFinite(dEdge) && dEdge < minEdgeMm) minEdgeMm = dEdge;
       if (looseIn) {
@@ -3311,7 +3336,7 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
     for (var di = 0; di <= dense; di++) {
       var td = di / dense;
       var ptd = ptAt(td);
-      var looseInD = (typeof frameDefPointInPolygon === 'function') ? frameDefPointInPolygon(ptd, polyUse) : false;
+      var looseInD = pointInPolyLoose(ptd, polyUse);
       var edgeD = pointEdgeMinDist(ptd);
       var strictInD = looseInD && edgeD > eps;
       if (looseInD) {
@@ -26821,10 +26846,34 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     });
     return pts;
   }
+  function pointInConvexQuadByCross(pt, poly, eps) {
+    if (!pt || !Array.isArray(poly) || poly.length < 3) return false;
+    var tol = Math.max(1e-9, Number(eps) || 1e-8);
+    var sign = 0;
+    for (var i = 0; i < poly.length; i++) {
+      var a = poly[i], b = poly[(i + 1) % poly.length];
+      if (!a || !b) continue;
+      var ax = Number(a.x) || 0, ay = Number(a.y) || 0;
+      var bx = Number(b.x) || 0, by = Number(b.y) || 0;
+      var px = Number(pt.x) || 0, py = Number(pt.y) || 0;
+      var c = (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+      if (Math.abs(c) <= tol) continue;
+      var s = c > 0 ? 1 : -1;
+      if (sign === 0) sign = s;
+      else if (sign !== s) return false;
+    }
+    return true;
+  }
+  function pointInPolyLoose(pt, polyUse) {
+    if (!pt || !Array.isArray(polyUse) || polyUse.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
+    if (frameDefPointInPolygon(pt, polyUse)) return true;
+    if (polyUse.length === 4) return pointInConvexQuadByCross(pt, polyUse, 1e-7);
+    return false;
+  }
   function pointInPolyStrict(pt, poly, edgeEps) {
     var polyUse = normalizeQuadLoop(poly);
-    if (!pt || !Array.isArray(polyUse) || polyUse.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
-    if (!frameDefPointInPolygon(pt, polyUse)) return false;
+    if (!pt || !Array.isArray(polyUse) || polyUse.length < 3) return false;
+    if (!pointInPolyLoose(pt, polyUse)) return false;
     var eps = Math.max(0.6, Number(edgeEps) || 1.2);
     var minD = Infinity;
     for (var i = 0; i < polyUse.length; i++) {

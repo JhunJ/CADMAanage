@@ -26620,7 +26620,13 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var tMid = (it.tMin + it.tMax) * 0.5;
       return {
         len: Math.max(0, (it.tMax - it.tMin) * lenL),
-        midT: Math.max(0, Math.min(1, tMid))
+        midT: Math.max(0, Math.min(1, tMid)),
+        uMin: uMin,
+        uMax: uMax,
+        lineU0: lu0,
+        lineU1: lu0 + du,
+        clipU0: lu0 + du * it.tMin,
+        clipU1: lu0 + du * it.tMax
       };
     }
     function pointMinEdgeDist(pt) {
@@ -26639,19 +26645,41 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     }
     function allowEdgeTouchByAxisClip(info) {
       if (!info) return false;
-      var minInsideLen = Math.max(16, lenL * 0.015);
+      var minInsideLen = Math.max(18, lenL * 0.02);
       var touchLen = Number(info.len) || 0;
       if (!(touchLen >= minInsideLen)) return false;
       var midT = Math.max(0, Math.min(1, Number(info.midT) || 0.5));
       var midPt = ptAt(midT);
       if (insideAt(midT)) return false;
+      if (typeof frameDefPointInPolygon === 'function' && !frameDefPointInPolygon(midPt, poly)) return false;
       var edgeTouchTol = Math.max(0.8, (Number(edgeEps) || 1.2) * 1.25);
       var dEdge = pointMinEdgeDist(midPt);
       if (!(dEdge <= edgeTouchTol)) return false;
+      var uMin = Number(info.uMin), uMax = Number(info.uMax);
+      var c0 = Math.min(Number(info.clipU0) || 0, Number(info.clipU1) || 0);
+      var c1 = Math.max(Number(info.clipU0) || 0, Number(info.clipU1) || 0);
+      if (!isFinite(uMin) || !isFinite(uMax) || !(uMax > uMin + 1e-6)) return false;
+      var quadULen = Math.max(1e-6, uMax - uMin);
+      var overlapRatio = Math.max(0, (c1 - c0) / quadULen);
+      // "꼬치처럼 일부만 들어간" 경우만 허용: 장축 전체를 따라붙는 경계선은 제외.
+      if (!(overlapRatio <= 0.72)) return false;
+      var uTouchTol = Math.max(3.0, (Number(edgeEps) || 1.2) * 3.0);
+      var touchMin = Math.abs(c0 - uMin) <= uTouchTol;
+      var touchMax = Math.abs(c1 - uMax) <= uTouchTol;
+      // 한쪽 끝에서만 걸치는 경우만 허용(XOR).
+      if (touchMin === touchMax) return false;
+      var l0 = Math.min(Number(info.lineU0) || 0, Number(info.lineU1) || 0);
+      var l1 = Math.max(Number(info.lineU0) || 0, Number(info.lineU1) || 0);
+      // 실제로 바깥 꼬리가 존재하고, 내부 코어 겹침이 있어야 한다.
+      var hasTailOutside = (l0 < uMin - uTouchTol) || (l1 > uMax + uTouchTol);
+      var hasCoreInside = (l1 > uMin + uTouchTol) && (l0 < uMax - uTouchTol);
+      if (!hasTailOutside || !hasCoreInside) return false;
       if (dbg) {
         dbg.reason = 'axis-clip-edge-touch';
         dbg.axisClipInsideLen = Math.round(touchLen * 1000) / 1000;
         dbg.axisClipEdgeDist = Math.round((Number(dEdge) || 0) * 1000) / 1000;
+        dbg.axisClipOverlapRatio = Math.round(overlapRatio * 1000) / 1000;
+        dbg.axisClipTouches = touchMin ? 'uMin' : 'uMax';
       }
       return true;
     }

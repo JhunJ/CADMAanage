@@ -26823,15 +26823,46 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       ts: Date.now()
     };
     if (!showStep26 || forceComputeOnly) return;
+    function drawSmallPolyMarker(poly, color) {
+      if (!Array.isArray(poly) || poly.length < 3 || typeof toScreen !== 'function' || typeof ctx === 'undefined' || !ctx) return;
+      var bb = polyBBox(poly);
+      if (!bb) return;
+      var cx = (bb.minx + bb.maxx) * 0.5, cy = (bb.miny + bb.maxy) * 0.5;
+      var cp = toScreen(cx, cy);
+      if (!cp || !isFinite(Number(cp.x)) || !isFinite(Number(cp.y))) return;
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = frameDefColorWithAlpha(color || '#9333ea', 0.92);
+      ctx.fillStyle = frameDefColorWithAlpha(color || '#9333ea', 0.28);
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(cp.x, cp.y, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cp.x - 6, cp.y);
+      ctx.lineTo(cp.x + 6, cp.y);
+      ctx.moveTo(cp.x, cp.y - 6);
+      ctx.lineTo(cp.x, cp.y + 6);
+      ctx.stroke();
+      ctx.restore();
+    }
+    function isTinyOnScreen(poly) {
+      var sb = screenBoxFromPoly(poly);
+      if (!sb) return false;
+      var w = Math.abs((Number(sb.maxx) || 0) - (Number(sb.minx) || 0));
+      var h = Math.abs((Number(sb.maxy) || 0) - (Number(sb.miny) || 0));
+      return w < 1.5 && h < 1.5;
+    }
     var outGroups = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
     if (outGroups.length) {
       for (var gi = 0; gi < outGroups.length; gi++) {
         var grpRings = outGroups[gi];
         drawWorldPolyRingsEvenOdd(grpRings, '#9333ea', {
-          fillAlpha: 0.30,
-          hatchAlpha: 0.00,
-          noHatch: true,
-          strokeWidth: 1.8,
+          fillAlpha: 0.40,
+          hatchAlpha: 0.62,
+          noHatch: false,
+          strokeWidth: 2.0,
           step: FRAME_DEF_DEBUG_HATCH_STEP_PX
         }, 0.92);
         // even-odd 링 중복/상쇄 케이스에서도 경계는 반드시 보이도록 링 외곽선을 한 번 더 그린다.
@@ -26843,18 +26874,20 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
             strokeWidth: 1.25,
             step: FRAME_DEF_DEBUG_HATCH_STEP_PX
           }, 0.72);
+          if (isTinyOnScreen(grpRings[gri])) drawSmallPolyMarker(grpRings[gri], '#6d28d9');
         }
       }
     }
     var outPolys = merged && Array.isArray(merged.polys) ? merged.polys : [];
     for (var i2 = 0; i2 < outPolys.length; i2++) {
       drawWorldPoly(outPolys[i2], '#9333ea', {
-        fillAlpha: outGroups.length ? 0.16 : 0.30,
-        hatchAlpha: 0.00,
-        noHatch: true,
-        strokeWidth: outGroups.length ? 1.35 : 1.8,
+        fillAlpha: outGroups.length ? 0.22 : 0.36,
+        hatchAlpha: outGroups.length ? 0.36 : 0.58,
+        noHatch: false,
+        strokeWidth: outGroups.length ? 1.45 : 1.9,
         step: FRAME_DEF_DEBUG_HATCH_STEP_PX
       }, outGroups.length ? 0.58 : 0.92);
+      if (isTinyOnScreen(outPolys[i2])) drawSmallPolyMarker(outPolys[i2], '#9333ea');
     }
   }
   function renderCandidateLists(plusPolys, minusPolys, palette) {

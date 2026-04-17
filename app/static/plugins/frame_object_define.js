@@ -26646,41 +26646,83 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       }
       return minD;
     }
+    function edgeSkewerOverlapByLongEdge() {
+      if (!Array.isArray(poly) || poly.length < 4) return null;
+      var axis = quadLongAxisUnit(poly);
+      if (!axis || !isFinite(Number(axis.ux)) || !isFinite(Number(axis.uy))) return null;
+      var cand = [];
+      for (var ei = 0; ei < poly.length; ei++) {
+        var a = poly[ei], b = poly[(ei + 1) % poly.length];
+        if (!a || !b) continue;
+        var ex = (Number(b.x) || 0) - (Number(a.x) || 0);
+        var ey = (Number(b.y) || 0) - (Number(a.y) || 0);
+        var el = Math.hypot(ex, ey);
+        if (!(el > 1e-6)) continue;
+        var eux = ex / el, euy = ey / el;
+        var dotAxis = Math.abs(eux * (Number(axis.ux) || 0) + euy * (Number(axis.uy) || 0));
+        if (dotAxis < 0.90) continue;
+        cand.push({ idx: ei, a: a, b: b, el: el, ux: eux, uy: euy, dotAxis: dotAxis });
+      }
+      if (!cand.length) return null;
+      cand.sort(function(x, y) { return Number(y.el || 0) - Number(x.el || 0); });
+      if (cand.length > 3) cand = cand.slice(0, 3);
+      var lineSeg = { p1: p1, p2: p2 };
+      var minOverlapLen = Math.max(14, lenL * 0.015);
+      var nearTol = Math.max(1.5, (Number(edgeEps) || 1.2) * 2.8);
+      var endTol = Math.max(6.0, (Number(edgeEps) || 1.2) * 6.0);
+      for (var ci = 0; ci < cand.length; ci++) {
+        var ed = cand[ci];
+        var dotLE = Math.abs((Number(ed.ux) || 0) * uxL + (Number(ed.uy) || 0) * uyL);
+        if (dotLE < 0.985) continue;
+        var pr1 = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(p1, { p1: ed.a, p2: ed.b }) : null;
+        var pr2 = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(p2, { p1: ed.a, p2: ed.b }) : null;
+        if (!pr1 || !pr2) continue;
+        var dMax = Math.max(Number(pr1.dist) || 0, Number(pr2.dist) || 0);
+        if (!(dMax <= nearTol)) continue;
+        function projOnEdge(pt) {
+          return (((Number(pt.x) || 0) - (Number(ed.a.x) || 0)) * (Number(ed.ux) || 0))
+            + (((Number(pt.y) || 0) - (Number(ed.a.y) || 0)) * (Number(ed.uy) || 0));
+        }
+        var uA = projOnEdge(p1), uB = projOnEdge(p2);
+        var l0 = Math.min(uA, uB), l1 = Math.max(uA, uB);
+        var ov0 = Math.max(0, l0), ov1 = Math.min(Number(ed.el) || 0, l1);
+        if (!(ov1 > ov0 + 1e-6)) continue;
+        var ovLen = ov1 - ov0;
+        if (!(ovLen >= minOverlapLen)) continue;
+        var ovRatio = ovLen / Math.max(1e-6, Number(ed.el) || 0);
+        // 의도: "꼬치처럼 일부 진입"만 허용. 완전 겹침/짧은 스침은 제외.
+        if (!(ovRatio >= 0.12 && ovRatio <= 0.97)) continue;
+        var touchStart = Math.abs(ov0 - 0) <= endTol;
+        var touchEnd = Math.abs(ov1 - (Number(ed.el) || 0)) <= endTol;
+        if (touchStart === touchEnd) continue;
+        var pe1 = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(ed.a, lineSeg) : null;
+        var pe2 = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(ed.b, lineSeg) : null;
+        var edgeEndTouchCount = 0;
+        if (pe1 && (Number(pe1.dist) || 0) <= endTol) edgeEndTouchCount++;
+        if (pe2 && (Number(pe2.dist) || 0) <= endTol) edgeEndTouchCount++;
+        // 장변 양 끝을 모두 덮는 전체 경계 정렬(오탐) 제외.
+        if (edgeEndTouchCount !== 1) continue;
+        var lineOvRatio = ovLen / Math.max(1e-6, lenL);
+        if (!(lineOvRatio >= 0.30)) continue;
+        return {
+          edgeIdx: ed.idx,
+          overlapLen: ovLen,
+          overlapRatio: ovRatio,
+          lineOverlapRatio: lineOvRatio,
+          edgeDistMax: dMax
+        };
+      }
+      return null;
+    }
     function allowEdgeTouchByAxisClip(info) {
-      if (!info) return false;
-      var minInsideLen = Math.max(14, lenL * 0.015);
-      var touchLen = Number(info.len) || 0;
-      if (!(touchLen >= minInsideLen)) return false;
-      var midT = Math.max(0, Math.min(1, Number(info.midT) || 0.5));
-      var midPt = ptAt(midT);
-      if (insideAt(midT)) return false;
-      if (typeof frameDefPointInPolygon === 'function' && !frameDefPointInPolygon(midPt, poly)) return false;
-      var edgeTouchTol = Math.max(0.8, (Number(edgeEps) || 1.2) * 1.25);
-      var dEdge = pointMinEdgeDist(midPt);
-      if (!(dEdge <= edgeTouchTol)) return false;
-      var uMin = Number(info.uMin), uMax = Number(info.uMax);
-      var l0 = Math.min(Number(info.lineU0) || 0, Number(info.lineU1) || 0);
-      var l1 = Math.max(Number(info.lineU0) || 0, Number(info.lineU1) || 0);
-      if (!isFinite(uMin) || !isFinite(uMax) || !(uMax > uMin + 1e-6)) return false;
-      var quadULen = Math.max(1e-6, uMax - uMin);
-      var ov0 = Math.max(l0, uMin), ov1 = Math.min(l1, uMax);
-      if (!(ov1 > ov0 + 1e-6)) return false;
-      var overlapRatio = Math.max(0, (ov1 - ov0) / quadULen);
-      // 부분 관통(꼬치형)만 허용: 너무 짧거나, 장축 전체를 거의 덮는 경계선은 제외.
-      if (!(overlapRatio >= 0.12 && overlapRatio <= 0.985)) return false;
-      var uTouchTol = Math.max(8.0, (Number(edgeEps) || 1.2) * 6.0);
-      var touchMin = l0 <= (uMin + uTouchTol);
-      var touchMax = l1 >= (uMax - uTouchTol);
-      // 한쪽 끝만 닿고 반대쪽은 내부에서 끝나는 경우만 허용.
-      if (touchMin === touchMax) return false;
-      if (touchMin && !(l1 < uMax - uTouchTol)) return false;
-      if (touchMax && !(l0 > uMin + uTouchTol)) return false;
+      var sk = edgeSkewerOverlapByLongEdge();
+      if (!sk) return false;
       if (dbg) {
-        dbg.reason = 'axis-clip-edge-touch';
-        dbg.axisClipInsideLen = Math.round(touchLen * 1000) / 1000;
-        dbg.axisClipEdgeDist = Math.round((Number(dEdge) || 0) * 1000) / 1000;
-        dbg.axisClipOverlapRatio = Math.round(overlapRatio * 1000) / 1000;
-        dbg.axisClipTouches = touchMin ? 'uMin' : 'uMax';
+        dbg.reason = 'edge-skewer-overlap';
+        dbg.axisClipInsideLen = Math.round((Number(sk.overlapLen) || 0) * 1000) / 1000;
+        dbg.axisClipOverlapRatio = Math.round((Number(sk.overlapRatio) || 0) * 1000) / 1000;
+        dbg.axisClipLineOverlapRatio = Math.round((Number(sk.lineOverlapRatio) || 0) * 1000) / 1000;
+        dbg.axisClipEdgeDist = Math.round((Number(sk.edgeDistMax) || 0) * 1000) / 1000;
       }
       return true;
     }

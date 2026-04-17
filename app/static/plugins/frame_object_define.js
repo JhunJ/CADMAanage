@@ -3579,6 +3579,8 @@ function frameDefBuildStep2aStep26UnionProbeText(st) {
   var areaRatio = stat && isFinite(Number(stat.areaRatio)) ? Math.max(0, Number(stat.areaRatio)) : (inputArea > 1e-6 ? (mergedArea / inputArea) : 0);
   var cx = (typeof ctx !== 'undefined' && ctx && isFinite(Number(ctx.canvas && ctx.canvas.width))) ? Number(ctx.canvas.width) : 0;
   var cy = (typeof ctx !== 'undefined' && ctx && isFinite(Number(ctx.canvas && ctx.canvas.height))) ? Number(ctx.canvas.height) : 0;
+  var fallbackUsed = !!(stat && stat.unionFallback);
+  var rawRatio = stat && isFinite(Number(stat.unionRawAreaRatio)) ? Number(stat.unionRawAreaRatio) : areaRatio;
   var lines = [];
   lines.push('=== STEP26 UNION PROBE (복붙용) ===');
   lines.push(
@@ -3586,7 +3588,8 @@ function frameDefBuildStep2aStep26UnionProbeText(st) {
     + ' inputUnique=' + String(inputUniqueCnt)
     + ' mergedFaces=' + String(faceCnt)
     + ' groups=' + String(grpCnt)
-    + ' area[input=' + String(Math.round(inputArea * 10) / 10) + ',merged=' + String(Math.round(mergedArea * 10) / 10) + ',ratio=' + String(Math.round(areaRatio * 10000) / 10000) + ']'
+    + ' area[input=' + String(Math.round(inputArea * 10) / 10) + ',merged=' + String(Math.round(mergedArea * 10) / 10) + ',ratio=' + String(Math.round(areaRatio * 10000) / 10000) + ',raw=' + String(Math.round(rawRatio * 10000) / 10000) + ']'
+    + ' fallback=' + (fallbackUsed ? 'Y' : 'N')
     + ' rows=' + String(rows.length)
     + ' canvas=' + String(cx) + 'x' + String(cy)
     + ' ts=' + (nowTs > 0 ? new Date(nowTs).toISOString() : '0')
@@ -26716,6 +26719,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       groupIdxMap[fk].push(i);
     }
     var roots = Object.keys(groupIdxMap);
+    var sourceGroups = [];
     var mergedGroups = [];
     var mergedPolys = [];
     for (var rk = 0; rk < roots.length; rk++) {
@@ -26723,13 +26727,39 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       if (!ids.length) continue;
       var gp = [];
       for (var gi0 = 0; gi0 < ids.length; gi0++) gp.push(polys[ids[gi0]]);
+      sourceGroups.push(gp.slice());
       var gr = buildUnionRings(gp);
       if (!gr || !gr.length) gr = dedupePolySimple(gp);
       if (!gr.length) continue;
       mergedGroups.push(gr);
       for (var grj = 0; grj < gr.length; grj++) mergedPolys.push(gr[grj]);
     }
-    return { sourcePolys: polys, polys: mergedPolys, mergedGroups: mergedGroups, groupCount: roots.length };
+    var sourceAreaCalc = 0;
+    var mergedAreaCalc = 0;
+    for (var sa = 0; sa < polys.length; sa++) sourceAreaCalc += polygonAreaAbs(polys[sa]);
+    for (var ma = 0; ma < mergedPolys.length; ma++) mergedAreaCalc += polygonAreaAbs(mergedPolys[ma]);
+    var rawRatio = sourceAreaCalc > 1e-6 ? (mergedAreaCalc / sourceAreaCalc) : 0;
+    var badUnion = sourceAreaCalc > 1e-6 && rawRatio > 0 && rawRatio < 0.75;
+    if (badUnion) {
+      // 커스텀 유니온 경계가 과도하게 면적을 잃으면(예: 0.18) 표시를 위해 원본 그룹으로 안전 폴백.
+      mergedGroups = sourceGroups.slice();
+      mergedPolys = [];
+      for (var sg = 0; sg < sourceGroups.length; sg++) {
+        var grp = sourceGroups[sg] || [];
+        for (var spi = 0; spi < grp.length; spi++) mergedPolys.push(grp[spi]);
+      }
+      mergedAreaCalc = sourceAreaCalc;
+    }
+    return {
+      sourcePolys: polys,
+      polys: mergedPolys,
+      mergedGroups: mergedGroups,
+      groupCount: roots.length,
+      sourceAreaMm2: sourceAreaCalc,
+      mergedAreaMm2: mergedAreaCalc,
+      unionFallback: badUnion,
+      unionRawAreaRatio: rawRatio
+    };
   }
   function drawStep26MergedAreas(step25Plus, step25Minus) {
     var merged = buildStep25MergedAreas(step25Plus, step25Minus);
@@ -26882,7 +26912,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       if (!sb) return false;
       var w = Math.abs((Number(sb.maxx) || 0) - (Number(sb.minx) || 0));
       var h = Math.abs((Number(sb.maxy) || 0) - (Number(sb.miny) || 0));
-      return w < 1.5 && h < 1.5;
+      // 화면 축소 상태에서 유니온 면이 1~10px 띠로 눌리면 사실상 "안 보임"으로 체감됨.
+      // 한 변이라도 12px 미만이면 중심 마커를 함께 표시해 존재를 확실히 드러낸다.
+      return (w < 12 || h < 12);
     }
     var outGroups = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
     if (outGroups.length) {

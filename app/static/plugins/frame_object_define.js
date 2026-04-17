@@ -3571,13 +3571,26 @@ function frameDefBuildStep2aStep26UnionProbeText(st) {
   var nowTs = isFinite(Number(s.debugStep2aStep26ProbeTs)) ? Number(s.debugStep2aStep26ProbeTs) : 0;
   var stat = s.debugStep2aDualStep26Stat && typeof s.debugStep2aDualStep26Stat === 'object' ? s.debugStep2aDualStep26Stat : null;
   var inputCnt = stat && isFinite(Number(stat.sourceCount)) ? Math.max(0, Math.floor(Number(stat.sourceCount))) : 0;
+  var inputUniqueCnt = stat && isFinite(Number(stat.sourceUniqueCount)) ? Math.max(0, Math.floor(Number(stat.sourceUniqueCount))) : 0;
   var faceCnt = stat && isFinite(Number(stat.mergedCount)) ? Math.max(0, Math.floor(Number(stat.mergedCount))) : 0;
   var grpCnt = stat && isFinite(Number(stat.groupCount)) ? Math.max(0, Math.floor(Number(stat.groupCount))) : 0;
+  var inputArea = stat && isFinite(Number(stat.sourceAreaMm2)) ? Math.max(0, Number(stat.sourceAreaMm2)) : 0;
+  var mergedArea = stat && isFinite(Number(stat.mergedAreaMm2)) ? Math.max(0, Number(stat.mergedAreaMm2)) : 0;
+  var areaRatio = stat && isFinite(Number(stat.areaRatio)) ? Math.max(0, Number(stat.areaRatio)) : (inputArea > 1e-6 ? (mergedArea / inputArea) : 0);
   var cx = (typeof ctx !== 'undefined' && ctx && isFinite(Number(ctx.canvas && ctx.canvas.width))) ? Number(ctx.canvas.width) : 0;
   var cy = (typeof ctx !== 'undefined' && ctx && isFinite(Number(ctx.canvas && ctx.canvas.height))) ? Number(ctx.canvas.height) : 0;
   var lines = [];
   lines.push('=== STEP26 UNION PROBE (복붙용) ===');
-  lines.push('input=' + String(inputCnt) + ' mergedFaces=' + String(faceCnt) + ' groups=' + String(grpCnt) + ' rows=' + String(rows.length) + ' canvas=' + String(cx) + 'x' + String(cy) + ' ts=' + (nowTs > 0 ? new Date(nowTs).toISOString() : '0'));
+  lines.push(
+    'input=' + String(inputCnt)
+    + ' inputUnique=' + String(inputUniqueCnt)
+    + ' mergedFaces=' + String(faceCnt)
+    + ' groups=' + String(grpCnt)
+    + ' area[input=' + String(Math.round(inputArea * 10) / 10) + ',merged=' + String(Math.round(mergedArea * 10) / 10) + ',ratio=' + String(Math.round(areaRatio * 10000) / 10000) + ']'
+    + ' rows=' + String(rows.length)
+    + ' canvas=' + String(cx) + 'x' + String(cy)
+    + ' ts=' + (nowTs > 0 ? new Date(nowTs).toISOString() : '0')
+  );
   lines.push('idx|group|ring|verts|areaMm2|center(x,y)|bbox[minx,miny,maxx,maxy]|screen[minx,miny,maxx,maxy]|onCanvas|screenCenterInCanvas');
   if (!rows.length) {
     lines.push('(step26 probe rows 없음 — ②-6 체크 후 재계산/패널 갱신 필요)');
@@ -26761,6 +26774,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var probeRows = [];
     var maxProbeRows = 18;
     var probeAdded = 0;
+    var inputAreaSum = 0;
+    var mergedAreaSum = 0;
     function pushProbe(groupIdx, ringIdx, poly) {
       if (probeAdded >= maxProbeRows) return;
       if (!Array.isArray(poly) || poly.length < 3) return;
@@ -26803,23 +26818,37 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       });
       probeAdded++;
     }
+    var outPolysAll = merged && Array.isArray(merged.polys) ? merged.polys : [];
+    for (var ia = 0; ia < outPolysAll.length; ia++) inputAreaSum += polygonAreaAbs(outPolysAll[ia]);
     var outGroupsProbe = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
     if (outGroupsProbe.length) {
       for (var pgi = 0; pgi < outGroupsProbe.length; pgi++) {
         var prings = outGroupsProbe[pgi];
         if (!Array.isArray(prings)) continue;
-        for (var pri = 0; pri < prings.length; pri++) pushProbe(pgi, pri, prings[pri]);
+        for (var pri = 0; pri < prings.length; pri++) {
+          mergedAreaSum += polygonAreaAbs(prings[pri]);
+          pushProbe(pgi, pri, prings[pri]);
+        }
       }
     } else {
-      var outPolysProbe = merged && Array.isArray(merged.polys) ? merged.polys : [];
-      for (var ppi = 0; ppi < outPolysProbe.length; ppi++) pushProbe(-1, ppi, outPolysProbe[ppi]);
+      var outPolysProbe = outPolysAll;
+      for (var ppi = 0; ppi < outPolysProbe.length; ppi++) {
+        mergedAreaSum += polygonAreaAbs(outPolysProbe[ppi]);
+        pushProbe(-1, ppi, outPolysProbe[ppi]);
+      }
     }
     st.debugStep2aStep26ProbeRows = probeRows;
     st.debugStep2aStep26ProbeTs = Date.now();
+    st.debugStep2aStep26InputAreaMm2 = inputAreaSum;
+    st.debugStep2aStep26MergedAreaMm2 = mergedAreaSum;
     st.debugStep2aDualStep26Stat = {
       sourceCount: (Array.isArray(step25Plus) ? step25Plus.length : 0) + (Array.isArray(step25Minus) ? step25Minus.length : 0),
+      sourceUniqueCount: outPolysAll.length,
       mergedCount: merged && Array.isArray(merged.polys) ? merged.polys.length : 0,
       groupCount: merged && isFinite(Number(merged.groupCount)) ? Number(merged.groupCount) : 0,
+      sourceAreaMm2: Math.round(inputAreaSum * 10) / 10,
+      mergedAreaMm2: Math.round(mergedAreaSum * 10) / 10,
+      areaRatio: inputAreaSum > 1e-6 ? (mergedAreaSum / inputAreaSum) : 0,
       ts: Date.now()
     };
     if (!showStep26 || forceComputeOnly) return;

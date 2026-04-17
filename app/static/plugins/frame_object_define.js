@@ -300,7 +300,7 @@ var FRAME_DEF_DEBUG_2A_FOCUS_WORLD_LINE = { x: 100457.9100507554, y0: 263087.214
 /** ②-4 샌드위치 검증: 평행 A-ST 라인 ent — 디버그 패널에서 쿼드·긴변 맞닿음·삼중(가운데 두껍고 양끝 얇음) 리포트 */
 var FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS = [23619682, 23619681, 23619661, 23619662];
 /** ②-3 내부 관통선 필터 디버그 대상 ent id. 비우면 리포트 비표시. */
-var FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS = [23623344, 23623332];
+var FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS = [23623344, 23623333, 23623332];
 /** 병합 후 trace: 세그 중점 슬랩 { x1,y1,x2,y2,tolY,padX } | null — 프로젝트별 값은 state.debugStep2aUserTraceSlab 우선 */
 var FRAME_DEF_DEBUG_2A_TRACE_LINE_MM = null;
 /** 2a 플로우 리포트·watch 연장 병합용 기본 ID. state.debugStep2aUiFlowWatchEntityIds 와 합집합(추가·중복 제거) */

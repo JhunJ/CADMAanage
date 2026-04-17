@@ -970,9 +970,9 @@ function frameDefRenderDebugPanel() {
   var dualStep25StatTxt = ' <code style="font-size:0.60rem;">표시 ' + String(dualStep25Total) + '개 (+' + String(dualStep25Plus) + '/-' + String(dualStep25Minus) + ')</code>';
   var dualStep26Stat = st.debugStep2aDualStep26Stat && typeof st.debugStep2aDualStep26Stat === 'object' ? st.debugStep2aDualStep26Stat : null;
   var dualStep26Src = dualStep26Stat && isFinite(Number(dualStep26Stat.sourceCount)) ? Math.max(0, Math.floor(Number(dualStep26Stat.sourceCount))) : dualStep25Total;
-  var dualStep26Kept = dualStep26Stat && isFinite(Number(dualStep26Stat.mergedCount)) ? Math.max(0, Math.floor(Number(dualStep26Stat.mergedCount))) : 0;
+  var dualStep26Face = dualStep26Stat && isFinite(Number(dualStep26Stat.mergedCount)) ? Math.max(0, Math.floor(Number(dualStep26Stat.mergedCount))) : 0;
   var dualStep26Groups = dualStep26Stat && isFinite(Number(dualStep26Stat.groupCount)) ? Math.max(0, Math.floor(Number(dualStep26Stat.groupCount))) : 0;
-  var dualStep26StatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep26Src) + '개 · 유지면 ' + String(dualStep26Kept) + '개 · 병합그룹 ' + String(dualStep26Groups) + '개</code>';
+  var dualStep26StatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep26Src) + '개 · 병합면 ' + String(dualStep26Face) + '개 · 병합그룹 ' + String(dualStep26Groups) + '개</code>';
   var n2aLoop = Array.isArray(st.wallStep2aClosedLoopChains) ? st.wallStep2aClosedLoopChains.length : 0;
   var n2aSrcSeg = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs.length : 0;
   var sc2a = st.wallStep2aSplitChainCounts && typeof st.wallStep2aSplitChainCounts === 'object' ? st.wallStep2aSplitChainCounts : null;
@@ -1008,7 +1008,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep23Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep23FilteredPatches ? 'checked' : '') + ' /><span><b>②-3 내부 관통 선 필터(제외분)</b>' + dualStep23StatTxt + ' — ②-2 해치 내부를 <b>다른 벽체 후보 중심선</b>이 지나가면 해당 해치를 ②-2에서 제외하고 ②-3으로 분리 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep24Chk" style="margin-top:2px;" ' + (st.debugStep2aDualStep24ExcludeIsolated !== false ? 'checked' : '') + ' /><span><b>②-4 가운데 두꺼운 층만(샌드위치)</b>' + dualStep24StatTxt + ' — <b>장축 평행 그룹</b>마다 참조 축에서 <b>법선 n 순 정렬</b> 후 <b>연속 세 장</b>만 삼중 후보로 보고, u겹침·인접 맞닿음·가운데 두께&gt;양끝이면 <b>가운데 벽 쿼드만</b> ②-4로 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep25Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep25Remainder ? 'checked' : '') + ' /><span><b>②-5 ②-2 원본에서 ②-4 대상 제외분</b>' + dualStep25StatTxt + ' — ②-2 원본 후보를 유지한 상태에서, ②-4로 분리된 가운데 두꺼운 층을 제외한 나머지(+/-)만 별도로 표시합니다.</span></label>');
-  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep26Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep26MergedArea ? 'checked' : '') + ' /><span><b>②-6 ②-5 면 병합(유니온 렌더)</b>' + dualStep26StatTxt + ' — ②-5 입력 쿼드를 유지한 채, 겹침/인접 관계를 병합 그룹으로 계산해 표시합니다.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep26Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep26MergedArea ? 'checked' : '') + ' /><span><b>②-6 ②-5 면 병합(유니온 렌더)</b>' + dualStep26StatTxt + ' — ②-5 입력 쿼드를 일반 다각형 boolean union으로 병합해 최종 병합면만 표시합니다.</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
@@ -26171,6 +26171,43 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     }
     if (screenPoly.length < 3) return;
     frameDefDrawHatchPolygon(screenPoly, color, hatchOpts);
+    var sa = Number(strokeAlpha);
+    if (isFinite(sa) && sa > 0) {
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.lineWidth = hatchOpts && isFinite(Number(hatchOpts.strokeWidth)) ? Math.max(1, Number(hatchOpts.strokeWidth)) : 1.5;
+      ctx.strokeStyle = frameDefColorWithAlpha(color, Math.max(0, Math.min(1, sa)));
+      if (frameDefPathScreenPolygon(screenPoly)) ctx.stroke();
+      ctx.restore();
+    }
+  }
+  function drawWorldPolyRingsEvenOdd(rings, color, hatchOpts, strokeAlpha) {
+    if (!Array.isArray(rings) || rings.length < 1 || typeof frameDefDrawHatchPolygonEvenOdd !== 'function') return;
+    var screenRings = [];
+    for (var ri = 0; ri < rings.length; ri++) {
+      var ring = rings[ri];
+      if (!Array.isArray(ring) || ring.length < 3) continue;
+      var sp = [];
+      for (var rj = 0; rj < ring.length; rj++) {
+        var pt = ring[rj];
+        if (!pt || !isFinite(Number(pt.x)) || !isFinite(Number(pt.y))) continue;
+        sp.push(toScreen(Number(pt.x), Number(pt.y)));
+      }
+      if (sp.length >= 3) screenRings.push(sp);
+    }
+    if (!screenRings.length) return;
+    frameDefDrawHatchPolygonEvenOdd(screenRings, color, hatchOpts);
+    var sa = Number(strokeAlpha);
+    if (isFinite(sa) && sa > 0) {
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.lineWidth = hatchOpts && isFinite(Number(hatchOpts.strokeWidth)) ? Math.max(1, Number(hatchOpts.strokeWidth)) : 1.6;
+      ctx.strokeStyle = frameDefColorWithAlpha(color, Math.max(0, Math.min(1, sa)));
+      for (var si = 0; si < screenRings.length; si++) {
+        if (frameDefPathScreenPolygon(screenRings[si])) ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
   function polygonAreaAbs(poly) {
     if (!Array.isArray(poly) || poly.length < 3 || typeof frameDefPolygonAreaAbs !== 'function') return 0;
@@ -26203,12 +26240,15 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var arrN = Array.isArray(step25Minus) ? step25Minus : [];
     for (i = 0; i < arrP.length; i++) if (arrP[i] && Array.isArray(arrP[i].quad) && arrP[i].quad.length >= 3) src.push(arrP[i].quad);
     for (i = 0; i < arrN.length; i++) if (arrN[i] && Array.isArray(arrN[i].quad) && arrN[i].quad.length >= 3) src.push(arrN[i].quad);
-    if (!src.length) return { polys: [], groupCount: 0 };
+    if (!src.length) return { polys: [], mergedGroups: [], groupCount: 0 };
     var polys = dedupePolySimple(src);
     var n = polys.length;
-    if (!n) return { polys: [], groupCount: 0 };
+    if (!n) return { polys: [], mergedGroups: [], groupCount: 0 };
     var minArea = 1;
     var touchTol = 1.2;
+    var edgeEps = 0.8;
+    var pointEps = 0.9;
+    var bucketMm = 1500;
     var bboxes = new Array(n);
     for (i = 0; i < n; i++) bboxes[i] = (typeof frameDef2aV2QuadBBox === 'function') ? frameDef2aV2QuadBBox(polys[i]) : null;
     var parent = new Array(n);
@@ -26240,7 +26280,359 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     }
     var grp = {};
     for (i = 0; i < n; i++) grp[String(find(i))] = true;
-    return { polys: polys, groupCount: Object.keys(grp).length };
+    function ensureCCW(poly) {
+      if (!Array.isArray(poly) || poly.length < 3) return [];
+      if (typeof frameDef2aV2PolygonEnsureCCW === 'function') return frameDef2aV2PolygonEnsureCCW(poly.slice());
+      var a = 0;
+      for (var pi = 0; pi < poly.length; pi++) {
+        var pa = poly[pi], pb = poly[(pi + 1) % poly.length];
+        a += (Number(pa.x) || 0) * (Number(pb.y) || 0) - (Number(pa.y) || 0) * (Number(pb.x) || 0);
+      }
+      if (a < 0) {
+        var rev = [];
+        for (var pr = poly.length - 1; pr >= 0; pr--) rev.push(poly[pr]);
+        return rev;
+      }
+      return poly.slice();
+    }
+    function bboxOfPoly(poly) {
+      if (!poly || poly.length < 3) return null;
+      var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+      for (var bi = 0; bi < poly.length; bi++) {
+        var p = poly[bi];
+        if (!p) continue;
+        var x = Number(p.x) || 0, y = Number(p.y) || 0;
+        if (x < minx) minx = x;
+        if (x > maxx) maxx = x;
+        if (y < miny) miny = y;
+        if (y > maxy) maxy = y;
+      }
+      if (!isFinite(minx) || !isFinite(miny) || !isFinite(maxx) || !isFinite(maxy)) return null;
+      return { minx: minx, miny: miny, maxx: maxx, maxy: maxy };
+    }
+    function bboxIntersects(b1, b2, pad) {
+      var p = Math.max(0, Number(pad) || 0);
+      if (!b1 || !b2) return false;
+      if (b1.maxx + p < b2.minx) return false;
+      if (b2.maxx + p < b1.minx) return false;
+      if (b1.maxy + p < b2.miny) return false;
+      if (b2.maxy + p < b1.miny) return false;
+      return true;
+    }
+    function pointToSegDist(pt, a0, a1) {
+      var px = Number(pt.x) || 0, py = Number(pt.y) || 0;
+      var x0 = Number(a0.x) || 0, y0 = Number(a0.y) || 0;
+      var x1 = Number(a1.x) || 0, y1 = Number(a1.y) || 0;
+      var dx = x1 - x0, dy = y1 - y0;
+      var L2 = dx * dx + dy * dy;
+      if (L2 < 1e-9) return Math.hypot(px - x0, py - y0);
+      var t = ((px - x0) * dx + (py - y0) * dy) / L2;
+      if (t < 0) t = 0;
+      else if (t > 1) t = 1;
+      var qx = x0 + dx * t, qy = y0 + dy * t;
+      return Math.hypot(px - qx, py - qy);
+    }
+    function pointOnPolyEdge(pt, poly, epsMm) {
+      var eps = Math.max(0.2, Number(epsMm) || 0.8);
+      if (!pt || !Array.isArray(poly) || poly.length < 2) return false;
+      for (var ei = 0; ei < poly.length; ei++) {
+        var a0 = poly[ei], a1 = poly[(ei + 1) % poly.length];
+        if (!a0 || !a1) continue;
+        if (pointToSegDist(pt, a0, a1) <= eps) return true;
+      }
+      return false;
+    }
+    function segPointAt(e, t) {
+      return { x: e.p1.x + e.dx * t, y: e.p1.y + e.dy * t };
+    }
+    function pointOnSeg(pt, e, epsMm) {
+      var eps = Math.max(0.2, Number(epsMm) || 0.8);
+      if (!pt || !e || !e.p1 || !e.p2) return false;
+      var d = pointToSegDist(pt, e.p1, e.p2);
+      if (d > eps) return false;
+      var minx = Math.min(e.p1.x, e.p2.x) - eps, maxx = Math.max(e.p1.x, e.p2.x) + eps;
+      var miny = Math.min(e.p1.y, e.p2.y) - eps, maxy = Math.max(e.p1.y, e.p2.y) + eps;
+      return pt.x >= minx && pt.x <= maxx && pt.y >= miny && pt.y <= maxy;
+    }
+    function tOnEdge(e, pt) {
+      if (!e || !pt) return 0;
+      var adx = Math.abs(e.dx), ady = Math.abs(e.dy);
+      if (adx >= ady) return adx > 1e-9 ? ((Number(pt.x) || 0) - e.p1.x) / e.dx : 0;
+      return ady > 1e-9 ? ((Number(pt.y) || 0) - e.p1.y) / e.dy : 0;
+    }
+    function buildUnionRings(groupPolys) {
+      var gPolys = Array.isArray(groupPolys) ? groupPolys : [];
+      if (!gPolys.length) return [];
+      if (gPolys.length === 1) return [ensureCCW(gPolys[0])];
+      var polyList = [];
+      var polyB = [];
+      for (var pi = 0; pi < gPolys.length; pi++) {
+        var pp = ensureCCW(gPolys[pi]);
+        if (pp.length < 3) continue;
+        polyList.push(pp);
+        polyB.push(bboxOfPoly(pp));
+      }
+      if (!polyList.length) return [];
+      if (polyList.length === 1) return [polyList[0]];
+      var edges = [];
+      var edgeBuckets = {};
+      var polyBuckets = {};
+      function bucketKey(gx, gy) { return String(gx) + ',' + String(gy); }
+      function addBucket(mapObj, gx, gy, v) {
+        var k = bucketKey(gx, gy);
+        if (!mapObj[k]) mapObj[k] = [];
+        mapObj[k].push(v);
+      }
+      for (var pbx = 0; pbx < polyB.length; pbx++) {
+        var bbp = polyB[pbx];
+        if (!bbp) continue;
+        var pgx0 = Math.floor(bbp.minx / bucketMm), pgy0 = Math.floor(bbp.miny / bucketMm);
+        var pgx1 = Math.floor(bbp.maxx / bucketMm), pgy1 = Math.floor(bbp.maxy / bucketMm);
+        for (var gx = pgx0; gx <= pgx1; gx++) {
+          for (var gy = pgy0; gy <= pgy1; gy++) addBucket(polyBuckets, gx, gy, pbx);
+        }
+      }
+      for (var gi = 0; gi < polyList.length; gi++) {
+        var poly = polyList[gi];
+        for (var ei = 0; ei < poly.length; ei++) {
+          var p1 = poly[ei], p2 = poly[(ei + 1) % poly.length];
+          var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0);
+          var dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+          var len = Math.hypot(dx, dy);
+          if (!(len > 1e-5)) continue;
+          var eb = { minx: Math.min(p1.x, p2.x), miny: Math.min(p1.y, p2.y), maxx: Math.max(p1.x, p2.x), maxy: Math.max(p1.y, p2.y) };
+          var eobj = { polyIdx: gi, p1: { x: p1.x, y: p1.y }, p2: { x: p2.x, y: p2.y }, dx: dx, dy: dy, len: len, b: eb, ts: [0, 1] };
+          edges.push(eobj);
+          var egx0 = Math.floor(eb.minx / bucketMm), egy0 = Math.floor(eb.miny / bucketMm);
+          var egx1 = Math.floor(eb.maxx / bucketMm), egy1 = Math.floor(eb.maxy / bucketMm);
+          for (var ex = egx0; ex <= egx1; ex++) {
+            for (var ey = egy0; ey <= egy1; ey++) addBucket(edgeBuckets, ex, ey, edges.length - 1);
+          }
+        }
+      }
+      if (!edges.length) return [];
+      function addSplit(edge, tVal) {
+        var t = Number(tVal);
+        if (!isFinite(t)) return;
+        if (t <= 0) t = 0;
+        else if (t >= 1) t = 1;
+        edge.ts.push(t);
+      }
+      function segIntersections(ea, eb) {
+        var out = [];
+        if (!ea || !eb) return out;
+        if (ea.polyIdx === eb.polyIdx) return out;
+        if (!bboxIntersects(ea.b, eb.b, edgeEps)) return out;
+        var px = ea.p1.x, py = ea.p1.y, qx = eb.p1.x, qy = eb.p1.y;
+        var rx = ea.dx, ry = ea.dy, sx = eb.dx, sy = eb.dy;
+        var den = rx * sy - ry * sx;
+        var qpx = qx - px, qpy = qy - py;
+        if (Math.abs(den) > 1e-10) {
+          var t = (qpx * sy - qpy * sx) / den;
+          var u = (qpx * ry - qpy * rx) / den;
+          if (t >= -1e-8 && t <= 1 + 1e-8 && u >= -1e-8 && u <= 1 + 1e-8) out.push({ ta: t, tb: u });
+          return out;
+        }
+        var c = qpx * ry - qpy * rx;
+        if (Math.abs(c) > 1e-7) return out;
+        if (pointOnSeg(eb.p1, ea, edgeEps)) out.push({ ta: tOnEdge(ea, eb.p1), tb: 0 });
+        if (pointOnSeg(eb.p2, ea, edgeEps)) out.push({ ta: tOnEdge(ea, eb.p2), tb: 1 });
+        if (pointOnSeg(ea.p1, eb, edgeEps)) out.push({ ta: 0, tb: tOnEdge(eb, ea.p1) });
+        if (pointOnSeg(ea.p2, eb, edgeEps)) out.push({ ta: 1, tb: tOnEdge(eb, ea.p2) });
+        return out;
+      }
+      for (var eaIdx = 0; eaIdx < edges.length; eaIdx++) {
+        var eaRef = edges[eaIdx];
+        var cgx0 = Math.floor(eaRef.b.minx / bucketMm), cgy0 = Math.floor(eaRef.b.miny / bucketMm);
+        var cgx1 = Math.floor(eaRef.b.maxx / bucketMm), cgy1 = Math.floor(eaRef.b.maxy / bucketMm);
+        var near = {};
+        for (var cgx = cgx0; cgx <= cgx1; cgx++) {
+          for (var cgy = cgy0; cgy <= cgy1; cgy++) {
+            var arrE = edgeBuckets[bucketKey(cgx, cgy)];
+            if (!arrE || !arrE.length) continue;
+            for (var kk = 0; kk < arrE.length; kk++) {
+              var ebIdx = arrE[kk];
+              if (ebIdx <= eaIdx) continue;
+              near[String(ebIdx)] = true;
+            }
+          }
+        }
+        var nearKeys = Object.keys(near);
+        for (var nk = 0; nk < nearKeys.length; nk++) {
+          var ebIdx2 = Number(nearKeys[nk]);
+          var ebRef = edges[ebIdx2];
+          var its = segIntersections(eaRef, ebRef);
+          for (var it = 0; it < its.length; it++) {
+            addSplit(eaRef, its[it].ta);
+            addSplit(ebRef, its[it].tb);
+          }
+        }
+      }
+      var kept = [];
+      var nodeMap = {};
+      function nodeKey(pt) {
+        var qx = Math.round((Number(pt.x) || 0) / pointEps);
+        var qy = Math.round((Number(pt.y) || 0) / pointEps);
+        return String(qx) + ',' + String(qy);
+      }
+      function snapNode(pt) {
+        var key = nodeKey(pt);
+        if (!nodeMap[key]) nodeMap[key] = { x: Number(pt.x) || 0, y: Number(pt.y) || 0 };
+        return { key: key, p: nodeMap[key] };
+      }
+      function dedupeTs(ts) {
+        var arr = Array.isArray(ts) ? ts.slice() : [];
+        arr.sort(function(a0, b0) { return a0 - b0; });
+        var out = [];
+        var last = null;
+        for (var ti = 0; ti < arr.length; ti++) {
+          var tv = Number(arr[ti]);
+          if (!isFinite(tv)) continue;
+          if (tv < 0) tv = 0;
+          if (tv > 1) tv = 1;
+          if (last === null || Math.abs(tv - last) > 1e-6) {
+            out.push(tv);
+            last = tv;
+          }
+        }
+        if (!out.length || out[0] > 1e-8) out.unshift(0);
+        if (out[out.length - 1] < 1 - 1e-8) out.push(1);
+        return out;
+      }
+      function polyCoveredByOthers(mid, ownPolyIdx) {
+        var gx = Math.floor((Number(mid.x) || 0) / bucketMm);
+        var gy = Math.floor((Number(mid.y) || 0) / bucketMm);
+        var cands = polyBuckets[bucketKey(gx, gy)] || [];
+        if (!cands.length) return false;
+        for (var ci = 0; ci < cands.length; ci++) {
+          var pi = cands[ci];
+          if (pi === ownPolyIdx) continue;
+          var pb = polyB[pi];
+          if (!pb || !bboxIntersects(pb, { minx: mid.x, maxx: mid.x, miny: mid.y, maxy: mid.y }, edgeEps)) continue;
+          if (typeof frameDefPointInPolygon === 'function' && frameDefPointInPolygon(mid, polyList[pi])) return true;
+          if (pointOnPolyEdge(mid, polyList[pi], edgeEps)) return true;
+        }
+        return false;
+      }
+      var segSeen = {};
+      for (var eScan = 0; eScan < edges.length; eScan++) {
+        var es = edges[eScan];
+        var ts = dedupeTs(es.ts);
+        for (var tt = 0; tt + 1 < ts.length; tt++) {
+          var t0 = ts[tt], t1 = ts[tt + 1];
+          if (!(t1 > t0 + 1e-6)) continue;
+          var pa = segPointAt(es, t0), pb2 = segPointAt(es, t1);
+          if (Math.hypot(pb2.x - pa.x, pb2.y - pa.y) < 0.4) continue;
+          var mid = segPointAt(es, (t0 + t1) * 0.5);
+          if (polyCoveredByOthers(mid, es.polyIdx)) continue;
+          var na = snapNode(pa), nb = snapNode(pb2);
+          if (na.key === nb.key) continue;
+          var segKey = na.key + '>' + nb.key;
+          if (segSeen[segKey]) continue;
+          segSeen[segKey] = true;
+          kept.push({ p1: na.p, p2: nb.p, sKey: na.key, eKey: nb.key });
+        }
+      }
+      if (!kept.length) return [];
+      var adj = {};
+      for (var ks = 0; ks < kept.length; ks++) {
+        var sk = kept[ks].sKey;
+        if (!adj[sk]) adj[sk] = [];
+        adj[sk].push(ks);
+      }
+      var used = new Array(kept.length);
+      for (var uz = 0; uz < used.length; uz++) used[uz] = false;
+      function cleanRing(pts) {
+        var out = [];
+        for (var ci = 0; ci < pts.length; ci++) {
+          var p = pts[ci];
+          if (!p) continue;
+          if (!out.length || Math.hypot((Number(p.x) || 0) - (Number(out[out.length - 1].x) || 0), (Number(p.y) || 0) - (Number(out[out.length - 1].y) || 0)) > 0.45) {
+            out.push({ x: Number(p.x) || 0, y: Number(p.y) || 0 });
+          }
+        }
+        if (out.length >= 2 && Math.hypot(out[0].x - out[out.length - 1].x, out[0].y - out[out.length - 1].y) <= 0.45) out.pop();
+        return out;
+      }
+      function pickNext(curSeg, nextList) {
+        if (!nextList || !nextList.length) return -1;
+        if (nextList.length === 1) return nextList[0];
+        var vx = (Number(curSeg.p2.x) || 0) - (Number(curSeg.p1.x) || 0);
+        var vy = (Number(curSeg.p2.y) || 0) - (Number(curSeg.p1.y) || 0);
+        var vl = Math.hypot(vx, vy);
+        if (vl < 1e-9) return nextList[0];
+        vx /= vl;
+        vy /= vl;
+        var best = nextList[0], bestScore = -Infinity;
+        for (var ni = 0; ni < nextList.length; ni++) {
+          var cand = kept[nextList[ni]];
+          if (!cand) continue;
+          var wx = (Number(cand.p2.x) || 0) - (Number(cand.p1.x) || 0);
+          var wy = (Number(cand.p2.y) || 0) - (Number(cand.p1.y) || 0);
+          var wl = Math.hypot(wx, wy);
+          if (wl < 1e-9) continue;
+          wx /= wl;
+          wy /= wl;
+          var dot = vx * wx + vy * wy;
+          var cross = vx * wy - vy * wx;
+          var score = dot + cross * 0.05;
+          if (score > bestScore) {
+            bestScore = score;
+            best = nextList[ni];
+          }
+        }
+        return best;
+      }
+      var rings = [];
+      for (var si0 = 0; si0 < kept.length; si0++) {
+        if (used[si0]) continue;
+        var start = kept[si0];
+        var loop = [start.p1];
+        var cur = si0;
+        var safe = 0;
+        while (safe < kept.length + 6) {
+          safe++;
+          if (used[cur]) break;
+          used[cur] = true;
+          var seg = kept[cur];
+          loop.push(seg.p2);
+          if (seg.eKey === start.sKey) break;
+          var nxtArr = adj[seg.eKey] || [];
+          var free = [];
+          for (var nsi = 0; nsi < nxtArr.length; nsi++) if (!used[nxtArr[nsi]]) free.push(nxtArr[nsi]);
+          if (!free.length) break;
+          var picked = pickNext(seg, free);
+          if (picked < 0) break;
+          cur = picked;
+        }
+        var ring = cleanRing(loop);
+        if (ring.length < 3) continue;
+        if (polygonAreaAbs(ring) < 1) continue;
+        rings.push(ring);
+      }
+      return dedupePolySimple(rings);
+    }
+    var groupIdxMap = {};
+    for (i = 0; i < n; i++) {
+      var fk = String(find(i));
+      if (!groupIdxMap[fk]) groupIdxMap[fk] = [];
+      groupIdxMap[fk].push(i);
+    }
+    var roots = Object.keys(groupIdxMap);
+    var mergedGroups = [];
+    var mergedPolys = [];
+    for (var rk = 0; rk < roots.length; rk++) {
+      var ids = groupIdxMap[roots[rk]] || [];
+      if (!ids.length) continue;
+      var gp = [];
+      for (var gi0 = 0; gi0 < ids.length; gi0++) gp.push(polys[ids[gi0]]);
+      var gr = buildUnionRings(gp);
+      if (!gr || !gr.length) gr = dedupePolySimple(gp);
+      if (!gr.length) continue;
+      mergedGroups.push(gr);
+      for (var grj = 0; grj < gr.length; grj++) mergedPolys.push(gr[grj]);
+    }
+    return { polys: mergedPolys, mergedGroups: mergedGroups, groupCount: roots.length };
   }
   function drawStep26MergedAreas(step25Plus, step25Minus) {
     var merged = buildStep25MergedAreas(step25Plus, step25Minus);
@@ -26251,14 +26643,28 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       ts: Date.now()
     };
     if (!showStep26 || forceComputeOnly) return;
+    var outGroups = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
+    if (outGroups.length) {
+      for (var gi = 0; gi < outGroups.length; gi++) {
+        drawWorldPolyRingsEvenOdd(outGroups[gi], '#9333ea', {
+          fillAlpha: 0.30,
+          hatchAlpha: 0.00,
+          noHatch: true,
+          strokeWidth: 1.8,
+          step: FRAME_DEF_DEBUG_HATCH_STEP_PX
+        }, 0.92);
+      }
+      return;
+    }
     var outPolys = merged && Array.isArray(merged.polys) ? merged.polys : [];
-    for (var i = 0; i < outPolys.length; i++) {
-      drawWorldPoly(outPolys[i], '#9333ea', {
-        fillAlpha: 0.26,
-        hatchAlpha: 0.08,
+    for (var i2 = 0; i2 < outPolys.length; i2++) {
+      drawWorldPoly(outPolys[i2], '#9333ea', {
+        fillAlpha: 0.30,
+        hatchAlpha: 0.00,
         noHatch: true,
+        strokeWidth: 1.8,
         step: FRAME_DEF_DEBUG_HATCH_STEP_PX
-      }, 0.9);
+      }, 0.92);
     }
   }
   function renderCandidateLists(plusPolys, minusPolys, palette) {

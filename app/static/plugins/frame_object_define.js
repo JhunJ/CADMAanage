@@ -3355,6 +3355,9 @@ function frameDefFormatStep2aStep25LineProbeDebugBlock(st) {
   var cfg = typeof FRAME_DEF_DEBUG_2A_STEP25_LINE_PROBE === 'object' && FRAME_DEF_DEBUG_2A_STEP25_LINE_PROBE ? FRAME_DEF_DEBUG_2A_STEP25_LINE_PROBE : null;
   if (!cfg) return '';
   var esc = typeof escapeHtml === 'function' ? escapeHtml : function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  if (st && typeof frameDefDrawDebugStep2aDualOverlapPatches === 'function') {
+    frameDefDrawDebugStep2aDualOverlapPatches({ forceCompute: true });
+  }
   if (st && typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
     var cache24 = st.__debugStep2aDualStep24Cache && typeof st.__debugStep2aDualStep24Cache === 'object' ? st.__debugStep2aDualStep24Cache : null;
     var plus = cache24 && Array.isArray(cache24.step25Plus) ? cache24.step25Plus : [];
@@ -3362,7 +3365,7 @@ function frameDefFormatStep2aStep25LineProbeDebugBlock(st) {
     st.debugStep2aStep25LineProbeText = frameDefBuildStep2aStep25LineProbeText(st, plus, minus, cfg);
   }
   var txt = st && typeof st.debugStep2aStep25LineProbeText === 'string' ? st.debugStep2aStep25LineProbeText : '';
-  if (!txt) txt = '리포트 없음 — ②-5를 한 번이라도 표시하면 캐시 기반으로 즉시 채워집니다.';
+  if (!txt) txt = '리포트 없음 — 캐시 계산에 실패했습니다(벽체/소스 데이터 확인 필요).';
   return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#7c3aed; cursor:pointer; font-weight:600;">②-5 근접 쿼드 디버그 (ent ' + esc(String(cfg.entityId)) + ')</summary>'
     + '<div style="font-size:0.65rem; color:#57606a; margin:6px 0 4px; line-height:1.4;">-5 잔여 쿼드(②-2-②-4) 중 기준선 주변만 표시합니다. 아래 텍스트를 그대로 복사해 공유하면 됩니다.</div>'
     + '<pre style="margin:0;padding:8px;background:#2e1065;color:#f3e8ff;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:420px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
@@ -25944,15 +25947,18 @@ function frameDefDualOverlap24FilterSandwichThickOnly(plusArr, minusArr) {
 }
 
 /** 2a: ②-2 — 겹침 비교로 선정된 ±후보의 벽체 쿼드만 그린다(교집합 폴리곤 해치는 기본 미표시·선택 결과만). */
-function frameDefDrawDebugStep2aDualOverlapPatches() {
+function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
+  opts = opts || {};
+  var forceComputeOnly = opts.forceCompute === true;
   var st = frameDefGetState();
   var showStep22 = st.debugStep2aShowDualOverlapPatches === true;
   var showStep24 = st.debugStep2aDualStep24ExcludeIsolated !== false;
   var showStep25 = st.debugStep2aShowDualStep25Remainder === true;
   var showStep23 = st.debugStep2aShowDualStep23FilteredPatches === true;
-  if (!showStep22 && !showStep24 && !showStep25 && !showStep23) return;
+  if (!forceComputeOnly && !showStep22 && !showStep24 && !showStep25 && !showStep23) return;
   var list = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
-  if (!list.length || typeof toScreen !== 'function' || typeof frameDefDrawHatchPolygon !== 'function') return;
+  if (!list.length) return;
+  if (!forceComputeOnly && (typeof toScreen !== 'function' || typeof frameDefDrawHatchPolygon !== 'function')) return;
   if (typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function') return;
   if (typeof frameDef2aV2QuadQuadOverlapPoly !== 'function') return;
   var minOverlapAreaMm2 = (typeof FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MIN_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MIN_MM2))

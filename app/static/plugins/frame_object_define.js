@@ -233,7 +233,7 @@ var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS = 700;
 /** 양방향 후보끼리 비교 시 부호별 최대 쌍 테스트 수(초과 시 중단 후 현재 점수 사용). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN = 120000;
 /** 2a-2-2 보존 전략 버전(화면 반영 확인용). */
-var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'overlap22-selection-quad-no-intersection-draw-20260416-fix';
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'overlap22-selection-quad-no-intersection-draw';
 /** 2a-2-2 표시용 후보 최대 개수(부호별) — 과도한 그리기로 인한 팬/줌 버벅임 방지 */
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS = 1200;
 /** ②-4(샌드위치): 평행 장축 벽끼리 법선 간격이 (t1+t2)/2에 가깝게 맞닿았다고 볼 허용 오차(mm). */
@@ -244,14 +244,6 @@ var FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_U_OVERLAP_MIN_FRAC = 0.45;
 var FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_THICK_DELTA_MIN_MM = 2.5;
 /** ②-4: 장축 평행 |dot| 하한. */
 var FRAME_DEF_STEP2A_V2_DUAL_24_SANDWICH_PARALLEL_DOT_MIN = 0.982;
-/** ②-3: 해치 장축과 평행한 관통선 판정 |dot| 하한. */
-var FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN = 0.92;
-/** ②-3: 경계 근접 제외 epsilon(mm). */
-var FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM = 1.2;
-/** ②-3: 공선(경계 겹침) fallback 허용 여부. 회귀 방지를 위해 기본 OFF. */
-var FRAME_DEF_STEP2A_V2_STEP23_COLLINEAR_EDGE_OVERLAP = false;
-/** ②-3 fallback 내부 전략 버전(캐시 무효화용). */
-var FRAME_DEF_STEP2A_V2_STEP23_STRATEGY_VER = 'step23-axis-skewer-v1';
 /** true면 동일 부호 후보 간 NMS를 적용(성능/회귀 이슈로 기본 OFF). */
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_LOCAL_NMS = false;
 /** true면 +/- 교차부호 후보끼리도 NMS를 적용(회귀 방지를 위해 기본 OFF). */
@@ -301,8 +293,6 @@ var FRAME_DEF_DEBUG_2A_FOCUS_ENTITY_IDS = [23619959];
 var FRAME_DEF_DEBUG_2A_FOCUS_WORLD_LINE = { x: 100457.9100507554, y0: 263087.2148522988, y1: 263337.2148522988, eps: 2.5 };
 /** ②-4 샌드위치 검증: 평행 A-ST 라인 ent — 디버그 패널에서 쿼드·긴변 맞닿음·삼중(가운데 두껍고 양끝 얇음) 리포트 */
 var FRAME_DEF_DEBUG_2A_SANDWICH_BASE_ENTITY_IDS = [23619682, 23619681, 23619661, 23619662];
-/** ②-3 내부 관통선 필터 디버그 대상 ent id. 비우면 리포트 비표시. */
-var FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS = [23623344, 23623333, 23623332];
 /** 병합 후 trace: 세그 중점 슬랩 { x1,y1,x2,y2,tolY,padX } | null — 프로젝트별 값은 state.debugStep2aUserTraceSlab 우선 */
 var FRAME_DEF_DEBUG_2A_TRACE_LINE_MM = null;
 /** 2a 플로우 리포트·watch 연장 병합용 기본 ID. state.debugStep2aUiFlowWatchEntityIds 와 합집합(추가·중복 제거) */
@@ -1007,11 +997,6 @@ function frameDefRenderDebugPanel() {
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
   html.push(typeof frameDefFormatStep2aSandwichBaseDebugBlock === 'function' ? frameDefFormatStep2aSandwichBaseDebugBlock(st) : '');
-  html.push(typeof frameDefFormatStep2aStep23GuideDebugBlock === 'function' ? frameDefFormatStep2aStep23GuideDebugBlock(st) : '');
-  html.push('<div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">'
-    + '<button type="button" id="frameDefDebugStep2aStep23RefreshBtn" style="padding:4px 8px; font-size:0.72rem; border:1px solid #f97316; border-radius:6px; background:#fff7ed; color:#9a3412; cursor:pointer;">②-3 디버그 새로고침(재계산 없이)</button>'
-    + '<button type="button" id="frameDefDebugStep2aStep23CopyBtn" style="padding:4px 8px; font-size:0.72rem; border:1px solid #f97316; border-radius:6px; background:#ffffff; color:#9a3412; cursor:pointer;">②-3 디버그 JSON 복사</button>'
-    + '</div>');
   html.push('</div>');
   var bb2 = st.wallStep2bByBackend && typeof st.wallStep2bByBackend === 'object' && !Array.isArray(st.wallStep2bByBackend) ? st.wallStep2bByBackend : {};
   var n2bCnn = Array.isArray(bb2.cnn) ? bb2.cnn.length : 0, n2bXgb = Array.isArray(bb2.xgb) ? bb2.xgb.length : 0, n2bRf = Array.isArray(bb2.rf) ? bb2.rf.length : 0, n2bMlp = Array.isArray(bb2.mlp) ? bb2.mlp.length : 0, n2bGnn = Array.isArray(bb2.gnn) ? bb2.gnn.length : 0;
@@ -1552,39 +1537,6 @@ function frameDefRenderDebugPanel() {
       var s = frameDefGetState();
       s.debugStep2aShowDualStep23FilteredPatches = !!step2aDualStep23Chk.checked;
       if (typeof draw === 'function') draw();
-    };
-  }
-  var step2aStep23RefreshBtn = document.getElementById('frameDefDebugStep2aStep23RefreshBtn');
-  if (step2aStep23RefreshBtn) {
-    step2aStep23RefreshBtn.onclick = function() {
-      if (typeof draw === 'function') draw();
-      if (typeof frameDefRenderDebugPanel === 'function') frameDefRenderDebugPanel();
-      if (typeof showMsg === 'function') showMsg('msg', '②-3 디버그를 현재 상태로 갱신했습니다.', 'success');
-    };
-  }
-  var step2aStep23CopyBtn = document.getElementById('frameDefDebugStep2aStep23CopyBtn');
-  if (step2aStep23CopyBtn) {
-    step2aStep23CopyBtn.onclick = function() {
-      var s = frameDefGetState();
-      var payload = s && s.debugStep2aStep23GuideDebug && typeof s.debugStep2aStep23GuideDebug === 'object'
-        ? s.debugStep2aStep23GuideDebug : null;
-      var txt = payload ? JSON.stringify(payload, null, 2) : '';
-      if (!txt) {
-        if (typeof draw === 'function') draw();
-        payload = s && s.debugStep2aStep23GuideDebug && typeof s.debugStep2aStep23GuideDebug === 'object'
-          ? s.debugStep2aStep23GuideDebug : null;
-        txt = payload ? JSON.stringify(payload, null, 2) : '';
-      }
-      if (!txt) { if (typeof showMsg === 'function') showMsg('msg', '복사할 ②-3 디버그 JSON이 없습니다.', 'info'); return; }
-      if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-        navigator.clipboard.writeText(txt).then(function() {
-          if (typeof showMsg === 'function') showMsg('msg', '②-3 디버그 JSON을 복사했습니다.', 'success');
-        }).catch(function() {
-          if (typeof showMsg === 'function') showMsg('msg', '②-3 디버그 JSON 복사에 실패했습니다.', 'error');
-        });
-      } else {
-        if (typeof showMsg === 'function') showMsg('msg', '이 환경에서는 자동 복사를 지원하지 않습니다.', 'info');
-      }
     };
   }
   var step2bCnnChk = document.getElementById('frameDefDebugStep2bCnnChk');
@@ -3208,18 +3160,6 @@ function frameDefFormatStep2aSandwichBaseDebugBlock(st) {
   return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#a855f7; cursor:pointer; font-weight:600;">②-4 샌드위치 기준 선분 쿼드 디버그 (ent ' + esc(ids.join(' · ')) + ')</summary>'
     + '<div style="font-size:0.65rem; color:#57606a; margin:6px 0 4px; line-height:1.4;">JSON에 <code style="font-size:0.62rem;">sandwichAlgorithm</code>·<code style="font-size:0.62rem;">sandwichNChain</code>이 포함됩니다. 평행(DSU) 그룹 → 참조 장축에서 <b>n 정렬</b> → <b>연속 3장</b> 슬라이딩, 각 창은 <code>pass*</code>·<code>accepted</code>로 어디서 걸렸는지 확인합니다. <code>pairTests</code>는 여전히 두 벽씩 맞닿음입니다. ②-2·②-4 체크 후·2a 재계산 직후가 가장 정확합니다.</div>'
     + '<pre style="margin:0;padding:8px;background:#1e1b4b;color:#e9d5ff;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:420px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
-}
-
-function frameDefFormatStep2aStep23GuideDebugBlock(st) {
-  var ids = typeof FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS === 'object' && Array.isArray(FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS)
-    ? FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS : [];
-  if (!ids.length) return '';
-  var esc = typeof escapeHtml === 'function' ? escapeHtml : function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
-  var dbg = st && st.debugStep2aStep23GuideDebug && typeof st.debugStep2aStep23GuideDebug === 'object' ? st.debugStep2aStep23GuideDebug : null;
-  var txt = dbg ? JSON.stringify(dbg, null, 2) : '(아직 없음 — ②-2/②-3 체크 후 ②-3 디버그 새로고침 버튼 또는 draw 필요)';
-  return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#f97316; cursor:pointer; font-weight:600;">②-3 내부 관통선 필터 디버그 (ent ' + esc(ids.join(' · ')) + ')</summary>'
-    + '<div style="font-size:0.65rem; color:#57606a; margin:6px 0 4px; line-height:1.4;">guide source가 <code style="font-size:0.62rem;">wallStep2aSourceSegs</code>인지(없을 때만 wall fallback), 대상 ent 라인이 각 quad에 대해 <code>dot</code> / <code>passDot</code> / <code>passInside</code>에서 어디서 탈락하는지 확인합니다. 현재 ②-3은 <b>평행선(passDot)</b>만 대상으로 하며 직교선은 포함하지 않습니다.</div>'
-    + '<pre style="margin:0;padding:8px;background:#3f1d0d;color:#ffedd5;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:420px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
 }
 
 function frameDefSegHasEntityOverlap(a, b) {
@@ -25999,7 +25939,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   }
   // 성능: 2a-2-2는 계산량이 커서, 벽 배열 참조/핵심 파라미터가 같으면 이전 계산 결과를 재사용.
   if (!st.__debugStep2aDualOverlapCache || typeof st.__debugStep2aDualOverlapCache !== 'object') {
-    st.__debugStep2aDualOverlapCache = { listRef: null, key: '', plus: [], minus: [], plus23: [], minus23: [], stat: null, stat23: null, step23GuideDebug: null };
+    st.__debugStep2aDualOverlapCache = { listRef: null, key: '', plus: [], minus: [], plus23: [], minus23: [], stat: null, stat23: null };
   }
   function dualOverlapGeomSig(arr) {
     if (!Array.isArray(arr) || !arr.length) return '0';
@@ -26021,13 +25961,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   }
   var cacheKey = [
     String(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER || ''),
-    String(FRAME_DEF_STEP2A_V2_STEP23_STRATEGY_VER || ''),
     String(minOverlapAreaMm2),
     String(bucketCellMm),
     String(parDotMin),
-    String(FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN || ''),
-    String(FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM || ''),
-    String(FRAME_DEF_STEP2A_V2_STEP23_COLLINEAR_EDGE_OVERLAP ? 1 : 0),
     dualOverlapGeomSig(list)
   ].join('|');
   var cache = st.__debugStep2aDualOverlapCache;
@@ -26046,20 +25982,6 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       ts: Date.now(),
       cached: true
     };
-    var dbgIdsOnCache = typeof FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS === 'object' && Array.isArray(FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS)
-      ? FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS : [];
-    if (dbgIdsOnCache.length) {
-      if (cache.step23GuideDebug && typeof cache.step23GuideDebug === 'object') {
-        st.debugStep2aStep23GuideDebug = cache.step23GuideDebug;
-      } else {
-        // 캐시가 먼저 적중하면 ②-3 디버그가 "아직 없음"으로 남을 수 있어, 이 경우 한 번 재구성해 캐시에 적재한다.
-        splitStep23Filtered(cache.plus || [], cache.minus || []);
-        cache.step23GuideDebug = st.debugStep2aStep23GuideDebug && typeof st.debugStep2aStep23GuideDebug === 'object'
-          ? st.debugStep2aStep23GuideDebug : null;
-      }
-    } else {
-      st.debugStep2aStep23GuideDebug = null;
-    }
     if (showStep22 || showStep24 || showStep25) {
       var a24c = applyStep24SplitForDisplay(cache.plus, cache.minus);
       if (showStep22) {
@@ -26127,7 +26049,6 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         bbox: bq,
         ux: ux,
         uy: uy,
-        sourceIdx: isFinite(Number(w.__step2aV2SourceIndex)) ? Math.floor(Number(w.__step2aV2SourceIndex)) : -1,
         oppIdx: isFinite(Number(w.__step2aV2OppositeSegIndex)) ? Math.floor(Number(w.__step2aV2OppositeSegIndex)) : -1,
         selected: (Number(w.__step2aOutlineInwardSign) < 0 ? -1 : 1) === signVal
       });
@@ -26466,16 +26387,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         var sdx = sx2 - sx1, sdy = sy2 - sy1;
         var sl = Math.hypot(sdx, sdy);
         if (!(sl > 1e-6)) continue;
-        outL.push({
-          srcIdx: si,
-          ent_id: (sg.ent_id != null && isFinite(Number(sg.ent_id))) ? Math.floor(Number(sg.ent_id)) : null,
-          entity_ids: Array.isArray(sg.entity_ids) ? frameDefUniqueEntityIds(sg.entity_ids) : [],
-          p1: { x: sx1, y: sy1 },
-          p2: { x: sx2, y: sy2 },
-          len: sl,
-          ux: sdx / sl,
-          uy: sdy / sl
-        });
+        outL.push({ srcIdx: si, p1: { x: sx1, y: sy1 }, p2: { x: sx2, y: sy2 }, len: sl, ux: sdx / sl, uy: sdy / sl });
       }
       return outL;
     }
@@ -26492,16 +26404,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var dyw = (Number(gp2.y) || 0) - (Number(gp1.y) || 0);
       var gl = Math.hypot(dxw, dyw);
       if (!(gl > 1e-6)) continue;
-      outL.push({
-        wallIdx: wi,
-        ent_id: (w.seg_a && w.seg_a.ent_id != null && isFinite(Number(w.seg_a.ent_id))) ? Math.floor(Number(w.seg_a.ent_id)) : null,
-        entity_ids: Array.isArray(w.entity_ids) ? frameDefUniqueEntityIds(w.entity_ids) : [],
-        p1: gp1,
-        p2: gp2,
-        len: gl,
-        ux: dxw / gl,
-        uy: dyw / gl
-      });
+      outL.push({ wallIdx: wi, p1: gp1, p2: gp2, len: gl, ux: dxw / gl, uy: dyw / gl });
     }
     return outL;
   }
@@ -26530,217 +26433,22 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     }
     return minD > eps;
   }
-  function segPassesInsidePoly(line, poly, polyBBox, edgeEps, dbgOut) {
+  function segPassesInsidePoly(line, poly, polyBBox, edgeEps) {
     if (!line || !line.p1 || !line.p2 || !Array.isArray(poly) || poly.length < 3) return false;
-    var dbg = (dbgOut && typeof dbgOut === 'object') ? dbgOut : null;
     var p1 = line.p1, p2 = line.p2;
     var bx = polyBBox || (typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(poly) : null);
     if (bx) {
       var sx0 = Math.min(Number(p1.x) || 0, Number(p2.x) || 0), sx1 = Math.max(Number(p1.x) || 0, Number(p2.x) || 0);
       var sy0 = Math.min(Number(p1.y) || 0, Number(p2.y) || 0), sy1 = Math.max(Number(p1.y) || 0, Number(p2.y) || 0);
-      if (sx1 < bx.minx || sx0 > bx.maxx || sy1 < bx.miny || sy0 > bx.maxy) {
-        if (dbg) dbg.reason = 'bbox-miss';
-        return false;
-      }
+      if (sx1 < bx.minx || sx0 > bx.maxx || sy1 < bx.miny || sy0 > bx.maxy) return false;
     }
     var ax = Number(p1.x) || 0, ay = Number(p1.y) || 0, bx2 = Number(p2.x) || 0, by2 = Number(p2.y) || 0;
     var dxL = bx2 - ax, dyL = by2 - ay;
     var lenL = Math.hypot(dxL, dyL);
-    if (!(lenL > 1e-6)) {
-      if (dbg) dbg.reason = 'line-too-short';
-      return false;
-    }
+    if (!(lenL > 1e-6)) return false;
     function ptAt(t) { return { x: ax + dxL * t, y: ay + dyL * t }; }
-    var uxL = dxL / Math.max(lenL, 1e-9), uyL = dyL / Math.max(lenL, 1e-9);
-    function projTOnLine(pt) {
-      if (!pt) return 0;
-      return (((Number(pt.x) || 0) - ax) * uxL + ((Number(pt.y) || 0) - ay) * uyL);
-    }
-    function pointToLinePerpDist(pt) {
-      if (!pt) return Infinity;
-      return Math.abs((((Number(pt.x) || 0) - ax) * (-uyL)) + (((Number(pt.y) || 0) - ay) * uxL));
-    }
-    function insideAt(t) {
-      var pt = ptAt(t);
-      return pointInPolyStrict(pt, poly, edgeEps);
-    }
-    function clip01MinMax(t0, t1) {
-      var a0 = Math.max(0, Math.min(1, Number(t0) || 0));
-      var a1 = Math.max(0, Math.min(1, Number(t1) || 0));
-      if (a0 <= a1) return { t0: a0, t1: a1 };
-      return { t0: a1, t1: a0 };
-    }
-    function clipByLinearRange(tMin, tMax, base, delta, low, high) {
-      if (!isFinite(base) || !isFinite(delta) || !isFinite(low) || !isFinite(high)) return null;
-      if (Math.abs(delta) < 1e-12) {
-        if (base < low || base > high) return null;
-        return { tMin: tMin, tMax: tMax };
-      }
-      var tA = (low - base) / delta;
-      var tB = (high - base) / delta;
-      var lo = Math.min(tA, tB), hi = Math.max(tA, tB);
-      var nMin = Math.max(tMin, lo);
-      var nMax = Math.min(tMax, hi);
-      if (!(nMax > nMin + 1e-9)) return null;
-      return { tMin: nMin, tMax: nMax };
-    }
-    function axisInsetClipInsideInfo(insetEps) {
-      var axis = quadLongAxisUnit(poly);
-      if (!axis || !isFinite(Number(axis.ux)) || !isFinite(Number(axis.uy))) return null;
-      var ux = Number(axis.ux) || 0, uy = Number(axis.uy) || 0;
-      var nx = -uy, ny = ux;
-      var c = { x: 0, y: 0 };
-      for (var ci = 0; ci < poly.length; ci++) {
-        c.x += Number(poly[ci].x) || 0;
-        c.y += Number(poly[ci].y) || 0;
-      }
-      c.x /= Math.max(1, poly.length);
-      c.y /= Math.max(1, poly.length);
-      var uMin = Infinity, uMax = -Infinity, nMin = Infinity, nMax = -Infinity;
-      for (var vi = 0; vi < poly.length; vi++) {
-        var vx = (Number(poly[vi].x) || 0) - c.x;
-        var vy = (Number(poly[vi].y) || 0) - c.y;
-        var pu = vx * ux + vy * uy;
-        var pn = vx * nx + vy * ny;
-        if (pu < uMin) uMin = pu;
-        if (pu > uMax) uMax = pu;
-        if (pn < nMin) nMin = pn;
-        if (pn > nMax) nMax = pn;
-      }
-      var epsInRaw = (insetEps == null) ? (Number(edgeEps) || 1.2) : Number(insetEps);
-      var epsIn = Math.max(0, isFinite(epsInRaw) ? epsInRaw : 0);
-      var u0 = uMin + epsIn, u1 = uMax - epsIn;
-      var v0 = nMin + epsIn, v1 = nMax - epsIn;
-      var touchTol = epsIn <= 1e-6 ? Math.max(0.8, (Number(edgeEps) || 1.2) * 1.6) : 0;
-      var cu0 = u0 - touchTol, cu1 = u1 + touchTol;
-      var cv0 = v0 - touchTol, cv1 = v1 + touchTol;
-      if (!(cu1 > cu0 + 1e-6) || !(cv1 > cv0 + 1e-6)) return null;
-      var p1x = (Number(p1.x) || 0) - c.x, p1y = (Number(p1.y) || 0) - c.y;
-      var p2x = (Number(p2.x) || 0) - c.x, p2y = (Number(p2.y) || 0) - c.y;
-      var lu0 = p1x * ux + p1y * uy;
-      var lv0 = p1x * nx + p1y * ny;
-      var du = (p2x - p1x) * ux + (p2y - p1y) * uy;
-      var dv = (p2x - p1x) * nx + (p2y - p1y) * ny;
-      var seg01 = clip01MinMax(0, 1);
-      var it = clipByLinearRange(seg01.t0, seg01.t1, lu0, du, cu0, cu1);
-      if (!it) return null;
-      it = clipByLinearRange(it.tMin, it.tMax, lv0, dv, cv0, cv1);
-      if (!it) return null;
-      var tMid = (it.tMin + it.tMax) * 0.5;
-      return {
-        len: Math.max(0, (it.tMax - it.tMin) * lenL),
-        midT: Math.max(0, Math.min(1, tMid)),
-        uMin: uMin,
-        uMax: uMax,
-        lineU0: lu0,
-        lineU1: lu0 + du,
-        clipU0: lu0 + du * it.tMin,
-        clipU1: lu0 + du * it.tMax
-      };
-    }
-    function pointMinEdgeDist(pt) {
-      if (!pt || !Array.isArray(poly) || poly.length < 3) return Infinity;
-      var minD = Infinity;
-      for (var ei = 0; ei < poly.length; ei++) {
-        var a = poly[ei], b = poly[(ei + 1) % poly.length];
-        if (!a || !b) continue;
-        var pr = (typeof frameDefPointToSegmentProjection === 'function')
-          ? frameDefPointToSegmentProjection(pt, { p1: a, p2: b }) : null;
-        if (!pr) continue;
-        var d = Number(pr.dist) || 0;
-        if (d < minD) minD = d;
-      }
-      return minD;
-    }
-    function edgeSkewerOverlapByLongEdge() {
-      if (!Array.isArray(poly) || poly.length < 4) return null;
-      var axis = quadLongAxisUnit(poly);
-      if (!axis || !isFinite(Number(axis.ux)) || !isFinite(Number(axis.uy))) return null;
-      var cand = [];
-      for (var ei = 0; ei < poly.length; ei++) {
-        var a = poly[ei], b = poly[(ei + 1) % poly.length];
-        if (!a || !b) continue;
-        var ex = (Number(b.x) || 0) - (Number(a.x) || 0);
-        var ey = (Number(b.y) || 0) - (Number(a.y) || 0);
-        var el = Math.hypot(ex, ey);
-        if (!(el > 1e-6)) continue;
-        var eux = ex / el, euy = ey / el;
-        var dotAxis = Math.abs(eux * (Number(axis.ux) || 0) + euy * (Number(axis.uy) || 0));
-        if (dotAxis < 0.90) continue;
-        cand.push({ idx: ei, a: a, b: b, el: el, ux: eux, uy: euy, dotAxis: dotAxis });
-      }
-      if (!cand.length) return null;
-      cand.sort(function(x, y) { return Number(y.el || 0) - Number(x.el || 0); });
-      if (cand.length > 3) cand = cand.slice(0, 3);
-      var lineSeg = { p1: p1, p2: p2 };
-      var minOverlapLen = Math.max(20, lenL * 0.02);
-      var nearTol = Math.max(1.5, (Number(edgeEps) || 1.2) * 2.8);
-      var endTol = Math.max(10.0, (Number(edgeEps) || 1.2) * 8.0);
-      for (var ci = 0; ci < cand.length; ci++) {
-        var ed = cand[ci];
-        // 짧은 장변/짧은 가이드선은 부분 관통 fallback에서 제외(오탐 억제).
-        if (!(Number(ed.el) > 1200) || !(lenL > 1200)) continue;
-        var dotLE = Math.abs((Number(ed.ux) || 0) * uxL + (Number(ed.uy) || 0) * uyL);
-        if (dotLE < 0.985) continue;
-        var pr1 = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(p1, { p1: ed.a, p2: ed.b }) : null;
-        var pr2 = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(p2, { p1: ed.a, p2: ed.b }) : null;
-        if (!pr1 || !pr2) continue;
-        var dMax = Math.max(Number(pr1.dist) || 0, Number(pr2.dist) || 0);
-        if (!(dMax <= nearTol)) continue;
-        function projOnEdge(pt) {
-          return (((Number(pt.x) || 0) - (Number(ed.a.x) || 0)) * (Number(ed.ux) || 0))
-            + (((Number(pt.y) || 0) - (Number(ed.a.y) || 0)) * (Number(ed.uy) || 0));
-        }
-        var uA = projOnEdge(p1), uB = projOnEdge(p2);
-        var l0 = Math.min(uA, uB), l1 = Math.max(uA, uB);
-        var ov0 = Math.max(0, l0), ov1 = Math.min(Number(ed.el) || 0, l1);
-        if (!(ov1 > ov0 + 1e-6)) continue;
-        var ovLen = ov1 - ov0;
-        if (!(ovLen >= minOverlapLen)) continue;
-        var ovRatio = ovLen / Math.max(1e-6, Number(ed.el) || 0);
-        // 의도: "꼬치처럼 일부 진입"만 허용. 완전 겹침/짧은 스침은 제외.
-        if (!(ovRatio >= 0.55 && ovRatio <= 0.985)) continue;
-        var trimStart = Math.max(0, ov0);
-        var trimEnd = Math.max(0, (Number(ed.el) || 0) - ov1);
-        var trimMin = Math.max(90, (Number(ed.el) || 0) * 0.025);
-        var startTrimmed = trimStart >= trimMin;
-        var endTrimmed = trimEnd >= trimMin;
-        if (startTrimmed === endTrimmed) continue;
-        if (startTrimmed && trimEnd > endTol) continue;
-        if (endTrimmed && trimStart > endTol) continue;
-        var touchStart = Math.abs(ov0 - 0) <= endTol;
-        var touchEnd = Math.abs(ov1 - (Number(ed.el) || 0)) <= endTol;
-        if (touchStart === touchEnd) continue;
-        var pe1 = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(ed.a, lineSeg) : null;
-        var pe2 = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(ed.b, lineSeg) : null;
-        var edgeEndTouchCount = 0;
-        if (pe1 && (Number(pe1.dist) || 0) <= endTol) edgeEndTouchCount++;
-        if (pe2 && (Number(pe2.dist) || 0) <= endTol) edgeEndTouchCount++;
-        // 장변 양 끝을 모두 덮는 전체 경계 정렬(오탐) 제외.
-        if (edgeEndTouchCount !== 1) continue;
-        var lineOvRatio = ovLen / Math.max(1e-6, lenL);
-        if (!(lineOvRatio >= 0.75)) continue;
-        return {
-          edgeIdx: ed.idx,
-          overlapLen: ovLen,
-          overlapRatio: ovRatio,
-          lineOverlapRatio: lineOvRatio,
-          edgeDistMax: dMax
-        };
-      }
-      return null;
-    }
-    function allowEdgeTouchByAxisClip(info) {
-      var sk = edgeSkewerOverlapByLongEdge();
-      if (!sk) return false;
-      if (dbg) {
-        dbg.reason = 'edge-skewer-overlap';
-        dbg.axisClipInsideLen = Math.round((Number(sk.overlapLen) || 0) * 1000) / 1000;
-        dbg.axisClipOverlapRatio = Math.round((Number(sk.overlapRatio) || 0) * 1000) / 1000;
-        dbg.axisClipLineOverlapRatio = Math.round((Number(sk.lineOverlapRatio) || 0) * 1000) / 1000;
-        dbg.axisClipEdgeDist = Math.round((Number(sk.edgeDistMax) || 0) * 1000) / 1000;
-      }
-      return true;
+    function insideStrictAt(t) {
+      return pointInPolyStrict(ptAt(t), poly, edgeEps);
     }
     // ②-3 판정: 경계 맞닿음은 제외하고, "해치 내부에서 실제로 충돌(내부 구간 존재)"만 추출.
     // 샘플 기반으로 선분 내부 구간이 있는지 먼저 본다.
@@ -26751,27 +26459,17 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     var lastT = 0;
     for (var si = 1; si <= samples; si++) {
       var ts = dt * si;
-      if (!insideAt(ts)) continue;
+      if (!insideStrictAt(ts)) continue;
       inCount++;
       if (ts < firstT) firstT = ts;
       if (ts > lastT) lastT = ts;
     }
-    if (dbg) {
-      dbg.sampleInCount = inCount;
-      dbg.sampleSpanLen = inCount >= 1 ? (Math.max(0, lastT - firstT) * lenL) : 0;
-    }
     if (inCount >= 1) {
       var spanT = Math.max(0, lastT - firstT);
       var spanLen = spanT * lenL;
-      if (spanLen >= Math.max(12, lenL * 0.01) || inCount >= 2) {
-        if (dbg) dbg.reason = 'sample-inside';
-        return true;
-      }
+      if (spanLen >= Math.max(12, lenL * 0.01) || inCount >= 2) return true;
     }
-    if (typeof frameDefSegSegIntersectInclusive !== 'function') {
-      if (dbg) dbg.reason = 'no-intersect-fn';
-      return false;
-    }
+    if (typeof frameDefSegSegIntersectInclusive !== 'function') return false;
     // 샘플이 놓친 경우 교차 기반 보강: 내부 중점이 존재하면 내부 충돌로 인정.
     var hitMap = {};
     var hitTs = [];
@@ -26789,160 +26487,25 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       hitMap[key] = true;
       hitTs.push(t);
     }
-    if (dbg) dbg.hitTsCount = hitTs.length;
-    if (hitTs.length < 2) {
-      if (FRAME_DEF_STEP2A_V2_STEP23_COLLINEAR_EDGE_OVERLAP) {
-        // 경계와 거의 일치(평행·공선)하는 선은 교차점이 2개 미만으로 계산될 수 있다.
-        // 이때 긴 변과 충분히 겹치면 ②-3 관통으로 본다.
-        var nearTol = Math.max(1.0, (Number(edgeEps) || 1.2) * 1.6);
-        var minCollinearOverlap = Math.max(12, lenL * 0.01);
-        for (var ci = 0; ci < poly.length; ci++) {
-          var e1 = poly[ci], e2 = poly[(ci + 1) % poly.length];
-          if (!e1 || !e2) continue;
-          var ex = (Number(e2.x) || 0) - (Number(e1.x) || 0);
-          var ey = (Number(e2.y) || 0) - (Number(e1.y) || 0);
-          var el = Math.hypot(ex, ey);
-          if (!(el > 1e-6)) continue;
-          var dotLE = Math.abs((ex / el) * uxL + (ey / el) * uyL);
-          if (dotLE < 0.9995) continue;
-          var d1 = pointToLinePerpDist(e1), d2 = pointToLinePerpDist(e2);
-          if (Math.max(d1, d2) > nearTol) continue;
-          var tA = projTOnLine(e1), tB = projTOnLine(e2);
-          var te0 = Math.min(tA, tB), te1 = Math.max(tA, tB);
-          var ov0 = Math.max(0, te0), ov1 = Math.min(lenL, te1);
-          var ovLen = ov1 - ov0;
-          if (ovLen >= minCollinearOverlap) {
-            if (dbg) {
-              dbg.reason = 'collinear-edge-overlap';
-              dbg.collinearOverlapLen = Math.round(ovLen * 1000) / 1000;
-            }
-            return true;
-          }
-        }
-      }
-      var insetA = axisInsetClipInsideInfo(edgeEps);
-      var insetLenA = insetA ? (Number(insetA.len) || 0) : 0;
-      if (insetLenA >= Math.max(12, lenL * 0.01) && insetA && insideAt(Number(insetA.midT) || 0.5)) {
-        if (dbg) {
-          dbg.reason = 'axis-clip-inside';
-          dbg.axisClipInsideLen = Math.round(insetLenA * 1000) / 1000;
-        }
-        return true;
-      }
-      var touchA = axisInsetClipInsideInfo(0);
-      if (allowEdgeTouchByAxisClip(touchA)) return true;
-      if (dbg && !dbg.reason) dbg.reason = 'hits<2';
-      return false;
-    }
+    if (hitTs.length < 2) return false;
     hitTs.sort(function(a, b) { return a - b; });
     for (var hi = 0; hi < hitTs.length - 1; hi++) {
       var t0 = hitTs[hi];
       var t1 = hitTs[hi + 1];
       if (!(t1 > t0 + 1e-6)) continue;
       var tm = (t0 + t1) * 0.5;
-      if (!insideAt(tm)) continue;
+      if (!insideStrictAt(tm)) continue;
       if ((t1 - t0) * lenL < Math.max(8, lenL * 0.006)) continue;
-      if (dbg) dbg.reason = 'intersect-mid-inside';
       return true;
     }
-    var insetB = axisInsetClipInsideInfo(edgeEps);
-    var insetLenB = insetB ? (Number(insetB.len) || 0) : 0;
-    if (insetLenB >= Math.max(12, lenL * 0.01) && insetB && insideAt(Number(insetB.midT) || 0.5)) {
-      if (dbg) {
-        dbg.reason = 'axis-clip-inside';
-        dbg.axisClipInsideLen = Math.round(insetLenB * 1000) / 1000;
-      }
-      return true;
-    }
-    var touchB = axisInsetClipInsideInfo(0);
-    if (allowEdgeTouchByAxisClip(touchB)) return true;
-    if (dbg && !dbg.reason) dbg.reason = 'midpoint-outside-or-short';
     return false;
   }
   function splitStep23Filtered(plusArr, minusArr) {
     var guideLines = buildStep23GuideLines();
-    var dbgIds = typeof FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS === 'object' && Array.isArray(FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS)
-      ? FRAME_DEF_DEBUG_2A_STEP23_GUIDE_ENTITY_IDS : [];
-    var dbgIdSet = {};
-    for (var dgi = 0; dgi < dbgIds.length; dgi++) dbgIdSet[String(dbgIds[dgi])] = true;
-    var guideSource = Array.isArray(st.wallStep2aSourceSegs) && st.wallStep2aSourceSegs.length ? 'wallStep2aSourceSegs' : 'wallStep2aHatchWalls-fallback';
-    var guideDbg = {
-      guideSource: guideSource,
-      usesStep2aSourceOnly: guideSource === 'wallStep2aSourceSegs',
-      sourceSegCount: Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs.length : 0,
-      hatchWallCount: Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls.length : 0,
-      guideCount: guideLines.length,
-      targetEntityIds: dbgIds.slice(),
-      guideHits: [],
-      tests: [],
-      guideStats: {}
-    };
-    function lineEntityIds(line) {
-      if (!line) return [];
-      if (Array.isArray(line.entity_ids) && line.entity_ids.length) return frameDefUniqueEntityIds(line.entity_ids);
-      if (line.ent_id != null && isFinite(Number(line.ent_id))) return [Math.floor(Number(line.ent_id))];
-      return [];
-    }
-    function lineHasDebugId(line) {
-      if (!line) return false;
-      var ids = lineEntityIds(line);
-      for (var ii = 0; ii < ids.length; ii++) if (dbgIdSet[String(ids[ii])]) return true;
-      return false;
-    }
-    function bboxGapMm(a, b) {
-      if (!a || !b) return null;
-      var dx = Math.max(0, (Number(a.minx) || 0) - (Number(b.maxx) || 0), (Number(b.minx) || 0) - (Number(a.maxx) || 0));
-      var dy = Math.max(0, (Number(a.miny) || 0) - (Number(b.maxy) || 0), (Number(b.miny) || 0) - (Number(a.maxy) || 0));
-      return Math.hypot(dx, dy);
-    }
-    function lineBBox(line) {
-      if (!line || !line.p1 || !line.p2) return null;
-      var x1 = Number(line.p1.x) || 0, y1 = Number(line.p1.y) || 0;
-      var x2 = Number(line.p2.x) || 0, y2 = Number(line.p2.y) || 0;
-      return { minx: Math.min(x1, x2), miny: Math.min(y1, y2), maxx: Math.max(x1, x2), maxy: Math.max(y1, y2) };
-    }
-    function ensureGuideStat(eid) {
-      var k = String(eid);
-      if (!guideDbg.guideStats[k]) {
-        guideDbg.guideStats[k] = {
-          entityId: Number(eid) || 0,
-          tests: 0,
-          passDot: 0,
-          passInside: 0,
-          dotFail: 0,
-          insideBboxMiss: 0,
-          insideOtherFail: 0,
-          minBboxGapMm: null,
-          minBboxGapWallIdx: null
-        };
-      }
-      return guideDbg.guideStats[k];
-    }
-    if (dbgIds.length) {
-      for (var gdi = 0; gdi < guideLines.length; gdi++) {
-        var gl0 = guideLines[gdi];
-        if (!gl0 || !lineHasDebugId(gl0)) continue;
-        var ids0 = lineEntityIds(gl0);
-        var hitDbg = [];
-        for (var hi0 = 0; hi0 < ids0.length; hi0++) if (dbgIdSet[String(ids0[hi0])]) hitDbg.push(ids0[hi0]);
-        guideDbg.guideHits.push({
-          index: gdi,
-          srcIdx: gl0.srcIdx != null ? gl0.srcIdx : null,
-          wallIdx: gl0.wallIdx != null ? gl0.wallIdx : null,
-          debugEntityIdsMatched: hitDbg,
-          entity_ids: ids0,
-          p1: gl0.p1 ? { x: Math.round((Number(gl0.p1.x) || 0) * 1000) / 1000, y: Math.round((Number(gl0.p1.y) || 0) * 1000) / 1000 } : null,
-          p2: gl0.p2 ? { x: Math.round((Number(gl0.p2.x) || 0) * 1000) / 1000, y: Math.round((Number(gl0.p2.y) || 0) * 1000) / 1000 } : null,
-          len: Math.round((Number(gl0.len) || 0) * 1000) / 1000
-        });
-      }
-    }
     var edgeEps = typeof FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM === 'number' && isFinite(FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM)
       ? Math.max(0.4, FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM) : 1.2;
     var longParDotMin = (typeof FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN))
       ? Math.max(0.80, Math.min(0.9999, FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN)) : 0.92;
-    guideDbg.longParallelDotMin = longParDotMin;
-    guideDbg.edgeEps = edgeEps;
     var keptP = [], keptN = [], outP = [], outN = [];
     function splitOne(arr, kept, outF) {
       for (var i = 0; i < (arr || []).length; i++) {
@@ -26955,88 +26518,12 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           var gl = guideLines[li];
           if (!gl) continue;
           if (isFinite(Number(gl.wallIdx)) && isFinite(Number(rec.wallIdx)) && Number(gl.wallIdx) === Number(rec.wallIdx)) continue;
-          var recSrcIdx = isFinite(Number(rec.wallIdx)) ? Math.floor(Number(rec.wallIdx)) : -1;
-          var recSrc = (recSrcIdx >= 0 && recSrcIdx < list.length) ? list[recSrcIdx] : null;
-          var recSourceIdx = (recSrc && isFinite(Number(recSrc.__step2aV2SourceIndex)))
-            ? Math.floor(Number(recSrc.__step2aV2SourceIndex)) : -1;
-          if (isFinite(Number(gl.srcIdx)) && recSourceIdx >= 0 && Math.floor(Number(gl.srcIdx)) === recSourceIdx) continue;
-          var glIds = null;
-          var dbgLine = false;
-          var glBox = null;
-          if (dbgIds.length) {
-            glIds = lineEntityIds(gl);
-            for (var gi = 0; gi < glIds.length; gi++) {
-              if (dbgIdSet[String(glIds[gi])]) { dbgLine = true; break; }
-            }
-            if (dbgLine) glBox = lineBBox(gl);
-          }
-          // 해치 긴방향과 평행한 후보선만 ②-3 관통 판단에 사용(수직/직교 방향 제외).
-          var dot = null;
-          var passDot = true;
+          // 해치 긴방향과 평행한 후보선만 ②-3 관통 판단에 사용(수직 방향 제외).
           if (longAxis && isFinite(Number(gl.ux)) && isFinite(Number(gl.uy))) {
-            dot = Math.abs((Number(gl.ux) || 0) * (Number(longAxis.ux) || 0) + (Number(gl.uy) || 0) * (Number(longAxis.uy) || 0));
-            passDot = dot >= longParDotMin;
-            if (!passDot) {
-              if (dbgLine) {
-                guideDbg.tests.push({
-                  wallIdx: rec.wallIdx,
-                  recSourceIdx: recSourceIdx,
-                  sign: rec.selected ? 'selected' : 'alt',
-                  guideEntityIds: glIds,
-                  guideSourceIdx: (gl && isFinite(Number(gl.srcIdx))) ? Math.floor(Number(gl.srcIdx)) : null,
-                  passDot: false,
-                  dot: Math.round((Number(dot) || 0) * 10000) / 10000,
-                  passInside: false,
-                  filtered: false,
-                  reason: 'dot<min'
-                });
-                for (var gs0 = 0; gs0 < glIds.length; gs0++) {
-                  if (!dbgIdSet[String(glIds[gs0])]) continue;
-                  var st0 = ensureGuideStat(glIds[gs0]);
-                  st0.tests += 1;
-                  st0.dotFail += 1;
-                }
-              }
-              continue;
-            }
+            var dot = Math.abs((Number(gl.ux) || 0) * (Number(longAxis.ux) || 0) + (Number(gl.uy) || 0) * (Number(longAxis.uy) || 0));
+            if (dot < longParDotMin) continue;
           }
-          var insideDbg = (dbgIds.length && lineHasDebugId(gl)) ? {} : null;
-          var passInside = segPassesInsidePoly(gl, rec.quad, bbox, edgeEps, insideDbg);
-          if (dbgLine) {
-            var gap = bboxGapMm(glBox, bbox);
-            guideDbg.tests.push({
-              wallIdx: rec.wallIdx,
-              recSourceIdx: recSourceIdx,
-              sign: rec.selected ? 'selected' : 'alt',
-              guideEntityIds: glIds,
-              guideSourceIdx: (gl && isFinite(Number(gl.srcIdx))) ? Math.floor(Number(gl.srcIdx)) : null,
-              passDot: passDot,
-              dot: dot == null ? null : (Math.round((Number(dot) || 0) * 10000) / 10000),
-              passInside: passInside,
-              filtered: passInside,
-              insideReason: insideDbg && insideDbg.reason ? insideDbg.reason : '',
-              bboxGapMm: gap == null ? null : (Math.round(gap * 1000) / 1000),
-              sampleInCount: insideDbg && isFinite(Number(insideDbg.sampleInCount)) ? Number(insideDbg.sampleInCount) : 0,
-              sampleSpanLen: insideDbg && isFinite(Number(insideDbg.sampleSpanLen)) ? (Math.round(Number(insideDbg.sampleSpanLen) * 1000) / 1000) : 0,
-              hitTsCount: insideDbg && isFinite(Number(insideDbg.hitTsCount)) ? Number(insideDbg.hitTsCount) : 0,
-              axisClipInsideLen: insideDbg && isFinite(Number(insideDbg.axisClipInsideLen))
-                ? (Math.round(Number(insideDbg.axisClipInsideLen) * 1000) / 1000) : 0
-            });
-            for (var gs1 = 0; gs1 < glIds.length; gs1++) {
-              if (!dbgIdSet[String(glIds[gs1])]) continue;
-              var st1 = ensureGuideStat(glIds[gs1]);
-              st1.tests += 1;
-              st1.passDot += passDot ? 1 : 0;
-              st1.passInside += passInside ? 1 : 0;
-              if (!passInside && insideDbg && insideDbg.reason === 'bbox-miss') st1.insideBboxMiss += 1;
-              else if (!passInside) st1.insideOtherFail += 1;
-              if (gap != null && (st1.minBboxGapMm == null || gap < Number(st1.minBboxGapMm))) {
-                st1.minBboxGapMm = Math.round(gap * 1000) / 1000;
-                st1.minBboxGapWallIdx = rec.wallIdx;
-              }
-            }
-          }
-          if (passInside) { filtered = true; break; }
+          if (segPassesInsidePoly(gl, rec.quad, bbox, edgeEps)) { filtered = true; break; }
         }
         if (filtered) outF.push(rec);
         else kept.push(rec);
@@ -27044,43 +26531,6 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     }
     splitOne(plusArr, keptP, outP);
     splitOne(minusArr, keptN, outN);
-    if (dbgIds.length) {
-      guideDbg.tests_total = guideDbg.tests.length;
-      guideDbg.tests.sort(function(a, b) {
-        function score(t) {
-          if (!t || typeof t !== 'object') return -1e9;
-          var s = 0;
-          if (t.passInside) s += 1200;
-          if (t.passDot) s += 120;
-          var rs = String(t.insideReason || '');
-          if (rs && rs !== 'bbox-miss') s += 900;
-          if (isFinite(Number(t.bboxGapMm))) {
-            var g = Math.max(0, Number(t.bboxGapMm));
-            if (g <= 1e-6) s += 700;
-            s += Math.max(0, 300 - Math.min(300, g / 5));
-          }
-          var ac = isFinite(Number(t.axisClipInsideLen)) ? Number(t.axisClipInsideLen) : 0;
-          s += Math.min(180, ac / 20);
-          return s;
-        }
-        var sb = score(b) - score(a);
-        if (Math.abs(sb) > 1e-9) return sb > 0 ? 1 : -1;
-        var ga = isFinite(Number(a && a.bboxGapMm)) ? Number(a.bboxGapMm) : Infinity;
-        var gb = isFinite(Number(b && b.bboxGapMm)) ? Number(b.bboxGapMm) : Infinity;
-        if (ga !== gb) return ga - gb;
-        return (Number(a && a.wallIdx) || 0) - (Number(b && b.wallIdx) || 0);
-      });
-      var maxTests = 220;
-      if (guideDbg.tests.length > maxTests) {
-        guideDbg.tests = guideDbg.tests.slice(0, maxTests);
-        guideDbg.tests_truncated = true;
-      }
-      guideDbg.filteredCount = outP.length + outN.length;
-      guideDbg.keptCount = keptP.length + keptN.length;
-      st.debugStep2aStep23GuideDebug = guideDbg;
-    } else {
-      st.debugStep2aStep23GuideDebug = null;
-    }
     return { keptPlus: keptP, keptMinus: keptN, outPlus: outP, outMinus: outN };
   }
   var candsP = buildSignCandidates(1);
@@ -27126,8 +26576,6 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     ts: st.debugStep2aDualOverlapStat.ts,
     cached: false
   };
-  cache.step23GuideDebug = st.debugStep2aStep23GuideDebug && typeof st.debugStep2aStep23GuideDebug === 'object'
-    ? st.debugStep2aStep23GuideDebug : null;
   if (showStep22 || showStep24 || showStep25) {
     var a24f = applyStep24SplitForDisplay(plusPolys, minusPolys);
     if (showStep22) {

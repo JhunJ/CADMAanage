@@ -3228,13 +3228,33 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
     if (l01 >= l12) return { ux: e01x / Math.max(l01, 1e-9), uy: e01y / Math.max(l01, 1e-9), longLen: l01 };
     return { ux: e12x / Math.max(l12, 1e-9), uy: e12y / Math.max(l12, 1e-9), longLen: l12 };
   }
+  function normalizeQuadLoop(poly) {
+    if (!Array.isArray(poly) || poly.length !== 4) return poly;
+    var pts = [];
+    for (var i = 0; i < poly.length; i++) {
+      var p = poly[i];
+      if (!p || !isFinite(Number(p.x)) || !isFinite(Number(p.y))) continue;
+      pts.push({ x: Number(p.x), y: Number(p.y) });
+    }
+    if (pts.length !== 4) return poly;
+    var cx = 0, cy = 0;
+    for (var j = 0; j < pts.length; j++) { cx += pts[j].x; cy += pts[j].y; }
+    cx /= 4; cy /= 4;
+    pts.sort(function(a, b) {
+      var aa = Math.atan2(a.y - cy, a.x - cx);
+      var bb = Math.atan2(b.y - cy, b.x - cx);
+      return aa - bb;
+    });
+    return pts;
+  }
   function pointInPolyStrict(pt, poly, edgeEps) {
-    if (!pt || !Array.isArray(poly) || poly.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
-    if (!frameDefPointInPolygon(pt, poly)) return false;
+    var polyUse = normalizeQuadLoop(poly);
+    if (!pt || !Array.isArray(polyUse) || polyUse.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
+    if (!frameDefPointInPolygon(pt, polyUse)) return false;
     var eps = Math.max(0.6, Number(edgeEps) || 1.2);
     var minD = Infinity;
-    for (var i = 0; i < poly.length; i++) {
-      var a = poly[i], b = poly[(i + 1) % poly.length];
+    for (var i = 0; i < polyUse.length; i++) {
+      var a = polyUse[i], b = polyUse[(i + 1) % polyUse.length];
       if (!a || !b || typeof frameDefPointToSegmentProjection !== 'function') continue;
       var pr = frameDefPointToSegmentProjection(pt, { p1: a, p2: b });
       if (!pr) continue;
@@ -3244,7 +3264,8 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
     return minD > eps;
   }
   function lineOverlapInfo(ln, poly, edgeEps) {
-    if (!ln || !ln.p1 || !ln.p2 || !Array.isArray(poly) || poly.length < 3) return { pass: false, reason: 'invalid' };
+    var polyUse = normalizeQuadLoop(poly);
+    if (!ln || !ln.p1 || !ln.p2 || !Array.isArray(polyUse) || polyUse.length < 3) return { pass: false, reason: 'invalid' };
     var ax = Number(ln.p1.x) || 0, ay = Number(ln.p1.y) || 0;
     var bx = Number(ln.p2.x) || 0, by = Number(ln.p2.y) || 0;
     var dlx = bx - ax, dly = by - ay;
@@ -3255,8 +3276,8 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
     function ptAt(t) { return { x: ax + dlx * t, y: ay + dly * t }; }
     function pointEdgeMinDist(pt) {
       var minD = Infinity;
-      for (var i = 0; i < poly.length; i++) {
-        var a = poly[i], b = poly[(i + 1) % poly.length];
+      for (var i = 0; i < polyUse.length; i++) {
+        var a = polyUse[i], b = polyUse[(i + 1) % polyUse.length];
         if (!a || !b || typeof frameDefPointToSegmentProjection !== 'function') continue;
         var pr = frameDefPointToSegmentProjection(pt, { p1: a, p2: b });
         if (!pr) continue;
@@ -3272,14 +3293,14 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
     for (var si = 1; si <= samples; si++) {
       var ts = si / (samples + 1);
       var pt = ptAt(ts);
-      var looseIn = (typeof frameDefPointInPolygon === 'function') ? frameDefPointInPolygon(pt, poly) : false;
+      var looseIn = (typeof frameDefPointInPolygon === 'function') ? frameDefPointInPolygon(pt, polyUse) : false;
       var dEdge = pointEdgeMinDist(pt);
       if (isFinite(dEdge) && dEdge < minEdgeMm) minEdgeMm = dEdge;
       if (looseIn) {
         looseInsideCount++;
         if (isFinite(dEdge) && dEdge <= eps * 1.2) onEdgeCount++;
       }
-      if (!pointInPolyStrict(pt, poly, edgeEps)) continue;
+      if (!pointInPolyStrict(pt, polyUse, edgeEps)) continue;
       inCount++;
       if (ts < firstT) firstT = ts;
       if (ts > lastT) lastT = ts;
@@ -3290,7 +3311,7 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
     for (var di = 0; di <= dense; di++) {
       var td = di / dense;
       var ptd = ptAt(td);
-      var looseInD = (typeof frameDefPointInPolygon === 'function') ? frameDefPointInPolygon(ptd, poly) : false;
+      var looseInD = (typeof frameDefPointInPolygon === 'function') ? frameDefPointInPolygon(ptd, polyUse) : false;
       var edgeD = pointEdgeMinDist(ptd);
       var strictInD = looseInD && edgeD > eps;
       if (looseInD) {
@@ -26781,13 +26802,33 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     if (l01 >= l12) return { ux: e01x / Math.max(l01, 1e-9), uy: e01y / Math.max(l01, 1e-9), longLen: l01, shortLen: l12 };
     return { ux: e12x / Math.max(l12, 1e-9), uy: e12y / Math.max(l12, 1e-9), longLen: l12, shortLen: l01 };
   }
+  function normalizeQuadLoop(poly) {
+    if (!Array.isArray(poly) || poly.length !== 4) return poly;
+    var pts = [];
+    for (var i = 0; i < poly.length; i++) {
+      var p = poly[i];
+      if (!p || !isFinite(Number(p.x)) || !isFinite(Number(p.y))) continue;
+      pts.push({ x: Number(p.x), y: Number(p.y) });
+    }
+    if (pts.length !== 4) return poly;
+    var cx = 0, cy = 0;
+    for (var j = 0; j < pts.length; j++) { cx += pts[j].x; cy += pts[j].y; }
+    cx /= 4; cy /= 4;
+    pts.sort(function(a, b) {
+      var aa = Math.atan2(a.y - cy, a.x - cx);
+      var bb = Math.atan2(b.y - cy, b.x - cx);
+      return aa - bb;
+    });
+    return pts;
+  }
   function pointInPolyStrict(pt, poly, edgeEps) {
-    if (!pt || !Array.isArray(poly) || poly.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
-    if (!frameDefPointInPolygon(pt, poly)) return false;
+    var polyUse = normalizeQuadLoop(poly);
+    if (!pt || !Array.isArray(polyUse) || polyUse.length < 3 || typeof frameDefPointInPolygon !== 'function') return false;
+    if (!frameDefPointInPolygon(pt, polyUse)) return false;
     var eps = Math.max(0.6, Number(edgeEps) || 1.2);
     var minD = Infinity;
-    for (var i = 0; i < poly.length; i++) {
-      var a = poly[i], b = poly[(i + 1) % poly.length];
+    for (var i = 0; i < polyUse.length; i++) {
+      var a = polyUse[i], b = polyUse[(i + 1) % polyUse.length];
       var pr = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(pt, { p1: a, p2: b }) : null;
       if (!pr) continue;
       var d = Number(pr.dist) || 0;
@@ -26796,9 +26837,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     return minD > eps;
   }
   function segPassesInsidePoly(line, poly, polyBBox, edgeEps) {
-    if (!line || !line.p1 || !line.p2 || !Array.isArray(poly) || poly.length < 3) return false;
+    var polyUse = normalizeQuadLoop(poly);
+    if (!line || !line.p1 || !line.p2 || !Array.isArray(polyUse) || polyUse.length < 3) return false;
     var p1 = line.p1, p2 = line.p2;
-    var bx = polyBBox || (typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(poly) : null);
+    var bx = polyBBox || (typeof frameDef2aV2QuadBBox === 'function' ? frameDef2aV2QuadBBox(polyUse) : null);
     if (bx) {
       var sx0 = Math.min(Number(p1.x) || 0, Number(p2.x) || 0), sx1 = Math.max(Number(p1.x) || 0, Number(p2.x) || 0);
       var sy0 = Math.min(Number(p1.y) || 0, Number(p2.y) || 0), sy1 = Math.max(Number(p1.y) || 0, Number(p2.y) || 0);
@@ -26810,7 +26852,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     if (!(lenL > 1e-6)) return false;
     function ptAt(t) { return { x: ax + dxL * t, y: ay + dyL * t }; }
     function insideStrictAt(t) {
-      return pointInPolyStrict(ptAt(t), poly, edgeEps);
+      return pointInPolyStrict(ptAt(t), polyUse, edgeEps);
     }
     // ②-3 판정: 경계 맞닿음은 제외하고, "해치 내부에서 실제로 충돌(내부 구간 존재)"만 추출.
     // 샘플 기반으로 선분 내부 구간이 있는지 먼저 본다.
@@ -26835,8 +26877,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     // 샘플이 놓친 경우 교차 기반 보강: 내부 중점이 존재하면 내부 충돌로 인정.
     var hitMap = {};
     var hitTs = [];
-    for (var ei = 0; ei < poly.length; ei++) {
-      var q1 = poly[ei], q2 = poly[(ei + 1) % poly.length];
+    for (var ei = 0; ei < polyUse.length; ei++) {
+      var q1 = polyUse[ei], q2 = polyUse[(ei + 1) % polyUse.length];
       if (!q1 || !q2) continue;
       var cx = Number(q1.x) || 0, cy = Number(q1.y) || 0, dx = Number(q2.x) || 0, dy = Number(q2.y) || 0;
       if (!frameDefSegSegIntersectInclusive(ax, ay, bx2, by2, cx, cy, dx, dy, 1e-7)) continue;

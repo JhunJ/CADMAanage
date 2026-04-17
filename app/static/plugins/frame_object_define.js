@@ -26542,6 +26542,15 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       return false;
     }
     function ptAt(t) { return { x: ax + dxL * t, y: ay + dyL * t }; }
+    var uxL = dxL / Math.max(lenL, 1e-9), uyL = dyL / Math.max(lenL, 1e-9);
+    function projTOnLine(pt) {
+      if (!pt) return 0;
+      return (((Number(pt.x) || 0) - ax) * uxL + ((Number(pt.y) || 0) - ay) * uyL);
+    }
+    function pointToLinePerpDist(pt) {
+      if (!pt) return Infinity;
+      return Math.abs((((Number(pt.x) || 0) - ax) * (-uyL)) + (((Number(pt.y) || 0) - ay) * uxL));
+    }
     function insideAt(t) {
       var pt = ptAt(t);
       return pointInPolyStrict(pt, poly, edgeEps);
@@ -26595,6 +26604,33 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     }
     if (dbg) dbg.hitTsCount = hitTs.length;
     if (hitTs.length < 2) {
+      // 경계와 거의 일치(평행·공선)하는 선은 교차점이 2개 미만으로 계산될 수 있다.
+      // 이때 긴 변과 충분히 겹치면 ②-3 관통으로 본다.
+      var nearTol = Math.max(1.0, (Number(edgeEps) || 1.2) * 1.6);
+      var minCollinearOverlap = Math.max(12, lenL * 0.01);
+      for (var ci = 0; ci < poly.length; ci++) {
+        var e1 = poly[ci], e2 = poly[(ci + 1) % poly.length];
+        if (!e1 || !e2) continue;
+        var ex = (Number(e2.x) || 0) - (Number(e1.x) || 0);
+        var ey = (Number(e2.y) || 0) - (Number(e1.y) || 0);
+        var el = Math.hypot(ex, ey);
+        if (!(el > 1e-6)) continue;
+        var dotLE = Math.abs((ex / el) * uxL + (ey / el) * uyL);
+        if (dotLE < 0.9995) continue;
+        var d1 = pointToLinePerpDist(e1), d2 = pointToLinePerpDist(e2);
+        if (Math.max(d1, d2) > nearTol) continue;
+        var tA = projTOnLine(e1), tB = projTOnLine(e2);
+        var te0 = Math.min(tA, tB), te1 = Math.max(tA, tB);
+        var ov0 = Math.max(0, te0), ov1 = Math.min(lenL, te1);
+        var ovLen = ov1 - ov0;
+        if (ovLen >= minCollinearOverlap) {
+          if (dbg) {
+            dbg.reason = 'collinear-edge-overlap';
+            dbg.collinearOverlapLen = Math.round(ovLen * 1000) / 1000;
+          }
+          return true;
+        }
+      }
       if (dbg && !dbg.reason) dbg.reason = 'hits<2';
       return false;
     }

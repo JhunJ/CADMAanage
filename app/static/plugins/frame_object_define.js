@@ -26597,18 +26597,38 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
         if (out[out.length - 1] < 1 - 1e-8) out.push(1);
         return out;
       }
-      function polyCoveredByOthers(mid, ownPolyIdx) {
+      function polyCoveredByOthers(mid, ownPolyIdx, segDx, segDy) {
         var gx = Math.floor((Number(mid.x) || 0) / bucketMm);
         var gy = Math.floor((Number(mid.y) || 0) / bucketMm);
         var cands = polyBuckets[bucketKey(gx, gy)] || [];
         if (!cands.length) return false;
+        var dx = Number(segDx) || 0;
+        var dy = Number(segDy) || 0;
+        var dl = Math.hypot(dx, dy);
+        var nx = 0, ny = 0;
+        if (dl > 1e-9) {
+          nx = -dy / dl;
+          ny = dx / dl;
+        }
         for (var ci = 0; ci < cands.length; ci++) {
           var pi = cands[ci];
           if (pi === ownPolyIdx) continue;
           var pb = polyB[pi];
           if (!pb || !bboxIntersects(pb, { minx: mid.x, maxx: mid.x, miny: mid.y, maxy: mid.y }, edgeEps)) continue;
           if (typeof frameDefPointInPolygon === 'function' && frameDefPointInPolygon(mid, polyList[pi])) return true;
-          if (pointOnPolyEdge(mid, polyList[pi], edgeEps)) return true;
+          if (Math.abs(nx) > 1e-9 || Math.abs(ny) > 1e-9) {
+            var off = Math.max(0.25, edgeEps * 0.7);
+            var m1 = { x: mid.x + nx * off, y: mid.y + ny * off };
+            var m2 = { x: mid.x - nx * off, y: mid.y - ny * off };
+            var in1 = (typeof frameDefPointInPolygon === 'function') ? frameDefPointInPolygon(m1, polyList[pi]) : false;
+            var in2 = (typeof frameDefPointInPolygon === 'function') ? frameDefPointInPolygon(m2, polyList[pi]) : false;
+            if (in1 && in2) return true;
+            // 공유 경계(인접/겹침) 위의 내부 분할선은 제거해야 병합 루프가 형성된다.
+            // 단순 on-edge만으로 제거하면 외곽까지 지워질 수 있어, 법선 양측 중 한쪽이라도 내부일 때만 제거한다.
+            if (pointOnPolyEdge(mid, polyList[pi], edgeEps) && (in1 || in2)) return true;
+          } else if (pointOnPolyEdge(mid, polyList[pi], edgeEps)) {
+            return true;
+          }
         }
         return false;
       }
@@ -26622,7 +26642,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
           var pa = segPointAt(es, t0), pb2 = segPointAt(es, t1);
           if (Math.hypot(pb2.x - pa.x, pb2.y - pa.y) < 0.4) continue;
           var mid = segPointAt(es, (t0 + t1) * 0.5);
-          if (polyCoveredByOthers(mid, es.polyIdx)) continue;
+          if (polyCoveredByOthers(mid, es.polyIdx, es.dx, es.dy)) continue;
           var na = snapNode(pa), nb = snapNode(pb2);
           if (na.key === nb.key) continue;
           var segKey = na.key + '>' + nb.key;
@@ -26752,6 +26772,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     }
     return {
       sourcePolys: polys,
+      sourceGroups: sourceGroups,
       polys: mergedPolys,
       mergedGroups: mergedGroups,
       groupCount: roots.length,

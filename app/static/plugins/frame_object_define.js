@@ -26578,7 +26578,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (!(nMax > nMin + 1e-9)) return null;
       return { tMin: nMin, tMax: nMax };
     }
-    function axisInsetClipInsideInfo() {
+    function axisInsetClipInsideInfo(insetEps) {
       var axis = quadLongAxisUnit(poly);
       if (!axis || !isFinite(Number(axis.ux)) || !isFinite(Number(axis.uy))) return null;
       var ux = Number(axis.ux) || 0, uy = Number(axis.uy) || 0;
@@ -26601,7 +26601,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         if (pn < nMin) nMin = pn;
         if (pn > nMax) nMax = pn;
       }
-      var epsIn = Math.max(0.2, Number(edgeEps) || 1.2);
+      var epsInRaw = (insetEps == null) ? (Number(edgeEps) || 1.2) : Number(insetEps);
+      var epsIn = Math.max(0, isFinite(epsInRaw) ? epsInRaw : 0);
       var u0 = uMin + epsIn, u1 = uMax - epsIn;
       var v0 = nMin + epsIn, v1 = nMax - epsIn;
       if (!(u1 > u0 + 1e-6) || !(v1 > v0 + 1e-6)) return null;
@@ -26621,6 +26622,38 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         len: Math.max(0, (it.tMax - it.tMin) * lenL),
         midT: Math.max(0, Math.min(1, tMid))
       };
+    }
+    function pointMinEdgeDist(pt) {
+      if (!pt || !Array.isArray(poly) || poly.length < 3) return Infinity;
+      var minD = Infinity;
+      for (var ei = 0; ei < poly.length; ei++) {
+        var a = poly[ei], b = poly[(ei + 1) % poly.length];
+        if (!a || !b) continue;
+        var pr = (typeof frameDefPointToSegmentProjection === 'function')
+          ? frameDefPointToSegmentProjection(pt, { p1: a, p2: b }) : null;
+        if (!pr) continue;
+        var d = Number(pr.dist) || 0;
+        if (d < minD) minD = d;
+      }
+      return minD;
+    }
+    function allowEdgeTouchByAxisClip(info) {
+      if (!info) return false;
+      var minInsideLen = Math.max(16, lenL * 0.015);
+      var touchLen = Number(info.len) || 0;
+      if (!(touchLen >= minInsideLen)) return false;
+      var midT = Math.max(0, Math.min(1, Number(info.midT) || 0.5));
+      var midPt = ptAt(midT);
+      if (insideAt(midT)) return false;
+      var edgeTouchTol = Math.max(0.8, (Number(edgeEps) || 1.2) * 1.25);
+      var dEdge = pointMinEdgeDist(midPt);
+      if (!(dEdge <= edgeTouchTol)) return false;
+      if (dbg) {
+        dbg.reason = 'axis-clip-edge-touch';
+        dbg.axisClipInsideLen = Math.round(touchLen * 1000) / 1000;
+        dbg.axisClipEdgeDist = Math.round((Number(dEdge) || 0) * 1000) / 1000;
+      }
+      return true;
     }
     // ②-3 판정: 경계 맞닿음은 제외하고, "해치 내부에서 실제로 충돌(내부 구간 존재)"만 추출.
     // 샘플 기반으로 선분 내부 구간이 있는지 먼저 본다.
@@ -26700,7 +26733,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           }
         }
       }
-      var insetA = axisInsetClipInsideInfo();
+      var insetA = axisInsetClipInsideInfo(edgeEps);
       var insetLenA = insetA ? (Number(insetA.len) || 0) : 0;
       if (insetLenA >= Math.max(12, lenL * 0.01) && insetA && insideAt(Number(insetA.midT) || 0.5)) {
         if (dbg) {
@@ -26709,6 +26742,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         }
         return true;
       }
+      var touchA = axisInsetClipInsideInfo(0);
+      if (allowEdgeTouchByAxisClip(touchA)) return true;
       if (dbg && !dbg.reason) dbg.reason = 'hits<2';
       return false;
     }
@@ -26723,7 +26758,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (dbg) dbg.reason = 'intersect-mid-inside';
       return true;
     }
-    var insetB = axisInsetClipInsideInfo();
+    var insetB = axisInsetClipInsideInfo(edgeEps);
     var insetLenB = insetB ? (Number(insetB.len) || 0) : 0;
     if (insetLenB >= Math.max(12, lenL * 0.01) && insetB && insideAt(Number(insetB.midT) || 0.5)) {
       if (dbg) {
@@ -26732,6 +26767,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       }
       return true;
     }
+    var touchB = axisInsetClipInsideInfo(0);
+    if (allowEdgeTouchByAxisClip(touchB)) return true;
     if (dbg && !dbg.reason) dbg.reason = 'midpoint-outside-or-short';
     return false;
   }
@@ -26921,6 +26958,31 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     splitOne(plusArr, keptP, outP);
     splitOne(minusArr, keptN, outN);
     if (dbgIds.length) {
+      guideDbg.tests_total = guideDbg.tests.length;
+      guideDbg.tests.sort(function(a, b) {
+        function score(t) {
+          if (!t || typeof t !== 'object') return -1e9;
+          var s = 0;
+          if (t.passInside) s += 1200;
+          if (t.passDot) s += 120;
+          var rs = String(t.insideReason || '');
+          if (rs && rs !== 'bbox-miss') s += 900;
+          if (isFinite(Number(t.bboxGapMm))) {
+            var g = Math.max(0, Number(t.bboxGapMm));
+            if (g <= 1e-6) s += 700;
+            s += Math.max(0, 300 - Math.min(300, g / 5));
+          }
+          var ac = isFinite(Number(t.axisClipInsideLen)) ? Number(t.axisClipInsideLen) : 0;
+          s += Math.min(180, ac / 20);
+          return s;
+        }
+        var sb = score(b) - score(a);
+        if (Math.abs(sb) > 1e-9) return sb > 0 ? 1 : -1;
+        var ga = isFinite(Number(a && a.bboxGapMm)) ? Number(a.bboxGapMm) : Infinity;
+        var gb = isFinite(Number(b && b.bboxGapMm)) ? Number(b.bboxGapMm) : Infinity;
+        if (ga !== gb) return ga - gb;
+        return (Number(a && a.wallIdx) || 0) - (Number(b && b.wallIdx) || 0);
+      });
       var maxTests = 220;
       if (guideDbg.tests.length > maxTests) {
         guideDbg.tests = guideDbg.tests.slice(0, maxTests);

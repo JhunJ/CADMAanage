@@ -3251,6 +3251,7 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
     var ll = Math.hypot(dlx, dly);
     if (!(ll > 1e-6)) return { pass: false, reason: 'line-len-zero' };
     var eps = Math.max(0.6, Number(edgeEps) || 1.2);
+    var passMinSpanMm = Math.max(12, ll * 0.01);
     function ptAt(t) { return { x: ax + dlx * t, y: ay + dly * t }; }
     function pointEdgeMinDist(pt) {
       var minD = Infinity;
@@ -3283,8 +3284,34 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
       if (ts < firstT) firstT = ts;
       if (ts > lastT) lastT = ts;
     }
+    var dense = 401;
+    var strictStart = -1, looseStart = -1;
+    var strictRunMaxT = 0, looseRunMaxT = 0;
+    for (var di = 0; di <= dense; di++) {
+      var td = di / dense;
+      var ptd = ptAt(td);
+      var looseInD = (typeof frameDefPointInPolygon === 'function') ? frameDefPointInPolygon(ptd, poly) : false;
+      var edgeD = pointEdgeMinDist(ptd);
+      var strictInD = looseInD && edgeD > eps;
+      if (looseInD) {
+        if (looseStart < 0) looseStart = td;
+      } else if (looseStart >= 0) {
+        looseRunMaxT = Math.max(looseRunMaxT, td - looseStart);
+        looseStart = -1;
+      }
+      if (strictInD) {
+        if (strictStart < 0) strictStart = td;
+      } else if (strictStart >= 0) {
+        strictRunMaxT = Math.max(strictRunMaxT, td - strictStart);
+        strictStart = -1;
+      }
+    }
+    if (looseStart >= 0) looseRunMaxT = Math.max(looseRunMaxT, 1 - looseStart);
+    if (strictStart >= 0) strictRunMaxT = Math.max(strictRunMaxT, 1 - strictStart);
+    var looseRunSpanMm = Math.round((looseRunMaxT * ll) * 100) / 100;
+    var strictRunSpanMm = Math.round((strictRunMaxT * ll) * 100) / 100;
     var spanLen = inCount > 0 ? Math.max(0, (lastT - firstT) * ll) : 0;
-    if (spanLen >= Math.max(12, ll * 0.01) || inCount >= 2) {
+    if (spanLen >= passMinSpanMm || inCount >= 2) {
       return {
         pass: true,
         reason: 'samples',
@@ -3292,6 +3319,9 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
         looseInsideCount: looseInsideCount,
         onEdgeCount: onEdgeCount,
         minEdgeMm: isFinite(minEdgeMm) ? (Math.round(minEdgeMm * 1000) / 1000) : null,
+        passMinSpanMm: Math.round(passMinSpanMm * 100) / 100,
+        strictRunSpanMm: strictRunSpanMm,
+        looseRunSpanMm: looseRunSpanMm,
         insideSpanMm: Math.round(spanLen * 100) / 100,
         hitCount: 0
       };
@@ -3326,8 +3356,40 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
       looseInsideCount: looseInsideCount,
       onEdgeCount: onEdgeCount,
       minEdgeMm: isFinite(minEdgeMm) ? (Math.round(minEdgeMm * 1000) / 1000) : null,
+      passMinSpanMm: Math.round(passMinSpanMm * 100) / 100,
+      strictRunSpanMm: strictRunSpanMm,
+      looseRunSpanMm: looseRunSpanMm,
       insideSpanMm: Math.round(spanLen * 100) / 100,
       hitCount: hitCount
+    };
+  }
+  function lineBandStats(ln, quad) {
+    if (!ln || !ln.p1 || !Array.isArray(quad) || quad.length < 3) return null;
+    var uxL = Number(ln.ux) || 0, uyL = Number(ln.uy) || 0;
+    var nxL = -uyL, nyL = uxL;
+    var nLine = (Number(ln.p1.x) || 0) * nxL + (Number(ln.p1.y) || 0) * nyL;
+    var tMin = Infinity, tMax = -Infinity, nMin = Infinity, nMax = -Infinity;
+    for (var qi = 0; qi < quad.length; qi++) {
+      var p = quad[qi];
+      if (!p) continue;
+      var px = Number(p.x) || 0, py = Number(p.y) || 0;
+      var tv = (px - (Number(ln.p1.x) || 0)) * uxL + (py - (Number(ln.p1.y) || 0)) * uyL;
+      var nv = px * nxL + py * nyL;
+      if (tv < tMin) tMin = tv;
+      if (tv > tMax) tMax = tv;
+      if (nv < nMin) nMin = nv;
+      if (nv > nMax) nMax = nv;
+    }
+    if (!(tMax >= tMin) || !(nMax >= nMin)) return null;
+    var ov = Math.max(0, Math.min(Number(ln.len) || 0, tMax) - Math.max(0, tMin));
+    var half = Math.max(0, (nMax - nMin) * 0.5);
+    var center = (nMin + nMax) * 0.5;
+    var off = Math.abs(nLine - center);
+    return {
+      axisOverlapMm: Math.round(ov * 100) / 100,
+      bandHalfMm: Math.round(half * 1000) / 1000,
+      bandOffsetMm: Math.round(off * 1000) / 1000,
+      bandInteriorMarginMm: Math.round((half - off) * 1000) / 1000
     };
   }
 
@@ -3344,9 +3406,21 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
       var gap = bboxGapMm(lineBBox, bq);
       if (isFinite(nearGap) && gap > nearGap) continue;
       var ov = lineOverlapInfo(line, rec.quad, 1.2);
+      var bs = lineBandStats(line, rec.quad) || {};
       var w = (isFinite(Number(rec.wallIdx)) && Number(rec.wallIdx) >= 0) ? walls[Math.floor(Number(rec.wallIdx))] : null;
       var th = typeof frameDef2aV24WallThicknessMm === 'function' ? frameDef2aV24WallThicknessMm(w) : Number(w && w.thickness_mm);
       var ent = (w && Array.isArray(w.entity_ids)) ? w.entity_ids.slice(0, 6) : [];
+      var cause = ov.reason;
+      if (!ov.pass) {
+        var margin = isFinite(Number(bs.bandInteriorMarginMm)) ? Number(bs.bandInteriorMarginMm) : NaN;
+        var strictRun = Number(ov.strictRunSpanMm) || 0;
+        var looseRun = Number(ov.looseRunSpanMm) || 0;
+        if (isFinite(margin) && margin > 4 && looseRun > 0 && strictRun <= 0) {
+          cause = looseRun < (Number(ov.passMinSpanMm) || 0) ? 'inside-short-span' : 'inside-near-edge-or-sample-miss';
+        } else if (isFinite(margin) && margin > 4 && (Number(bs.axisOverlapMm) || 0) < 20) {
+          cause = 'partial-penetration-short-axis';
+        }
+      }
       rows.push({
         sign: signTag,
         wallIdx: isFinite(Number(rec.wallIdx)) ? Math.floor(Number(rec.wallIdx)) : -1,
@@ -3354,13 +3428,20 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
         dot: Math.round(dot * 10000) / 10000,
         bboxGapMm: isFinite(gap) ? Math.round(gap * 100) / 100 : null,
         overlap: !!ov.pass,
-        reason: ov.reason,
+        reason: cause,
         insideSpanMm: isFinite(Number(ov.insideSpanMm)) ? Number(ov.insideSpanMm) : 0,
+        strictRunSpanMm: isFinite(Number(ov.strictRunSpanMm)) ? Number(ov.strictRunSpanMm) : 0,
+        looseRunSpanMm: isFinite(Number(ov.looseRunSpanMm)) ? Number(ov.looseRunSpanMm) : 0,
+        passMinSpanMm: isFinite(Number(ov.passMinSpanMm)) ? Number(ov.passMinSpanMm) : 0,
         hitCount: isFinite(Number(ov.hitCount)) ? Number(ov.hitCount) : 0,
         insideCount: isFinite(Number(ov.insideCount)) ? Number(ov.insideCount) : 0,
         looseInsideCount: isFinite(Number(ov.looseInsideCount)) ? Number(ov.looseInsideCount) : 0,
         onEdgeCount: isFinite(Number(ov.onEdgeCount)) ? Number(ov.onEdgeCount) : 0,
         minEdgeMm: isFinite(Number(ov.minEdgeMm)) ? Number(ov.minEdgeMm) : null,
+        axisOverlapMm: isFinite(Number(bs.axisOverlapMm)) ? Number(bs.axisOverlapMm) : null,
+        bandHalfMm: isFinite(Number(bs.bandHalfMm)) ? Number(bs.bandHalfMm) : null,
+        bandOffsetMm: isFinite(Number(bs.bandOffsetMm)) ? Number(bs.bandOffsetMm) : null,
+        bandInteriorMarginMm: isFinite(Number(bs.bandInteriorMarginMm)) ? Number(bs.bandInteriorMarginMm) : null,
         ent: ent
       });
     }
@@ -3381,7 +3462,7 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
   lines.push('entityId=' + String(entityId != null ? entityId : '(none)') + ' line=(' + p1.x.toFixed(3) + ',' + p1.y.toFixed(3) + ')->(' + p2.x.toFixed(3) + ',' + p2.y.toFixed(3) + ') len=' + (Math.round(len * 1000) / 1000));
   lines.push('filters: onlyParallel=' + String(onlyParallel) + ' dotMin=' + String(dotMin) + ' nearBboxGapMm=' + String(nearGap) + ' maxRows=' + String(maxRows));
   lines.push('step25 counts: plus=' + String((Array.isArray(step25Plus) ? step25Plus.length : 0)) + ' minus=' + String((Array.isArray(step25Minus) ? step25Minus.length : 0)) + ' nearMatched=' + String(rows.length));
-  lines.push('idx|sign|wallIdx|thkMm|dot|bboxGapMm|overlap|reason|insideSpanMm|hits|insideCnt|looseIn|onEdge|minEdgeMm|entity_ids');
+  lines.push('idx|sign|wallIdx|thkMm|dot|bboxGapMm|overlap|reason|insideSpanMm|strictRun|looseRun|minPass|axisOv|bandHalf|bandOff|bandMargin|hits|insideCnt|looseIn|onEdge|minEdgeMm|entity_ids');
   if (!rows.length) {
     lines.push('(근처 후보 없음 — nearBboxGapMm/parallelDotMin 조건 완화 필요)');
   } else {
@@ -3391,7 +3472,9 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
         String(ri + 1) + '|' + r.sign + '|' + String(r.wallIdx) + '|' + String(r.thicknessMm == null ? '' : r.thicknessMm)
         + '|' + String(r.dot) + '|' + String(r.bboxGapMm == null ? '' : r.bboxGapMm)
         + '|' + (r.overlap ? 'Y' : 'N') + '|' + String(r.reason || '')
-        + '|' + String(r.insideSpanMm || 0) + '|' + String(r.hitCount || 0) + '|' + String(r.insideCount || 0)
+        + '|' + String(r.insideSpanMm || 0) + '|' + String(r.strictRunSpanMm || 0) + '|' + String(r.looseRunSpanMm || 0) + '|' + String(r.passMinSpanMm || 0)
+        + '|' + String(r.axisOverlapMm == null ? '' : r.axisOverlapMm) + '|' + String(r.bandHalfMm == null ? '' : r.bandHalfMm) + '|' + String(r.bandOffsetMm == null ? '' : r.bandOffsetMm) + '|' + String(r.bandInteriorMarginMm == null ? '' : r.bandInteriorMarginMm)
+        + '|' + String(r.hitCount || 0) + '|' + String(r.insideCount || 0)
         + '|' + String(r.looseInsideCount || 0) + '|' + String(r.onEdgeCount || 0) + '|' + String(r.minEdgeMm == null ? '' : r.minEdgeMm)
         + '|' + JSON.stringify(r.ent || [])
       );

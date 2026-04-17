@@ -26558,6 +26558,70 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var pt = ptAt(t);
       return pointInPolyStrict(pt, poly, edgeEps);
     }
+    function clip01MinMax(t0, t1) {
+      var a0 = Math.max(0, Math.min(1, Number(t0) || 0));
+      var a1 = Math.max(0, Math.min(1, Number(t1) || 0));
+      if (a0 <= a1) return { t0: a0, t1: a1 };
+      return { t0: a1, t1: a0 };
+    }
+    function clipByLinearRange(tMin, tMax, base, delta, low, high) {
+      if (!isFinite(base) || !isFinite(delta) || !isFinite(low) || !isFinite(high)) return null;
+      if (Math.abs(delta) < 1e-12) {
+        if (base < low || base > high) return null;
+        return { tMin: tMin, tMax: tMax };
+      }
+      var tA = (low - base) / delta;
+      var tB = (high - base) / delta;
+      var lo = Math.min(tA, tB), hi = Math.max(tA, tB);
+      var nMin = Math.max(tMin, lo);
+      var nMax = Math.min(tMax, hi);
+      if (!(nMax > nMin + 1e-9)) return null;
+      return { tMin: nMin, tMax: nMax };
+    }
+    function axisInsetClipInsideInfo() {
+      var axis = quadLongAxisUnit(poly);
+      if (!axis || !isFinite(Number(axis.ux)) || !isFinite(Number(axis.uy))) return null;
+      var ux = Number(axis.ux) || 0, uy = Number(axis.uy) || 0;
+      var nx = -uy, ny = ux;
+      var c = { x: 0, y: 0 };
+      for (var ci = 0; ci < poly.length; ci++) {
+        c.x += Number(poly[ci].x) || 0;
+        c.y += Number(poly[ci].y) || 0;
+      }
+      c.x /= Math.max(1, poly.length);
+      c.y /= Math.max(1, poly.length);
+      var uMin = Infinity, uMax = -Infinity, nMin = Infinity, nMax = -Infinity;
+      for (var vi = 0; vi < poly.length; vi++) {
+        var vx = (Number(poly[vi].x) || 0) - c.x;
+        var vy = (Number(poly[vi].y) || 0) - c.y;
+        var pu = vx * ux + vy * uy;
+        var pn = vx * nx + vy * ny;
+        if (pu < uMin) uMin = pu;
+        if (pu > uMax) uMax = pu;
+        if (pn < nMin) nMin = pn;
+        if (pn > nMax) nMax = pn;
+      }
+      var epsIn = Math.max(0.2, Number(edgeEps) || 1.2);
+      var u0 = uMin + epsIn, u1 = uMax - epsIn;
+      var v0 = nMin + epsIn, v1 = nMax - epsIn;
+      if (!(u1 > u0 + 1e-6) || !(v1 > v0 + 1e-6)) return null;
+      var p1x = (Number(p1.x) || 0) - c.x, p1y = (Number(p1.y) || 0) - c.y;
+      var p2x = (Number(p2.x) || 0) - c.x, p2y = (Number(p2.y) || 0) - c.y;
+      var lu0 = p1x * ux + p1y * uy;
+      var lv0 = p1x * nx + p1y * ny;
+      var du = (p2x - p1x) * ux + (p2y - p1y) * uy;
+      var dv = (p2x - p1x) * nx + (p2y - p1y) * ny;
+      var seg01 = clip01MinMax(0, 1);
+      var it = clipByLinearRange(seg01.t0, seg01.t1, lu0, du, u0, u1);
+      if (!it) return null;
+      it = clipByLinearRange(it.tMin, it.tMax, lv0, dv, v0, v1);
+      if (!it) return null;
+      var tMid = (it.tMin + it.tMax) * 0.5;
+      return {
+        len: Math.max(0, (it.tMax - it.tMin) * lenL),
+        midT: Math.max(0, Math.min(1, tMid))
+      };
+    }
     // ②-3 판정: 경계 맞닿음은 제외하고, "해치 내부에서 실제로 충돌(내부 구간 존재)"만 추출.
     // 샘플 기반으로 선분 내부 구간이 있는지 먼저 본다.
     var samples = 17;
@@ -26636,6 +26700,15 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           }
         }
       }
+      var insetA = axisInsetClipInsideInfo();
+      var insetLenA = insetA ? (Number(insetA.len) || 0) : 0;
+      if (insetLenA >= Math.max(12, lenL * 0.01) && insetA && insideAt(Number(insetA.midT) || 0.5)) {
+        if (dbg) {
+          dbg.reason = 'axis-clip-inside';
+          dbg.axisClipInsideLen = Math.round(insetLenA * 1000) / 1000;
+        }
+        return true;
+      }
       if (dbg && !dbg.reason) dbg.reason = 'hits<2';
       return false;
     }
@@ -26648,6 +26721,15 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       if (!insideAt(tm)) continue;
       if ((t1 - t0) * lenL < Math.max(8, lenL * 0.006)) continue;
       if (dbg) dbg.reason = 'intersect-mid-inside';
+      return true;
+    }
+    var insetB = axisInsetClipInsideInfo();
+    var insetLenB = insetB ? (Number(insetB.len) || 0) : 0;
+    if (insetLenB >= Math.max(12, lenL * 0.01) && insetB && insideAt(Number(insetB.midT) || 0.5)) {
+      if (dbg) {
+        dbg.reason = 'axis-clip-inside';
+        dbg.axisClipInsideLen = Math.round(insetLenB * 1000) / 1000;
+      }
       return true;
     }
     if (dbg && !dbg.reason) dbg.reason = 'midpoint-outside-or-short';
@@ -26774,8 +26856,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
               if (dbgLine) {
                 guideDbg.tests.push({
                   wallIdx: rec.wallIdx,
+                  recSourceIdx: recSourceIdx,
                   sign: rec.selected ? 'selected' : 'alt',
                   guideEntityIds: glIds,
+                  guideSourceIdx: (gl && isFinite(Number(gl.srcIdx))) ? Math.floor(Number(gl.srcIdx)) : null,
                   passDot: false,
                   dot: Math.round((Number(dot) || 0) * 10000) / 10000,
                   passInside: false,
@@ -26798,8 +26882,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
             var gap = bboxGapMm(glBox, bbox);
             guideDbg.tests.push({
               wallIdx: rec.wallIdx,
+              recSourceIdx: recSourceIdx,
               sign: rec.selected ? 'selected' : 'alt',
               guideEntityIds: glIds,
+              guideSourceIdx: (gl && isFinite(Number(gl.srcIdx))) ? Math.floor(Number(gl.srcIdx)) : null,
               passDot: passDot,
               dot: dot == null ? null : (Math.round((Number(dot) || 0) * 10000) / 10000),
               passInside: passInside,
@@ -26808,7 +26894,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
               bboxGapMm: gap == null ? null : (Math.round(gap * 1000) / 1000),
               sampleInCount: insideDbg && isFinite(Number(insideDbg.sampleInCount)) ? Number(insideDbg.sampleInCount) : 0,
               sampleSpanLen: insideDbg && isFinite(Number(insideDbg.sampleSpanLen)) ? (Math.round(Number(insideDbg.sampleSpanLen) * 1000) / 1000) : 0,
-              hitTsCount: insideDbg && isFinite(Number(insideDbg.hitTsCount)) ? Number(insideDbg.hitTsCount) : 0
+              hitTsCount: insideDbg && isFinite(Number(insideDbg.hitTsCount)) ? Number(insideDbg.hitTsCount) : 0,
+              axisClipInsideLen: insideDbg && isFinite(Number(insideDbg.axisClipInsideLen))
+                ? (Math.round(Number(insideDbg.axisClipInsideLen) * 1000) / 1000) : 0
             });
             for (var gs1 = 0; gs1 < glIds.length; gs1++) {
               if (!dbgIdSet[String(glIds[gs1])]) continue;

@@ -1014,6 +1014,7 @@ function frameDefRenderDebugPanel() {
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
   html.push(typeof frameDefFormatStep2aSandwichBaseDebugBlock === 'function' ? frameDefFormatStep2aSandwichBaseDebugBlock(st) : '');
   html.push(typeof frameDefFormatStep2aStep25LineProbeDebugBlock === 'function' ? frameDefFormatStep2aStep25LineProbeDebugBlock(st) : '');
+  html.push(typeof frameDefFormatStep2aStep26UnionProbeDebugBlock === 'function' ? frameDefFormatStep2aStep26UnionProbeDebugBlock(st) : '');
   html.push('</div>');
   var bb2 = st.wallStep2bByBackend && typeof st.wallStep2bByBackend === 'object' && !Array.isArray(st.wallStep2bByBackend) ? st.wallStep2bByBackend : {};
   var n2bCnn = Array.isArray(bb2.cnn) ? bb2.cnn.length : 0, n2bXgb = Array.isArray(bb2.xgb) ? bb2.xgb.length : 0, n2bRf = Array.isArray(bb2.rf) ? bb2.rf.length : 0, n2bMlp = Array.isArray(bb2.mlp) ? bb2.mlp.length : 0, n2bGnn = Array.isArray(bb2.gnn) ? bb2.gnn.length : 0;
@@ -1732,7 +1733,7 @@ function frameDefStateDefaults() {
     debugStep124ShowInteriorStep7: false,
     debugStep1240Show114Hatch: false,
     debugStep2aUserHatchTraceEnabled: false,
-    debugStep2aUserTraceEntityIds: [], debugStep2aUiFlowWatchEntityIds: [], debugStep2aUserTraceSlab: null, debugStep2aUserTraceSummary: '', debugStep2aStep25LineProbeText: '',
+    debugStep2aUserTraceEntityIds: [], debugStep2aUiFlowWatchEntityIds: [], debugStep2aUserTraceSlab: null, debugStep2aUserTraceSummary: '', debugStep2aStep25LineProbeText: '', debugStep2aStep26AreaProbeText: '',
     debugStep2aEntityFlowReport: null, debugStep2aSourceDropReasonsByEntity: {},
     wallStep2bByBackend: { cnn: [], xgb: [], rf: [], mlp: [], gnn: [] },
     debugStep2bShowCnn: false, debugStep2bShowXgb: false, debugStep2bShowRf: false, debugStep2bShowMlp: false, debugStep2bShowGnn: false,
@@ -3562,6 +3563,50 @@ function frameDefFormatStep2aStep25LineProbeDebugBlock(st) {
   return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#7c3aed; cursor:pointer; font-weight:600;">②-5 근접 쿼드 디버그 (ent ' + esc(String(cfg.entityId)) + ')</summary>'
     + '<div style="font-size:0.65rem; color:#57606a; margin:6px 0 4px; line-height:1.4;">-5 잔여 쿼드(②-2-②-4) 중 기준선 주변만 표시합니다. 아래 텍스트를 그대로 복사해 공유하면 됩니다.</div>'
     + '<pre style="margin:0;padding:8px;background:#2e1065;color:#f3e8ff;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:420px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
+}
+
+function frameDefBuildStep2aStep26UnionProbeText(st) {
+  var s = st || (typeof frameDefGetState === 'function' ? frameDefGetState() : null) || {};
+  var rows = Array.isArray(s.debugStep2aStep26ProbeRows) ? s.debugStep2aStep26ProbeRows : [];
+  var nowTs = isFinite(Number(s.debugStep2aStep26ProbeTs)) ? Number(s.debugStep2aStep26ProbeTs) : 0;
+  var stat = s.debugStep2aDualStep26Stat && typeof s.debugStep2aDualStep26Stat === 'object' ? s.debugStep2aDualStep26Stat : null;
+  var inputCnt = stat && isFinite(Number(stat.sourceCount)) ? Math.max(0, Math.floor(Number(stat.sourceCount))) : 0;
+  var faceCnt = stat && isFinite(Number(stat.mergedCount)) ? Math.max(0, Math.floor(Number(stat.mergedCount))) : 0;
+  var grpCnt = stat && isFinite(Number(stat.groupCount)) ? Math.max(0, Math.floor(Number(stat.groupCount))) : 0;
+  var cx = (typeof ctx !== 'undefined' && ctx && isFinite(Number(ctx.canvas && ctx.canvas.width))) ? Number(ctx.canvas.width) : 0;
+  var cy = (typeof ctx !== 'undefined' && ctx && isFinite(Number(ctx.canvas && ctx.canvas.height))) ? Number(ctx.canvas.height) : 0;
+  var lines = [];
+  lines.push('=== STEP26 UNION PROBE (복붙용) ===');
+  lines.push('input=' + String(inputCnt) + ' mergedFaces=' + String(faceCnt) + ' groups=' + String(grpCnt) + ' rows=' + String(rows.length) + ' canvas=' + String(cx) + 'x' + String(cy) + ' ts=' + (nowTs > 0 ? new Date(nowTs).toISOString() : '0'));
+  lines.push('idx|group|ring|verts|areaMm2|center(x,y)|bbox[minx,miny,maxx,maxy]|screen[minx,miny,maxx,maxy]|onCanvas|screenCenterInCanvas');
+  if (!rows.length) {
+    lines.push('(step26 probe rows 없음 — ②-6 체크 후 재계산/패널 갱신 필요)');
+  } else {
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i] || {};
+      lines.push(
+        String(i + 1) + '|' + String(r.group == null ? '' : r.group) + '|' + String(r.ring == null ? '' : r.ring) + '|' + String(r.verts == null ? '' : r.verts)
+        + '|' + String(r.areaMm2 == null ? '' : r.areaMm2)
+        + '|(' + String(r.cx == null ? '' : r.cx) + ',' + String(r.cy == null ? '' : r.cy) + ')'
+        + '|[' + String(r.minx == null ? '' : r.minx) + ',' + String(r.miny == null ? '' : r.miny) + ',' + String(r.maxx == null ? '' : r.maxx) + ',' + String(r.maxy == null ? '' : r.maxy) + ']'
+        + '|[' + String(r.sx0 == null ? '' : r.sx0) + ',' + String(r.sy0 == null ? '' : r.sy0) + ',' + String(r.sx1 == null ? '' : r.sx1) + ',' + String(r.sy1 == null ? '' : r.sy1) + ']'
+        + '|' + (r.onCanvas ? 'Y' : 'N')
+        + '|' + (r.centerOnCanvas ? 'Y' : 'N')
+      );
+    }
+  }
+  return lines.join('\n');
+}
+
+function frameDefFormatStep2aStep26UnionProbeDebugBlock(st) {
+  var esc = typeof escapeHtml === 'function' ? escapeHtml : function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  if (st && typeof frameDefDrawDebugStep2aDualOverlapPatches === 'function') {
+    frameDefDrawDebugStep2aDualOverlapPatches({ forceCompute: true });
+  }
+  var txt = frameDefBuildStep2aStep26UnionProbeText(st);
+  return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#6d28d9; cursor:pointer; font-weight:600;">②-6 유니온 면 좌표 디버그</summary>'
+    + '<div style="font-size:0.65rem; color:#57606a; margin:6px 0 4px; line-height:1.4;">병합면의 월드/스크린 bbox, 중심점의 캔버스 포함 여부를 즉시 표시합니다. onCanvas=N이면 화면 바깥에 그려진 상태입니다.</div>'
+    + '<pre style="margin:0;padding:8px;background:#1f2937;color:#e5e7eb;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
 }
 
 function frameDefSegHasEntityOverlap(a, b) {
@@ -26675,6 +26720,102 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
   }
   function drawStep26MergedAreas(step25Plus, step25Minus) {
     var merged = buildStep25MergedAreas(step25Plus, step25Minus);
+    function polyBBox(poly) {
+      if (!Array.isArray(poly) || poly.length < 3) return null;
+      var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+      for (var i = 0; i < poly.length; i++) {
+        var p = poly[i];
+        if (!p) continue;
+        var x = Number(p.x) || 0, y = Number(p.y) || 0;
+        if (x < minx) minx = x;
+        if (x > maxx) maxx = x;
+        if (y < miny) miny = y;
+        if (y > maxy) maxy = y;
+      }
+      if (!isFinite(minx) || !isFinite(miny) || !isFinite(maxx) || !isFinite(maxy)) return null;
+      return { minx: minx, miny: miny, maxx: maxx, maxy: maxy };
+    }
+    function inCanvasXY(x, y) {
+      if (!(isFinite(Number(x)) && isFinite(Number(y)) && typeof ctx !== 'undefined' && ctx && ctx.canvas)) return false;
+      var w = Number(ctx.canvas.width) || 0, h = Number(ctx.canvas.height) || 0;
+      return Number(x) >= 0 && Number(x) <= w && Number(y) >= 0 && Number(y) <= h;
+    }
+    function screenBoxFromPoly(poly) {
+      if (!Array.isArray(poly) || poly.length < 3 || typeof toScreen !== 'function') return null;
+      var sx0 = Infinity, sy0 = Infinity, sx1 = -Infinity, sy1 = -Infinity;
+      var ok = 0;
+      for (var i = 0; i < poly.length; i++) {
+        var p = poly[i];
+        if (!p) continue;
+        var sp = toScreen(Number(p.x) || 0, Number(p.y) || 0);
+        if (!sp || !isFinite(Number(sp.x)) || !isFinite(Number(sp.y))) continue;
+        ok++;
+        if (sp.x < sx0) sx0 = sp.x;
+        if (sp.x > sx1) sx1 = sp.x;
+        if (sp.y < sy0) sy0 = sp.y;
+        if (sp.y > sy1) sy1 = sp.y;
+      }
+      if (!(ok >= 3 && isFinite(sx0) && isFinite(sy0) && isFinite(sx1) && isFinite(sy1))) return null;
+      return { minx: sx0, miny: sy0, maxx: sx1, maxy: sy1 };
+    }
+    var probeRows = [];
+    var maxProbeRows = 18;
+    var probeAdded = 0;
+    function pushProbe(groupIdx, ringIdx, poly) {
+      if (probeAdded >= maxProbeRows) return;
+      if (!Array.isArray(poly) || poly.length < 3) return;
+      var bb = polyBBox(poly);
+      if (!bb) return;
+      var area = polygonAreaAbs(poly);
+      var cx = (bb.minx + bb.maxx) * 0.5;
+      var cy = (bb.miny + bb.maxy) * 0.5;
+      var sb = screenBoxFromPoly(poly);
+      var onCanvas = false;
+      var centerOnCanvas = false;
+      var sx0 = null, sy0 = null, sx1 = null, sy1 = null;
+      if (sb) {
+        sx0 = Math.round(Number(sb.minx) * 10) / 10;
+        sy0 = Math.round(Number(sb.miny) * 10) / 10;
+        sx1 = Math.round(Number(sb.maxx) * 10) / 10;
+        sy1 = Math.round(Number(sb.maxy) * 10) / 10;
+        var w = (typeof ctx !== 'undefined' && ctx && ctx.canvas) ? (Number(ctx.canvas.width) || 0) : 0;
+        var h = (typeof ctx !== 'undefined' && ctx && ctx.canvas) ? (Number(ctx.canvas.height) || 0) : 0;
+        onCanvas = !(sb.maxx < 0 || sb.maxy < 0 || sb.minx > w || sb.miny > h);
+      }
+      if (typeof toScreen === 'function') {
+        var csp = toScreen(cx, cy);
+        if (csp) centerOnCanvas = inCanvasXY(csp.x, csp.y);
+      }
+      probeRows.push({
+        group: groupIdx,
+        ring: ringIdx,
+        verts: poly.length,
+        areaMm2: Math.round(area * 10) / 10,
+        cx: Math.round(cx * 10) / 10,
+        cy: Math.round(cy * 10) / 10,
+        minx: Math.round(bb.minx * 10) / 10,
+        miny: Math.round(bb.miny * 10) / 10,
+        maxx: Math.round(bb.maxx * 10) / 10,
+        maxy: Math.round(bb.maxy * 10) / 10,
+        sx0: sx0, sy0: sy0, sx1: sx1, sy1: sy1,
+        onCanvas: onCanvas,
+        centerOnCanvas: centerOnCanvas
+      });
+      probeAdded++;
+    }
+    var outGroupsProbe = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
+    if (outGroupsProbe.length) {
+      for (var pgi = 0; pgi < outGroupsProbe.length; pgi++) {
+        var prings = outGroupsProbe[pgi];
+        if (!Array.isArray(prings)) continue;
+        for (var pri = 0; pri < prings.length; pri++) pushProbe(pgi, pri, prings[pri]);
+      }
+    } else {
+      var outPolysProbe = merged && Array.isArray(merged.polys) ? merged.polys : [];
+      for (var ppi = 0; ppi < outPolysProbe.length; ppi++) pushProbe(-1, ppi, outPolysProbe[ppi]);
+    }
+    st.debugStep2aStep26ProbeRows = probeRows;
+    st.debugStep2aStep26ProbeTs = Date.now();
     st.debugStep2aDualStep26Stat = {
       sourceCount: (Array.isArray(step25Plus) ? step25Plus.length : 0) + (Array.isArray(step25Minus) ? step25Minus.length : 0),
       mergedCount: merged && Array.isArray(merged.polys) ? merged.polys.length : 0,

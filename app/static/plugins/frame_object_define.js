@@ -26667,11 +26667,13 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       cand.sort(function(x, y) { return Number(y.el || 0) - Number(x.el || 0); });
       if (cand.length > 3) cand = cand.slice(0, 3);
       var lineSeg = { p1: p1, p2: p2 };
-      var minOverlapLen = Math.max(14, lenL * 0.015);
+      var minOverlapLen = Math.max(20, lenL * 0.02);
       var nearTol = Math.max(1.5, (Number(edgeEps) || 1.2) * 2.8);
-      var endTol = Math.max(6.0, (Number(edgeEps) || 1.2) * 6.0);
+      var endTol = Math.max(10.0, (Number(edgeEps) || 1.2) * 8.0);
       for (var ci = 0; ci < cand.length; ci++) {
         var ed = cand[ci];
+        // 짧은 장변/짧은 가이드선은 부분 관통 fallback에서 제외(오탐 억제).
+        if (!(Number(ed.el) > 1200) || !(lenL > 1200)) continue;
         var dotLE = Math.abs((Number(ed.ux) || 0) * uxL + (Number(ed.uy) || 0) * uyL);
         if (dotLE < 0.985) continue;
         var pr1 = (typeof frameDefPointToSegmentProjection === 'function') ? frameDefPointToSegmentProjection(p1, { p1: ed.a, p2: ed.b }) : null;
@@ -26691,7 +26693,15 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         if (!(ovLen >= minOverlapLen)) continue;
         var ovRatio = ovLen / Math.max(1e-6, Number(ed.el) || 0);
         // 의도: "꼬치처럼 일부 진입"만 허용. 완전 겹침/짧은 스침은 제외.
-        if (!(ovRatio >= 0.12 && ovRatio <= 0.97)) continue;
+        if (!(ovRatio >= 0.55 && ovRatio <= 0.985)) continue;
+        var trimStart = Math.max(0, ov0);
+        var trimEnd = Math.max(0, (Number(ed.el) || 0) - ov1);
+        var trimMin = Math.max(90, (Number(ed.el) || 0) * 0.025);
+        var startTrimmed = trimStart >= trimMin;
+        var endTrimmed = trimEnd >= trimMin;
+        if (startTrimmed === endTrimmed) continue;
+        if (startTrimmed && trimEnd > endTol) continue;
+        if (endTrimmed && trimStart > endTol) continue;
         var touchStart = Math.abs(ov0 - 0) <= endTol;
         var touchEnd = Math.abs(ov1 - (Number(ed.el) || 0)) <= endTol;
         if (touchStart === touchEnd) continue;
@@ -26703,7 +26713,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
         // 장변 양 끝을 모두 덮는 전체 경계 정렬(오탐) 제외.
         if (edgeEndTouchCount !== 1) continue;
         var lineOvRatio = ovLen / Math.max(1e-6, lenL);
-        if (!(lineOvRatio >= 0.30)) continue;
+        if (!(lineOvRatio >= 0.75)) continue;
         return {
           edgeIdx: ed.idx,
           overlapLen: ovLen,

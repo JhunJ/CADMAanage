@@ -3580,6 +3580,7 @@ function frameDefBuildStep2aStep26UnionProbeText(st) {
   var cx = (typeof ctx !== 'undefined' && ctx && isFinite(Number(ctx.canvas && ctx.canvas.width))) ? Number(ctx.canvas.width) : 0;
   var cy = (typeof ctx !== 'undefined' && ctx && isFinite(Number(ctx.canvas && ctx.canvas.height))) ? Number(ctx.canvas.height) : 0;
   var fallbackUsed = !!(stat && stat.unionFallback);
+  var noOpUsed = !!(stat && stat.unionNoop);
   var rawRatio = stat && isFinite(Number(stat.unionRawAreaRatio)) ? Number(stat.unionRawAreaRatio) : areaRatio;
   var lines = [];
   lines.push('=== STEP26 UNION PROBE (복붙용) ===');
@@ -3590,6 +3591,7 @@ function frameDefBuildStep2aStep26UnionProbeText(st) {
     + ' groups=' + String(grpCnt)
     + ' area[input=' + String(Math.round(inputArea * 10) / 10) + ',merged=' + String(Math.round(mergedArea * 10) / 10) + ',ratio=' + String(Math.round(areaRatio * 10000) / 10000) + ',raw=' + String(Math.round(rawRatio * 10000) / 10000) + ']'
     + ' fallback=' + (fallbackUsed ? 'Y' : 'N')
+    + ' noop=' + (noOpUsed ? 'Y' : 'N')
     + ' rows=' + String(rows.length)
     + ' canvas=' + String(cx) + 'x' + String(cy)
     + ' ts=' + (nowTs > 0 ? new Date(nowTs).toISOString() : '0')
@@ -26270,6 +26272,74 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       ctx.restore();
     }
   }
+  function drawWorldPolySetUnion(polys, color, hatchOpts, strokeAlpha) {
+    var src = Array.isArray(polys) ? polys : [];
+    if (!src.length) return;
+    var screenRings = [];
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (var pi = 0; pi < src.length; pi++) {
+      var poly = src[pi];
+      if (!Array.isArray(poly) || poly.length < 3) continue;
+      var sp = [];
+      for (var pj = 0; pj < poly.length; pj++) {
+        var pt = poly[pj];
+        if (!pt || !isFinite(Number(pt.x)) || !isFinite(Number(pt.y))) continue;
+        var q = toScreen(Number(pt.x), Number(pt.y));
+        if (!q || !isFinite(Number(q.x)) || !isFinite(Number(q.y))) continue;
+        sp.push({ x: Number(q.x) || 0, y: Number(q.y) || 0 });
+      }
+      if (sp.length < 3) continue;
+      for (var sk = 0; sk < sp.length; sk++) {
+        if (sp[sk].x < minX) minX = sp[sk].x;
+        if (sp[sk].x > maxX) maxX = sp[sk].x;
+        if (sp[sk].y < minY) minY = sp[sk].y;
+        if (sp[sk].y > maxY) maxY = sp[sk].y;
+      }
+      screenRings.push(sp);
+    }
+    if (!screenRings.length || !(isFinite(minX) && isFinite(minY) && isFinite(maxX) && isFinite(maxY))) return;
+    var fillAlpha = hatchOpts && isFinite(Number(hatchOpts.fillAlpha)) ? Number(hatchOpts.fillAlpha) : 0.34;
+    var hatchAlpha = hatchOpts && isFinite(Number(hatchOpts.hatchAlpha)) ? Number(hatchOpts.hatchAlpha) : 0.56;
+    var step = hatchOpts && isFinite(Number(hatchOpts.step)) ? Number(hatchOpts.step) : FRAME_DEF_DEBUG_HATCH_STEP_PX;
+    var noHatch = !!(hatchOpts && hatchOpts.noHatch === true);
+    var span = (maxX - minX) + (maxY - minY) + 30;
+    function pathAll() {
+      ctx.beginPath();
+      for (var ri = 0; ri < screenRings.length; ri++) {
+        var ring = screenRings[ri];
+        if (!ring || ring.length < 3) continue;
+        ctx.moveTo(ring[0].x, ring[0].y);
+        for (var rj = 1; rj < ring.length; rj++) ctx.lineTo(ring[rj].x, ring[rj].y);
+        ctx.closePath();
+      }
+    }
+    ctx.save();
+    pathAll();
+    ctx.fillStyle = frameDefColorWithAlpha(color, Math.max(0, Math.min(1, fillAlpha)));
+    ctx.fill('nonzero');
+    if (!noHatch && hatchAlpha > 0.001) {
+      pathAll();
+      ctx.clip();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = frameDefColorWithAlpha(color, Math.max(0, Math.min(1, hatchAlpha)));
+      for (var hx = minX - span; hx <= maxX + span; hx += step) {
+        ctx.beginPath();
+        ctx.moveTo(hx, maxY + 2);
+        ctx.lineTo(hx + span, minY - 2);
+        ctx.stroke();
+      }
+    }
+    var sa = Number(strokeAlpha);
+    if (isFinite(sa) && sa > 0) {
+      pathAll();
+      ctx.setLineDash([]);
+      ctx.lineWidth = hatchOpts && isFinite(Number(hatchOpts.strokeWidth)) ? Math.max(1, Number(hatchOpts.strokeWidth)) : 1.2;
+      ctx.strokeStyle = frameDefColorWithAlpha(color, Math.max(0, Math.min(1, sa)));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   function polygonAreaAbs(poly) {
     if (!Array.isArray(poly) || poly.length < 3 || typeof frameDefPolygonAreaAbs !== 'function') return 0;
     return Math.abs(Number(frameDefPolygonAreaAbs(poly)) || 0);
@@ -26756,11 +26826,23 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     }
     var sourceAreaCalc = 0;
     var mergedAreaCalc = 0;
+    var hasMultiSourceGroup = false;
+    for (var mg = 0; mg < sourceGroups.length; mg++) {
+      var sgp = sourceGroups[mg];
+      if (Array.isArray(sgp) && sgp.length > 1) {
+        hasMultiSourceGroup = true;
+        break;
+      }
+    }
     for (var sa = 0; sa < polys.length; sa++) sourceAreaCalc += polygonAreaAbs(polys[sa]);
     for (var ma = 0; ma < mergedPolys.length; ma++) mergedAreaCalc += polygonAreaAbs(mergedPolys[ma]);
     var rawRatio = sourceAreaCalc > 1e-6 ? (mergedAreaCalc / sourceAreaCalc) : 0;
     var badUnion = sourceAreaCalc > 1e-6 && rawRatio > 0 && rawRatio < 0.75;
-    if (badUnion) {
+    // 유니온 면적이 입력과 완전히 같고(face도 그대로), 다중 그룹이 존재하면
+    // 실제 병합이 수행되지 않은 no-op으로 간주한다.
+    var noopUnion = hasMultiSourceGroup && mergedPolys.length === polys.length && Math.abs(rawRatio - 1) <= 0.002;
+    var useFallback = badUnion || noopUnion;
+    if (useFallback) {
       // 커스텀 유니온 경계가 과도하게 면적을 잃으면(예: 0.18) 표시를 위해 원본 그룹으로 안전 폴백.
       mergedGroups = sourceGroups.slice();
       mergedPolys = [];
@@ -26778,7 +26860,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       groupCount: roots.length,
       sourceAreaMm2: sourceAreaCalc,
       mergedAreaMm2: mergedAreaCalc,
-      unionFallback: badUnion,
+      unionFallback: useFallback,
+      unionNoop: noopUnion,
       unionRawAreaRatio: rawRatio
     };
   }
@@ -26901,6 +26984,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       sourceAreaMm2: Math.round(inputAreaSum * 10) / 10,
       mergedAreaMm2: Math.round(mergedAreaSum * 10) / 10,
       areaRatio: inputAreaSum > 1e-6 ? (mergedAreaSum / inputAreaSum) : 0,
+      unionFallback: !!(merged && merged.unionFallback),
+      unionNoop: !!(merged && merged.unionNoop),
+      unionRawAreaRatio: merged && isFinite(Number(merged.unionRawAreaRatio)) ? Number(merged.unionRawAreaRatio) : (inputAreaSum > 1e-6 ? (mergedAreaSum / inputAreaSum) : 0),
       ts: Date.now()
     };
     if (!showStep26 || forceComputeOnly) return;
@@ -26938,28 +27024,42 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       return (w < 12 || h < 12);
     }
     var outGroups = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
+    var useFallbackDraw = !!(merged && merged.unionFallback);
     if (outGroups.length) {
       for (var gi = 0; gi < outGroups.length; gi++) {
         var grpRings = outGroups[gi];
-        drawWorldPolyRingsEvenOdd(grpRings, '#9333ea', {
-          fillAlpha: 0.40,
-          hatchAlpha: 0.62,
-          noHatch: false,
-          strokeWidth: 2.0,
-          step: FRAME_DEF_DEBUG_HATCH_STEP_PX
-        }, 0.92);
-        // even-odd 링 중복/상쇄 케이스에서도 경계는 반드시 보이도록 링 외곽선을 한 번 더 그린다.
-        for (var gri = 0; Array.isArray(grpRings) && gri < grpRings.length; gri++) {
-          drawWorldPoly(grpRings[gri], '#6d28d9', {
-            fillAlpha: 0.00,
-            hatchAlpha: 0.00,
-            noHatch: true,
-            strokeWidth: 1.25,
+        if (useFallbackDraw) {
+          drawWorldPolySetUnion(grpRings, '#9333ea', {
+            fillAlpha: 0.44,
+            hatchAlpha: 0.68,
+            noHatch: false,
+            strokeWidth: 1.8,
             step: FRAME_DEF_DEBUG_HATCH_STEP_PX
-          }, 0.72);
+          }, 0.86);
+        } else {
+          drawWorldPolyRingsEvenOdd(grpRings, '#9333ea', {
+            fillAlpha: 0.40,
+            hatchAlpha: 0.62,
+            noHatch: false,
+            strokeWidth: 2.0,
+            step: FRAME_DEF_DEBUG_HATCH_STEP_PX
+          }, 0.92);
+          // even-odd 링 중복/상쇄 케이스에서도 경계는 반드시 보이도록 링 외곽선을 한 번 더 그린다.
+          for (var gri0 = 0; Array.isArray(grpRings) && gri0 < grpRings.length; gri0++) {
+            drawWorldPoly(grpRings[gri0], '#6d28d9', {
+              fillAlpha: 0.00,
+              hatchAlpha: 0.00,
+              noHatch: true,
+              strokeWidth: 1.25,
+              step: FRAME_DEF_DEBUG_HATCH_STEP_PX
+            }, 0.72);
+          }
+        }
+        for (var gri = 0; Array.isArray(grpRings) && gri < grpRings.length; gri++) {
           if (isTinyOnScreen(grpRings[gri])) drawSmallPolyMarker(grpRings[gri], '#6d28d9');
         }
       }
+      return;
     }
     var outPolys = merged && Array.isArray(merged.polys) ? merged.polys : [];
     for (var i2 = 0; i2 < outPolys.length; i2++) {

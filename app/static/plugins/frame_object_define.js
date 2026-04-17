@@ -233,7 +233,7 @@ var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_WALLS = 700;
 /** 양방향 후보끼리 비교 시 부호별 최대 쌍 테스트 수(초과 시 중단 후 현재 점수 사용). */
 var FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MAX_PAIR_TESTS_PER_SIGN = 120000;
 /** 2a-2-2 보존 전략 버전(화면 반영 확인용). */
-var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'overlap22-selection-quad-no-intersection-draw';
+var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER = 'overlap22-selection-quad-no-intersection-draw-20260416-fix';
 /** 2a-2-2 표시용 후보 최대 개수(부호별) — 과도한 그리기로 인한 팬/줌 버벅임 방지 */
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_MAX_DRAW_CANDS = 1200;
 /** ②-4(샌드위치): 평행 장축 벽끼리 법선 간격이 (t1+t2)/2에 가깝게 맞닿았다고 볼 허용 오차(mm). */
@@ -250,6 +250,8 @@ var FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN = 0.92;
 var FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM = 1.2;
 /** ②-3: 공선(경계 겹침) fallback 허용 여부. 회귀 방지를 위해 기본 OFF. */
 var FRAME_DEF_STEP2A_V2_STEP23_COLLINEAR_EDGE_OVERLAP = false;
+/** ②-3 fallback 내부 전략 버전(캐시 무효화용). */
+var FRAME_DEF_STEP2A_V2_STEP23_STRATEGY_VER = 'step23-axis-skewer-v1';
 /** true면 동일 부호 후보 간 NMS를 적용(성능/회귀 이슈로 기본 OFF). */
 var FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_LOCAL_NMS = false;
 /** true면 +/- 교차부호 후보끼리도 NMS를 적용(회귀 방지를 위해 기본 OFF). */
@@ -26019,9 +26021,13 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
   }
   var cacheKey = [
     String(FRAME_DEF_STEP2A_V2_DUAL_OVERLAP_STRATEGY_VER || ''),
+    String(FRAME_DEF_STEP2A_V2_STEP23_STRATEGY_VER || ''),
     String(minOverlapAreaMm2),
     String(bucketCellMm),
     String(parDotMin),
+    String(FRAME_DEF_STEP2A_V2_STEP23_LONG_AXIS_PAR_DOT_MIN || ''),
+    String(FRAME_DEF_STEP2A_V2_STEP23_EDGE_EPS_MM || ''),
+    String(FRAME_DEF_STEP2A_V2_STEP23_COLLINEAR_EDGE_OVERLAP ? 1 : 0),
     dualOverlapGeomSig(list)
   ].join('|');
   var cache = st.__debugStep2aDualOverlapCache;

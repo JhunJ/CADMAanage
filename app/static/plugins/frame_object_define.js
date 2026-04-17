@@ -26627,7 +26627,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       guideCount: guideLines.length,
       targetEntityIds: dbgIds.slice(),
       guideHits: [],
-      tests: []
+      tests: [],
+      guideStats: {}
     };
     function lineEntityIds(line) {
       if (!line) return [];
@@ -26640,6 +26641,35 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var ids = lineEntityIds(line);
       for (var ii = 0; ii < ids.length; ii++) if (dbgIdSet[String(ids[ii])]) return true;
       return false;
+    }
+    function bboxGapMm(a, b) {
+      if (!a || !b) return null;
+      var dx = Math.max(0, (Number(a.minx) || 0) - (Number(b.maxx) || 0), (Number(b.minx) || 0) - (Number(a.maxx) || 0));
+      var dy = Math.max(0, (Number(a.miny) || 0) - (Number(b.maxy) || 0), (Number(b.miny) || 0) - (Number(a.maxy) || 0));
+      return Math.hypot(dx, dy);
+    }
+    function lineBBox(line) {
+      if (!line || !line.p1 || !line.p2) return null;
+      var x1 = Number(line.p1.x) || 0, y1 = Number(line.p1.y) || 0;
+      var x2 = Number(line.p2.x) || 0, y2 = Number(line.p2.y) || 0;
+      return { minx: Math.min(x1, x2), miny: Math.min(y1, y2), maxx: Math.max(x1, x2), maxy: Math.max(y1, y2) };
+    }
+    function ensureGuideStat(eid) {
+      var k = String(eid);
+      if (!guideDbg.guideStats[k]) {
+        guideDbg.guideStats[k] = {
+          entityId: Number(eid) || 0,
+          tests: 0,
+          passDot: 0,
+          passInside: 0,
+          dotFail: 0,
+          insideBboxMiss: 0,
+          insideOtherFail: 0,
+          minBboxGapMm: null,
+          minBboxGapWallIdx: null
+        };
+      }
+      return guideDbg.guideStats[k];
     }
     if (dbgIds.length) {
       for (var gdi = 0; gdi < guideLines.length; gdi++) {
@@ -26678,6 +26708,16 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
           var gl = guideLines[li];
           if (!gl) continue;
           if (isFinite(Number(gl.wallIdx)) && isFinite(Number(rec.wallIdx)) && Number(gl.wallIdx) === Number(rec.wallIdx)) continue;
+          var glIds = null;
+          var dbgLine = false;
+          var glBox = null;
+          if (dbgIds.length) {
+            glIds = lineEntityIds(gl);
+            for (var gi = 0; gi < glIds.length; gi++) {
+              if (dbgIdSet[String(glIds[gi])]) { dbgLine = true; break; }
+            }
+            if (dbgLine) glBox = lineBBox(gl);
+          }
           // 해치 긴방향과 평행한 후보선만 ②-3 관통 판단에 사용(수직/직교 방향 제외).
           var dot = null;
           var passDot = true;
@@ -26685,37 +26725,58 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
             dot = Math.abs((Number(gl.ux) || 0) * (Number(longAxis.ux) || 0) + (Number(gl.uy) || 0) * (Number(longAxis.uy) || 0));
             passDot = dot >= longParDotMin;
             if (!passDot) {
-              if (dbgIds.length && lineHasDebugId(gl)) {
+              if (dbgLine) {
                 guideDbg.tests.push({
                   wallIdx: rec.wallIdx,
                   sign: rec.selected ? 'selected' : 'alt',
-                  guideEntityIds: lineEntityIds(gl),
+                  guideEntityIds: glIds,
                   passDot: false,
                   dot: Math.round((Number(dot) || 0) * 10000) / 10000,
                   passInside: false,
                   filtered: false,
                   reason: 'dot<min'
                 });
+                for (var gs0 = 0; gs0 < glIds.length; gs0++) {
+                  if (!dbgIdSet[String(glIds[gs0])]) continue;
+                  var st0 = ensureGuideStat(glIds[gs0]);
+                  st0.tests += 1;
+                  st0.dotFail += 1;
+                }
               }
               continue;
             }
           }
           var insideDbg = (dbgIds.length && lineHasDebugId(gl)) ? {} : null;
           var passInside = segPassesInsidePoly(gl, rec.quad, bbox, edgeEps, insideDbg);
-          if (dbgIds.length && lineHasDebugId(gl)) {
+          if (dbgLine) {
+            var gap = bboxGapMm(glBox, bbox);
             guideDbg.tests.push({
               wallIdx: rec.wallIdx,
               sign: rec.selected ? 'selected' : 'alt',
-              guideEntityIds: lineEntityIds(gl),
+              guideEntityIds: glIds,
               passDot: passDot,
               dot: dot == null ? null : (Math.round((Number(dot) || 0) * 10000) / 10000),
               passInside: passInside,
               filtered: passInside,
               insideReason: insideDbg && insideDbg.reason ? insideDbg.reason : '',
+              bboxGapMm: gap == null ? null : (Math.round(gap * 1000) / 1000),
               sampleInCount: insideDbg && isFinite(Number(insideDbg.sampleInCount)) ? Number(insideDbg.sampleInCount) : 0,
               sampleSpanLen: insideDbg && isFinite(Number(insideDbg.sampleSpanLen)) ? (Math.round(Number(insideDbg.sampleSpanLen) * 1000) / 1000) : 0,
               hitTsCount: insideDbg && isFinite(Number(insideDbg.hitTsCount)) ? Number(insideDbg.hitTsCount) : 0
             });
+            for (var gs1 = 0; gs1 < glIds.length; gs1++) {
+              if (!dbgIdSet[String(glIds[gs1])]) continue;
+              var st1 = ensureGuideStat(glIds[gs1]);
+              st1.tests += 1;
+              st1.passDot += passDot ? 1 : 0;
+              st1.passInside += passInside ? 1 : 0;
+              if (!passInside && insideDbg && insideDbg.reason === 'bbox-miss') st1.insideBboxMiss += 1;
+              else if (!passInside) st1.insideOtherFail += 1;
+              if (gap != null && (st1.minBboxGapMm == null || gap < Number(st1.minBboxGapMm))) {
+                st1.minBboxGapMm = Math.round(gap * 1000) / 1000;
+                st1.minBboxGapWallIdx = rec.wallIdx;
+              }
+            }
           }
           if (passInside) { filtered = true; break; }
         }

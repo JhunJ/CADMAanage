@@ -970,8 +970,9 @@ function frameDefRenderDebugPanel() {
   var dualStep25StatTxt = ' <code style="font-size:0.60rem;">표시 ' + String(dualStep25Total) + '개 (+' + String(dualStep25Plus) + '/-' + String(dualStep25Minus) + ')</code>';
   var dualStep26Stat = st.debugStep2aDualStep26Stat && typeof st.debugStep2aDualStep26Stat === 'object' ? st.debugStep2aDualStep26Stat : null;
   var dualStep26Src = dualStep26Stat && isFinite(Number(dualStep26Stat.sourceCount)) ? Math.max(0, Math.floor(Number(dualStep26Stat.sourceCount))) : dualStep25Total;
-  var dualStep26Merged = dualStep26Stat && isFinite(Number(dualStep26Stat.mergedCount)) ? Math.max(0, Math.floor(Number(dualStep26Stat.mergedCount))) : 0;
-  var dualStep26StatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep26Src) + '개 · 병합면 ' + String(dualStep26Merged) + '개</code>';
+  var dualStep26Kept = dualStep26Stat && isFinite(Number(dualStep26Stat.mergedCount)) ? Math.max(0, Math.floor(Number(dualStep26Stat.mergedCount))) : 0;
+  var dualStep26Groups = dualStep26Stat && isFinite(Number(dualStep26Stat.groupCount)) ? Math.max(0, Math.floor(Number(dualStep26Stat.groupCount))) : 0;
+  var dualStep26StatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep26Src) + '개 · 유지면 ' + String(dualStep26Kept) + '개 · 병합그룹 ' + String(dualStep26Groups) + '개</code>';
   var n2aLoop = Array.isArray(st.wallStep2aClosedLoopChains) ? st.wallStep2aClosedLoopChains.length : 0;
   var n2aSrcSeg = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs.length : 0;
   var sc2a = st.wallStep2aSplitChainCounts && typeof st.wallStep2aSplitChainCounts === 'object' ? st.wallStep2aSplitChainCounts : null;
@@ -1007,7 +1008,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep23Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep23FilteredPatches ? 'checked' : '') + ' /><span><b>②-3 내부 관통 선 필터(제외분)</b>' + dualStep23StatTxt + ' — ②-2 해치 내부를 <b>다른 벽체 후보 중심선</b>이 지나가면 해당 해치를 ②-2에서 제외하고 ②-3으로 분리 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep24Chk" style="margin-top:2px;" ' + (st.debugStep2aDualStep24ExcludeIsolated !== false ? 'checked' : '') + ' /><span><b>②-4 가운데 두꺼운 층만(샌드위치)</b>' + dualStep24StatTxt + ' — <b>장축 평행 그룹</b>마다 참조 축에서 <b>법선 n 순 정렬</b> 후 <b>연속 세 장</b>만 삼중 후보로 보고, u겹침·인접 맞닿음·가운데 두께&gt;양끝이면 <b>가운데 벽 쿼드만</b> ②-4로 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep25Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep25Remainder ? 'checked' : '') + ' /><span><b>②-5 ②-2 원본에서 ②-4 대상 제외분</b>' + dualStep25StatTxt + ' — ②-2 원본 후보를 유지한 상태에서, ②-4로 분리된 가운데 두꺼운 층을 제외한 나머지(+/-)만 별도로 표시합니다.</span></label>');
-  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep26Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep26MergedArea ? 'checked' : '') + ' /><span><b>②-6 ②-5 면 병합(유니온 렌더)</b>' + dualStep26StatTxt + ' — ②-5 쿼드들을 내부 경계 없이 병합한 면으로 표시합니다(디버그 시각화).</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep26Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep26MergedArea ? 'checked' : '') + ' /><span><b>②-6 ②-5 면 병합(유니온 렌더)</b>' + dualStep26StatTxt + ' — ②-5 입력 쿼드를 유지한 채, 겹침/인접 관계를 병합 그룹으로 계산해 표시합니다.</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
@@ -26202,72 +26203,60 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var arrN = Array.isArray(step25Minus) ? step25Minus : [];
     for (i = 0; i < arrP.length; i++) if (arrP[i] && Array.isArray(arrP[i].quad) && arrP[i].quad.length >= 3) src.push(arrP[i].quad);
     for (i = 0; i < arrN.length; i++) if (arrN[i] && Array.isArray(arrN[i].quad) && arrN[i].quad.length >= 3) src.push(arrN[i].quad);
-    if (!src.length) return [];
+    if (!src.length) return { polys: [], groupCount: 0 };
     var polys = dedupePolySimple(src);
+    var n = polys.length;
+    if (!n) return { polys: [], groupCount: 0 };
     var minArea = 1;
     var touchTol = 1.2;
-    var changed = true;
-    var guard = 0;
-    while (changed && guard < 600) {
-      changed = false;
-      guard++;
-      var next = [];
-      var used = new Array(polys.length);
-      for (i = 0; i < used.length; i++) used[i] = false;
-      for (var a = 0; a < polys.length; a++) {
-        if (used[a]) continue;
-        var base = polys[a];
-        if (!Array.isArray(base) || base.length < 3) { used[a] = true; continue; }
-        var mergedOne = false;
-        for (var b = a + 1; b < polys.length; b++) {
-          if (used[b]) continue;
-          var p2 = polys[b];
-          if (!Array.isArray(p2) || p2.length < 3) continue;
-          var ov = frameDef2aV2QuadQuadOverlapPoly(base, p2, null, null);
-          var ovA = polygonAreaAbs(ov);
-          var b1 = (typeof frameDef2aV2QuadBBox === 'function') ? frameDef2aV2QuadBBox(base) : null;
-          var b2 = (typeof frameDef2aV2QuadBBox === 'function') ? frameDef2aV2QuadBBox(p2) : null;
-          var bboxNear = false;
-          if (b1 && b2) {
-            var dx = 0, dy = 0;
-            if (b1.maxx < b2.minx) dx = b2.minx - b1.maxx;
-            else if (b2.maxx < b1.minx) dx = b1.minx - b2.maxx;
-            if (b1.maxy < b2.miny) dy = b2.miny - b1.maxy;
-            else if (b2.maxy < b1.miny) dy = b1.miny - b2.maxy;
-            bboxNear = Math.hypot(dx, dy) <= touchTol;
-          }
-          if (!(ovA >= minArea) && !bboxNear) continue;
-          var hull = frameDefConvexHull(base.concat(p2));
-          if (!Array.isArray(hull) || hull.length < 3) continue;
-          used[a] = true;
-          used[b] = true;
-          next.push(hull);
-          mergedOne = true;
-          changed = true;
-          break;
-        }
-        if (!mergedOne && !used[a]) {
-          used[a] = true;
-          next.push(base);
-        }
-      }
-      polys = dedupePolySimple(next);
-      if (!changed) break;
+    var bboxes = new Array(n);
+    for (i = 0; i < n; i++) bboxes[i] = (typeof frameDef2aV2QuadBBox === 'function') ? frameDef2aV2QuadBBox(polys[i]) : null;
+    var parent = new Array(n);
+    for (i = 0; i < n; i++) parent[i] = i;
+    function find(x) {
+      while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; }
+      return x;
     }
-    return polys;
+    function unite(a, b) {
+      var ra = find(a), rb = find(b);
+      if (ra === rb) return;
+      if (ra < rb) parent[rb] = ra; else parent[ra] = rb;
+    }
+    function bboxGapMm(b1, b2) {
+      if (!b1 || !b2) return Infinity;
+      var dx = 0, dy = 0;
+      if (b1.maxx < b2.minx) dx = b2.minx - b1.maxx;
+      else if (b2.maxx < b1.minx) dx = b1.minx - b2.maxx;
+      if (b1.maxy < b2.miny) dy = b2.miny - b1.maxy;
+      else if (b2.maxy < b1.miny) dy = b1.miny - b2.maxy;
+      return Math.hypot(dx, dy);
+    }
+    for (var a = 0; a < n; a++) {
+      for (var b = a + 1; b < n; b++) {
+        var ov = frameDef2aV2QuadQuadOverlapPoly(polys[a], polys[b], bboxes[a], bboxes[b]);
+        var ovA = polygonAreaAbs(ov);
+        if (ovA >= minArea || bboxGapMm(bboxes[a], bboxes[b]) <= touchTol) unite(a, b);
+      }
+    }
+    var grp = {};
+    for (i = 0; i < n; i++) grp[String(find(i))] = true;
+    return { polys: polys, groupCount: Object.keys(grp).length };
   }
   function drawStep26MergedAreas(step25Plus, step25Minus) {
     var merged = buildStep25MergedAreas(step25Plus, step25Minus);
     st.debugStep2aDualStep26Stat = {
       sourceCount: (Array.isArray(step25Plus) ? step25Plus.length : 0) + (Array.isArray(step25Minus) ? step25Minus.length : 0),
-      mergedCount: merged.length,
+      mergedCount: merged && Array.isArray(merged.polys) ? merged.polys.length : 0,
+      groupCount: merged && isFinite(Number(merged.groupCount)) ? Number(merged.groupCount) : 0,
       ts: Date.now()
     };
     if (!showStep26 || forceComputeOnly) return;
-    for (var i = 0; i < merged.length; i++) {
-      drawWorldPoly(merged[i], '#9333ea', {
-        fillAlpha: 0.34,
-        hatchAlpha: 0.54,
+    var outPolys = merged && Array.isArray(merged.polys) ? merged.polys : [];
+    for (var i = 0; i < outPolys.length; i++) {
+      drawWorldPoly(outPolys[i], '#9333ea', {
+        fillAlpha: 0.26,
+        hatchAlpha: 0.08,
+        noHatch: true,
         step: FRAME_DEF_DEBUG_HATCH_STEP_PX
       }, 0.9);
     }
@@ -26367,7 +26356,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var minusBase = Array.isArray(minusIn) ? minusIn : [];
     // ②-4 체크가 꺼져 있어도 ②-5 체크가 켜져 있으면
     // "②-2 원본 - ②-4 대상" 계산을 위해 ②-4 분리 계산은 수행해야 한다.
-    var needStep24Split = (st.debugStep2aDualStep24ExcludeIsolated !== false) || showStep25;
+    var needStep24Split = (st.debugStep2aDualStep24ExcludeIsolated !== false) || showStep25 || showStep26;
     if (!needStep24Split) {
       var pl = plusBase.length;
       var ms = minusBase.length;

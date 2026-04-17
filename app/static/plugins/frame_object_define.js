@@ -26298,10 +26298,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var arrN = Array.isArray(step25Minus) ? step25Minus : [];
     for (i = 0; i < arrP.length; i++) if (arrP[i] && Array.isArray(arrP[i].quad) && arrP[i].quad.length >= 3) src.push(arrP[i].quad);
     for (i = 0; i < arrN.length; i++) if (arrN[i] && Array.isArray(arrN[i].quad) && arrN[i].quad.length >= 3) src.push(arrN[i].quad);
-    if (!src.length) return { polys: [], mergedGroups: [], groupCount: 0 };
+    if (!src.length) return { sourcePolys: [], polys: [], mergedGroups: [], groupCount: 0 };
     var polys = dedupePolySimple(src);
     var n = polys.length;
-    if (!n) return { polys: [], mergedGroups: [], groupCount: 0 };
+    if (!n) return { sourcePolys: [], polys: [], mergedGroups: [], groupCount: 0 };
     var minArea = 1;
     var touchTol = 1.2;
     var edgeEps = 0.8;
@@ -26729,7 +26729,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       mergedGroups.push(gr);
       for (var grj = 0; grj < gr.length; grj++) mergedPolys.push(gr[grj]);
     }
-    return { polys: mergedPolys, mergedGroups: mergedGroups, groupCount: roots.length };
+    return { sourcePolys: polys, polys: mergedPolys, mergedGroups: mergedGroups, groupCount: roots.length };
   }
   function drawStep26MergedAreas(step25Plus, step25Minus) {
     var merged = buildStep25MergedAreas(step25Plus, step25Minus);
@@ -26818,8 +26818,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       });
       probeAdded++;
     }
+    var sourcePolysAll = merged && Array.isArray(merged.sourcePolys) ? merged.sourcePolys : [];
     var outPolysAll = merged && Array.isArray(merged.polys) ? merged.polys : [];
-    for (var ia = 0; ia < outPolysAll.length; ia++) inputAreaSum += polygonAreaAbs(outPolysAll[ia]);
+    for (var ia = 0; ia < sourcePolysAll.length; ia++) inputAreaSum += polygonAreaAbs(sourcePolysAll[ia]);
     var outGroupsProbe = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
     if (outGroupsProbe.length) {
       for (var pgi = 0; pgi < outGroupsProbe.length; pgi++) {
@@ -26843,7 +26844,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     st.debugStep2aStep26MergedAreaMm2 = mergedAreaSum;
     st.debugStep2aDualStep26Stat = {
       sourceCount: (Array.isArray(step25Plus) ? step25Plus.length : 0) + (Array.isArray(step25Minus) ? step25Minus.length : 0),
-      sourceUniqueCount: outPolysAll.length,
+      sourceUniqueCount: sourcePolysAll.length,
       mergedCount: merged && Array.isArray(merged.polys) ? merged.polys.length : 0,
       groupCount: merged && isFinite(Number(merged.groupCount)) ? Number(merged.groupCount) : 0,
       sourceAreaMm2: Math.round(inputAreaSum * 10) / 10,

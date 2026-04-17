@@ -24152,8 +24152,8 @@ function frameDefDrawPreviewOverlays() {
   var st = typeof frameDefGetState === 'function' ? frameDefGetState() : {};
   var frameFeatureActive = (typeof selectedFeatureId === 'undefined' || selectedFeatureId === 'frame-object-define');
   var force2aDebugDraw = st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true || st.debugStep2aShowDualStep25Remainder === true || st.debugStep2aShowDualStep26MergedArea === true;
-  /** 미리보기 끔에도 해치 ±겹침 라벨은 표시(캔버스 상단 오버레이와 동일 경로). */
-  var allowWhenPreviewOff = st.debugStep2aShowHatchOverlapLabels === true;
+  /** 미리보기 끔에도 일부 2a 디버그 오버레이는 표시(라벨·②-6 병합면 등). */
+  var allowWhenPreviewOff = st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualStep26MergedArea === true;
   if (st.previewVisible === false && !allowWhenPreviewOff) return;
   if (!frameFeatureActive && !force2aDebugDraw) return;
   var groups = frameDefPreviewGroups();
@@ -26654,17 +26654,16 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
           step: FRAME_DEF_DEBUG_HATCH_STEP_PX
         }, 0.92);
       }
-      return;
     }
     var outPolys = merged && Array.isArray(merged.polys) ? merged.polys : [];
     for (var i2 = 0; i2 < outPolys.length; i2++) {
       drawWorldPoly(outPolys[i2], '#9333ea', {
-        fillAlpha: 0.30,
+        fillAlpha: outGroups.length ? 0.08 : 0.30,
         hatchAlpha: 0.00,
         noHatch: true,
-        strokeWidth: 1.8,
+        strokeWidth: outGroups.length ? 1.1 : 1.8,
         step: FRAME_DEF_DEBUG_HATCH_STEP_PX
-      }, 0.92);
+      }, outGroups.length ? 0.35 : 0.92);
     }
   }
   function renderCandidateLists(plusPolys, minusPolys, palette) {

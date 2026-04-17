@@ -26605,7 +26605,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var epsIn = Math.max(0, isFinite(epsInRaw) ? epsInRaw : 0);
       var u0 = uMin + epsIn, u1 = uMax - epsIn;
       var v0 = nMin + epsIn, v1 = nMax - epsIn;
-      if (!(u1 > u0 + 1e-6) || !(v1 > v0 + 1e-6)) return null;
+      var touchTol = epsIn <= 1e-6 ? Math.max(0.8, (Number(edgeEps) || 1.2) * 1.6) : 0;
+      var cu0 = u0 - touchTol, cu1 = u1 + touchTol;
+      var cv0 = v0 - touchTol, cv1 = v1 + touchTol;
+      if (!(cu1 > cu0 + 1e-6) || !(cv1 > cv0 + 1e-6)) return null;
       var p1x = (Number(p1.x) || 0) - c.x, p1y = (Number(p1.y) || 0) - c.y;
       var p2x = (Number(p2.x) || 0) - c.x, p2y = (Number(p2.y) || 0) - c.y;
       var lu0 = p1x * ux + p1y * uy;
@@ -26613,9 +26616,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var du = (p2x - p1x) * ux + (p2y - p1y) * uy;
       var dv = (p2x - p1x) * nx + (p2y - p1y) * ny;
       var seg01 = clip01MinMax(0, 1);
-      var it = clipByLinearRange(seg01.t0, seg01.t1, lu0, du, u0, u1);
+      var it = clipByLinearRange(seg01.t0, seg01.t1, lu0, du, cu0, cu1);
       if (!it) return null;
-      it = clipByLinearRange(it.tMin, it.tMax, lv0, dv, v0, v1);
+      it = clipByLinearRange(it.tMin, it.tMax, lv0, dv, cv0, cv1);
       if (!it) return null;
       var tMid = (it.tMin + it.tMax) * 0.5;
       return {
@@ -26645,7 +26648,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
     }
     function allowEdgeTouchByAxisClip(info) {
       if (!info) return false;
-      var minInsideLen = Math.max(18, lenL * 0.02);
+      var minInsideLen = Math.max(14, lenL * 0.015);
       var touchLen = Number(info.len) || 0;
       if (!(touchLen >= minInsideLen)) return false;
       var midT = Math.max(0, Math.min(1, Number(info.midT) || 0.5));
@@ -26656,24 +26659,22 @@ function frameDefDrawDebugStep2aDualOverlapPatches() {
       var dEdge = pointMinEdgeDist(midPt);
       if (!(dEdge <= edgeTouchTol)) return false;
       var uMin = Number(info.uMin), uMax = Number(info.uMax);
-      var c0 = Math.min(Number(info.clipU0) || 0, Number(info.clipU1) || 0);
-      var c1 = Math.max(Number(info.clipU0) || 0, Number(info.clipU1) || 0);
-      if (!isFinite(uMin) || !isFinite(uMax) || !(uMax > uMin + 1e-6)) return false;
-      var quadULen = Math.max(1e-6, uMax - uMin);
-      var overlapRatio = Math.max(0, (c1 - c0) / quadULen);
-      // "꼬치처럼 일부만 들어간" 경우만 허용: 장축 전체를 따라붙는 경계선은 제외.
-      if (!(overlapRatio <= 0.72)) return false;
-      var uTouchTol = Math.max(3.0, (Number(edgeEps) || 1.2) * 3.0);
-      var touchMin = Math.abs(c0 - uMin) <= uTouchTol;
-      var touchMax = Math.abs(c1 - uMax) <= uTouchTol;
-      // 한쪽 끝에서만 걸치는 경우만 허용(XOR).
-      if (touchMin === touchMax) return false;
       var l0 = Math.min(Number(info.lineU0) || 0, Number(info.lineU1) || 0);
       var l1 = Math.max(Number(info.lineU0) || 0, Number(info.lineU1) || 0);
-      // 실제로 바깥 꼬리가 존재하고, 내부 코어 겹침이 있어야 한다.
-      var hasTailOutside = (l0 < uMin - uTouchTol) || (l1 > uMax + uTouchTol);
-      var hasCoreInside = (l1 > uMin + uTouchTol) && (l0 < uMax - uTouchTol);
-      if (!hasTailOutside || !hasCoreInside) return false;
+      if (!isFinite(uMin) || !isFinite(uMax) || !(uMax > uMin + 1e-6)) return false;
+      var quadULen = Math.max(1e-6, uMax - uMin);
+      var ov0 = Math.max(l0, uMin), ov1 = Math.min(l1, uMax);
+      if (!(ov1 > ov0 + 1e-6)) return false;
+      var overlapRatio = Math.max(0, (ov1 - ov0) / quadULen);
+      // 부분 관통(꼬치형)만 허용: 너무 짧거나, 장축 전체를 거의 덮는 경계선은 제외.
+      if (!(overlapRatio >= 0.12 && overlapRatio <= 0.985)) return false;
+      var uTouchTol = Math.max(8.0, (Number(edgeEps) || 1.2) * 6.0);
+      var touchMin = l0 <= (uMin + uTouchTol);
+      var touchMax = l1 >= (uMax - uTouchTol);
+      // 한쪽 끝만 닿고 반대쪽은 내부에서 끝나는 경우만 허용.
+      if (touchMin === touchMax) return false;
+      if (touchMin && !(l1 < uMax - uTouchTol)) return false;
+      if (touchMax && !(l0 > uMin + uTouchTol)) return false;
       if (dbg) {
         dbg.reason = 'axis-clip-edge-touch';
         dbg.axisClipInsideLen = Math.round(touchLen * 1000) / 1000;

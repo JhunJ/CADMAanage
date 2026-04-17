@@ -3250,19 +3250,51 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
     var dlx = bx - ax, dly = by - ay;
     var ll = Math.hypot(dlx, dly);
     if (!(ll > 1e-6)) return { pass: false, reason: 'line-len-zero' };
+    var eps = Math.max(0.6, Number(edgeEps) || 1.2);
     function ptAt(t) { return { x: ax + dlx * t, y: ay + dly * t }; }
+    function pointEdgeMinDist(pt) {
+      var minD = Infinity;
+      for (var i = 0; i < poly.length; i++) {
+        var a = poly[i], b = poly[(i + 1) % poly.length];
+        if (!a || !b || typeof frameDefPointToSegmentProjection !== 'function') continue;
+        var pr = frameDefPointToSegmentProjection(pt, { p1: a, p2: b });
+        if (!pr) continue;
+        var d = Number(pr.dist) || 0;
+        if (d < minD) minD = d;
+      }
+      return minD;
+    }
     var samples = 25;
     var inCount = 0, firstT = 1, lastT = 0;
+    var looseInsideCount = 0, onEdgeCount = 0;
+    var minEdgeMm = Infinity;
     for (var si = 1; si <= samples; si++) {
       var ts = si / (samples + 1);
-      if (!pointInPolyStrict(ptAt(ts), poly, edgeEps)) continue;
+      var pt = ptAt(ts);
+      var looseIn = (typeof frameDefPointInPolygon === 'function') ? frameDefPointInPolygon(pt, poly) : false;
+      var dEdge = pointEdgeMinDist(pt);
+      if (isFinite(dEdge) && dEdge < minEdgeMm) minEdgeMm = dEdge;
+      if (looseIn) {
+        looseInsideCount++;
+        if (isFinite(dEdge) && dEdge <= eps * 1.2) onEdgeCount++;
+      }
+      if (!pointInPolyStrict(pt, poly, edgeEps)) continue;
       inCount++;
       if (ts < firstT) firstT = ts;
       if (ts > lastT) lastT = ts;
     }
     var spanLen = inCount > 0 ? Math.max(0, (lastT - firstT) * ll) : 0;
     if (spanLen >= Math.max(12, ll * 0.01) || inCount >= 2) {
-      return { pass: true, reason: 'samples', insideCount: inCount, insideSpanMm: Math.round(spanLen * 100) / 100, hitCount: 0 };
+      return {
+        pass: true,
+        reason: 'samples',
+        insideCount: inCount,
+        looseInsideCount: looseInsideCount,
+        onEdgeCount: onEdgeCount,
+        minEdgeMm: isFinite(minEdgeMm) ? (Math.round(minEdgeMm * 1000) / 1000) : null,
+        insideSpanMm: Math.round(spanLen * 100) / 100,
+        hitCount: 0
+      };
     }
     var hitCount = 0;
     if (typeof frameDefSegSegIntersectInclusive === 'function') {
@@ -3283,7 +3315,20 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
         hitCount++;
       }
     }
-    return { pass: false, reason: hitCount >= 2 ? 'edge-only' : 'no-inside', insideCount: inCount, insideSpanMm: Math.round(spanLen * 100) / 100, hitCount: hitCount };
+    var failReason = hitCount >= 2 ? 'edge-only' : 'no-inside';
+    if (failReason === 'no-inside' && looseInsideCount > 0) {
+      failReason = onEdgeCount >= Math.max(3, Math.floor(samples * 0.20)) ? 'on-edge' : 'loose-inside-near-edge';
+    }
+    return {
+      pass: false,
+      reason: failReason,
+      insideCount: inCount,
+      looseInsideCount: looseInsideCount,
+      onEdgeCount: onEdgeCount,
+      minEdgeMm: isFinite(minEdgeMm) ? (Math.round(minEdgeMm * 1000) / 1000) : null,
+      insideSpanMm: Math.round(spanLen * 100) / 100,
+      hitCount: hitCount
+    };
   }
 
   var rows = [];
@@ -3313,6 +3358,9 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
         insideSpanMm: isFinite(Number(ov.insideSpanMm)) ? Number(ov.insideSpanMm) : 0,
         hitCount: isFinite(Number(ov.hitCount)) ? Number(ov.hitCount) : 0,
         insideCount: isFinite(Number(ov.insideCount)) ? Number(ov.insideCount) : 0,
+        looseInsideCount: isFinite(Number(ov.looseInsideCount)) ? Number(ov.looseInsideCount) : 0,
+        onEdgeCount: isFinite(Number(ov.onEdgeCount)) ? Number(ov.onEdgeCount) : 0,
+        minEdgeMm: isFinite(Number(ov.minEdgeMm)) ? Number(ov.minEdgeMm) : null,
         ent: ent
       });
     }
@@ -3333,7 +3381,7 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
   lines.push('entityId=' + String(entityId != null ? entityId : '(none)') + ' line=(' + p1.x.toFixed(3) + ',' + p1.y.toFixed(3) + ')->(' + p2.x.toFixed(3) + ',' + p2.y.toFixed(3) + ') len=' + (Math.round(len * 1000) / 1000));
   lines.push('filters: onlyParallel=' + String(onlyParallel) + ' dotMin=' + String(dotMin) + ' nearBboxGapMm=' + String(nearGap) + ' maxRows=' + String(maxRows));
   lines.push('step25 counts: plus=' + String((Array.isArray(step25Plus) ? step25Plus.length : 0)) + ' minus=' + String((Array.isArray(step25Minus) ? step25Minus.length : 0)) + ' nearMatched=' + String(rows.length));
-  lines.push('idx|sign|wallIdx|thkMm|dot|bboxGapMm|overlap|reason|insideSpanMm|hits|insideCnt|entity_ids');
+  lines.push('idx|sign|wallIdx|thkMm|dot|bboxGapMm|overlap|reason|insideSpanMm|hits|insideCnt|looseIn|onEdge|minEdgeMm|entity_ids');
   if (!rows.length) {
     lines.push('(근처 후보 없음 — nearBboxGapMm/parallelDotMin 조건 완화 필요)');
   } else {
@@ -3344,6 +3392,7 @@ function frameDefBuildStep2aStep25LineProbeText(st, step25Plus, step25Minus, pro
         + '|' + String(r.dot) + '|' + String(r.bboxGapMm == null ? '' : r.bboxGapMm)
         + '|' + (r.overlap ? 'Y' : 'N') + '|' + String(r.reason || '')
         + '|' + String(r.insideSpanMm || 0) + '|' + String(r.hitCount || 0) + '|' + String(r.insideCount || 0)
+        + '|' + String(r.looseInsideCount || 0) + '|' + String(r.onEdgeCount || 0) + '|' + String(r.minEdgeMm == null ? '' : r.minEdgeMm)
         + '|' + JSON.stringify(r.ent || [])
       );
     }

@@ -981,7 +981,7 @@ function frameDefRenderDebugPanel() {
   var dualStep27StatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep27Src) + '개 · 병합면 ' + String(dualStep27Face) + '개 · 병합그룹 ' + String(dualStep27Groups) + '개</code>';
   var showStep28Merged = st.debugStep2aShowDualStep28MergedArea === true;
   var dualStep28Stat = st.debugStep2aDualStep28Stat && typeof st.debugStep2aDualStep28Stat === 'object' ? st.debugStep2aDualStep28Stat : null;
-  var dualStep28Src = dualStep28Stat && isFinite(Number(dualStep28Stat.sourceCount)) ? Math.max(0, Math.floor(Number(dualStep28Stat.sourceCount))) : dualStep26CheckEx;
+  var dualStep28Src = dualStep28Stat && isFinite(Number(dualStep28Stat.sourceCount)) ? Math.max(0, Math.floor(Number(dualStep28Stat.sourceCount))) : dualStep26CheckKept;
   var dualStep28Face = dualStep28Stat && isFinite(Number(dualStep28Stat.mergedCount)) ? Math.max(0, Math.floor(Number(dualStep28Stat.mergedCount))) : 0;
   var dualStep28Groups = dualStep28Stat && isFinite(Number(dualStep28Stat.groupCount)) ? Math.max(0, Math.floor(Number(dualStep28Stat.groupCount))) : 0;
   var dualStep28StatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep28Src) + '개 · 병합면 ' + String(dualStep28Face) + '개 · 병합그룹 ' + String(dualStep28Groups) + '개</code>';
@@ -1029,7 +1029,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep25Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep25Remainder ? 'checked' : '') + ' /><span><b>②-5 ②-2 원본에서 ②-4 대상 제외분</b>' + dualStep25StatTxt + ' — ②-2 원본 후보를 유지한 상태에서, ②-4로 분리된 가운데 두꺼운 층을 제외한 나머지(+/-)만 별도로 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep26CheckQuadChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep26CheckQuad ? 'checked' : '') + ' /><span><b>②-6 체크 쿼드(준비)</b>' + dualStep26CheckStatTxt + ' — 새 체크 쿼드 기능용 표시 슬롯입니다. 현재는 상태/계산 경로만 준비되어 있습니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep27Chk" style="margin-top:2px;" ' + (showStep27Merged ? 'checked' : '') + ' /><span><b>②-7 ②-5 면 병합(유니온 렌더)</b>' + dualStep27StatTxt + ' — ②-5 입력 쿼드를 일반 다각형 boolean union으로 병합해 최종 병합면만 표시합니다.</span></label>');
-  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep28Chk" style="margin-top:2px;" ' + (showStep28Merged ? 'checked' : '') + ' /><span><b>②-8 ②-6 면 병합(유니온 렌더)</b>' + dualStep28StatTxt + ' — ②-6에서 제외된 쿼드를 일반 다각형 boolean union으로 병합해 최종 병합면을 표시합니다.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep28Chk" style="margin-top:2px;" ' + (showStep28Merged ? 'checked' : '') + ' /><span><b>②-8 ②-6 면 병합(유니온 렌더)</b>' + dualStep28StatTxt + ' — ②-6에서 통과한 쿼드만 다시 일반 다각형 boolean union으로 병합해 최종 병합면을 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep29Chk" style="margin-top:2px;" ' + (showStep29Walls ? 'checked' : '') + ' /><span><b>②-9 ②-8 면적 기반 124-7식 벽체화</b>' + dualStep29StatTxt + ' — ②-8 병합면을 1.2.4의 6(격자)→7(병합 직사각) 방식으로 재분할/병합해 벽체를 생성·표시합니다.</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
@@ -28083,14 +28083,13 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
       if (showStep26Check || showStep28 || showStep29) {
         c26KeepCached = deriveStep26CheckCandidates(a24c.step22Plus, a24c.step22Minus);
       }
-      var c26ExcludedCached = buildStep26ExcludedRecords(a24c.step22Plus, a24c.step22Minus, c26KeepCached);
       if (showStep26Check) {
-        drawStep26CheckQuads(c26ExcludedCached);
+        drawStep26CheckQuads(c26KeepCached && Array.isArray(c26KeepCached.keptRecords) ? c26KeepCached.keptRecords : []);
       }
       if (showStep27) drawStep27MergedAreas(a24c.step22Plus, a24c.step22Minus);
       var step28ResultC = null;
       if (showStep28 || showStep29) {
-        var c26ListsC = splitStep26KeptRecordsForUnion(c26ExcludedCached);
+        var c26ListsC = splitStep26KeptRecordsForUnion(c26KeepCached && Array.isArray(c26KeepCached.keptRecords) ? c26KeepCached.keptRecords : []);
         step28ResultC = drawStep27MergedAreas(c26ListsC.plus, c26ListsC.minus, {
           draw: showStep28,
           statKey: 'debugStep2aDualStep28Stat',
@@ -28758,14 +28757,13 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
     if (showStep26Check || showStep28 || showStep29) {
       c26KeepFresh = deriveStep26CheckCandidates(a24f.step22Plus, a24f.step22Minus);
     }
-    var c26ExcludedFresh = buildStep26ExcludedRecords(a24f.step22Plus, a24f.step22Minus, c26KeepFresh);
     if (showStep26Check) {
-      drawStep26CheckQuads(c26ExcludedFresh);
+      drawStep26CheckQuads(c26KeepFresh && Array.isArray(c26KeepFresh.keptRecords) ? c26KeepFresh.keptRecords : []);
     }
     if (showStep27) drawStep27MergedAreas(a24f.step22Plus, a24f.step22Minus);
     var step28ResultF = null;
     if (showStep28 || showStep29) {
-      var c26ListsF = splitStep26KeptRecordsForUnion(c26ExcludedFresh);
+      var c26ListsF = splitStep26KeptRecordsForUnion(c26KeepFresh && Array.isArray(c26KeepFresh.keptRecords) ? c26KeepFresh.keptRecords : []);
       step28ResultF = drawStep27MergedAreas(c26ListsF.plus, c26ListsF.minus, {
         draw: showStep28,
         statKey: 'debugStep2aDualStep28Stat',

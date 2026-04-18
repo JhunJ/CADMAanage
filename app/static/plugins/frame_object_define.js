@@ -26206,12 +26206,13 @@ function frameDefDualOverlap24FilterSandwichThickOnly(plusArr, minusArr) {
 function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
   opts = opts || {};
   var forceComputeOnly = opts.forceCompute === true;
+  var onlyStep26 = opts.onlyStep26 === true;
   var st = frameDefGetState();
-  var showStep22 = st.debugStep2aShowDualOverlapPatches === true;
-  var showStep24 = st.debugStep2aDualStep24ExcludeIsolated !== false;
-  var showStep25 = st.debugStep2aShowDualStep25Remainder === true;
+  var showStep22 = !onlyStep26 && st.debugStep2aShowDualOverlapPatches === true;
+  var showStep24 = !onlyStep26 && st.debugStep2aDualStep24ExcludeIsolated !== false;
+  var showStep25 = !onlyStep26 && st.debugStep2aShowDualStep25Remainder === true;
   var showStep26 = st.debugStep2aShowDualStep26MergedArea === true;
-  var showStep23 = st.debugStep2aShowDualStep23FilteredPatches === true;
+  var showStep23 = !onlyStep26 && st.debugStep2aShowDualStep23FilteredPatches === true;
   if (!forceComputeOnly && !showStep22 && !showStep24 && !showStep25 && !showStep26 && !showStep23) return;
   var list = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
   if (!list.length) return;
@@ -27496,7 +27497,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       ts: Date.now(),
       cached: true
     };
-    if (forceComputeOnly || showStep22 || showStep24 || showStep25) {
+    if (forceComputeOnly || showStep22 || showStep24 || showStep25 || showStep26) {
       var a24c = applyStep24SplitForDisplay(cache.plus, cache.minus);
       if (typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
         st.debugStep2aStep25LineProbeText = frameDefBuildStep2aStep25LineProbeText(
@@ -27531,6 +27532,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
           minusSelHatch: 0.46, minusOppHatch: 0.20
         });
       }
+      drawStep26MergedAreas(a24c.step22Plus, a24c.step22Minus);
     }
     if (showStep23) {
       renderCandidateLists(cache.plus23, cache.minus23, {

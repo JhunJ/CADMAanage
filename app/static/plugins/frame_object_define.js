@@ -27457,45 +27457,88 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var wallsOut = [];
     var mergePasses = 0;
     var mergesTotal = 0;
-    function bboxRectFromWall(w) {
-      if (!w || !w.seg_a || !w.seg_b || !w.seg_a.p1 || !w.seg_a.p2 || !w.seg_b.p1 || !w.seg_b.p2) return null;
-      var xs = [
-        Number(w.seg_a.p1.x) || 0, Number(w.seg_a.p2.x) || 0,
-        Number(w.seg_b.p1.x) || 0, Number(w.seg_b.p2.x) || 0
-      ];
-      var ys = [
-        Number(w.seg_a.p1.y) || 0, Number(w.seg_a.p2.y) || 0,
-        Number(w.seg_b.p1.y) || 0, Number(w.seg_b.p2.y) || 0
-      ];
-      var x0 = Math.min(xs[0], xs[1], xs[2], xs[3]);
-      var x1 = Math.max(xs[0], xs[1], xs[2], xs[3]);
-      var y0 = Math.min(ys[0], ys[1], ys[2], ys[3]);
-      var y1 = Math.max(ys[0], ys[1], ys[2], ys[3]);
-      if (!(x1 > x0 + 1e-6 && y1 > y0 + 1e-6)) return null;
-      return {
-        x0: x0, y0: y0, x1: x1, y1: y1,
-        area: Math.round((x1 - x0) * (y1 - y0) * 100) / 100,
-        vertCount: 0
-      };
+    var boundaryGridPolyCount = 0;
+    var boundaryGridRectCount = 0;
+    var tinyRectsDropped = 0;
+    function snapSortedUnique(vals, tol) {
+      var srcVals = Array.isArray(vals) ? vals : [];
+      if (!srcVals.length) return [];
+      var t = Math.max(0.2, Number(tol) || 1.0);
+      var arr = srcVals.slice().sort(function(a, b) { return a - b; });
+      var out = [arr[0]];
+      for (var i = 1; i < arr.length; i++) {
+        var v = Number(arr[i]);
+        if (!isFinite(v)) continue;
+        var last = out[out.length - 1];
+        if (Math.abs(v - last) <= t) out[out.length - 1] = (last + v) * 0.5;
+        else out.push(v);
+      }
+      return out;
+    }
+    function buildRectsFromBoundaryGrid(poly, tolMm) {
+      var out = [];
+      var tinyDropCount = 0;
+      if (!Array.isArray(poly) || poly.length < 3) return { rects: out, tinyDrops: tinyDropCount };
+      var pip = typeof frameDefPointInPolygon === 'function' ? frameDefPointInPolygon : null;
+      if (!pip) return { rects: out, tinyDrops: tinyDropCount };
+      var coordTol = Math.max(2, Math.min(18, (Number(tolMm) || 25) * 0.35));
+      var xs = [];
+      var ys = [];
+      for (var i = 0; i < poly.length; i++) {
+        var p = poly[i];
+        if (!p) continue;
+        var px = Number(p.x), py = Number(p.y);
+        if (!isFinite(px) || !isFinite(py)) continue;
+        xs.push(px);
+        ys.push(py);
+      }
+      xs = snapSortedUnique(xs, coordTol);
+      ys = snapSortedUnique(ys, coordTol);
+      if (xs.length < 2 || ys.length < 2) return { rects: out, tinyDrops: tinyDropCount };
+      if ((xs.length - 1) * (ys.length - 1) > 12000) return { rects: out, tinyDrops: tinyDropCount };
+      var edgePad = Math.max(0.4, coordTol * 0.25);
+      var shortTiny = Math.max(4, coordTol * 0.42);
+      var areaTiny = Math.max(90, coordTol * coordTol * 0.7);
+      for (var ix = 0; ix < xs.length - 1; ix++) {
+        var x0 = xs[ix], x1 = xs[ix + 1];
+        if (!(x1 > x0 + 1e-6)) continue;
+        for (var iy = 0; iy < ys.length - 1; iy++) {
+          var y0 = ys[iy], y1 = ys[iy + 1];
+          if (!(y1 > y0 + 1e-6)) continue;
+          var ww = x1 - x0;
+          var hh = y1 - y0;
+          var ar = ww * hh;
+          if (Math.min(ww, hh) < shortTiny && ar < areaTiny) {
+            tinyDropCount++;
+            continue;
+          }
+          var cx = (x0 + x1) * 0.5;
+          var cy = (y0 + y1) * 0.5;
+          var inside = pip({ x: cx, y: cy }, poly);
+          if (!inside && typeof frameDefOrthoRectTouchesPolyOutline === 'function') {
+            inside = frameDefOrthoRectTouchesPolyOutline(poly, x0 + edgePad, y0 + edgePad, x1 - edgePad, y1 - edgePad, Math.max(0.4, edgePad));
+          }
+          if (!inside) continue;
+          out.push({
+            x0: x0, y0: y0, x1: x1, y1: y1,
+            area: Math.round(ar * 100) / 100,
+            vertCount: 0
+          });
+        }
+      }
+      return { rects: out, tinyDrops: tinyDropCount };
     }
     for (var pi = 0; pi < src.length; pi++) {
       var poly = src[pi];
       if (!Array.isArray(poly) || poly.length < 3) continue;
-      var step6Rects = [];
-      if (typeof frameDefInteriorStep6VerticalSlabRects114FromStep5 === 'function') {
-        var s6 = frameDefInteriorStep6VerticalSlabRects114FromStep5(poly, [], {
-          tolMm: stepTol,
-          idBase: 'wall-step2a-29-' + String(pi),
-          chainIndex: pi,
-          entityIds: []
-        });
-        var s6Walls = s6 && Array.isArray(s6.walls) ? s6.walls : [];
-        for (var si = 0; si < s6Walls.length; si++) {
-          var w6 = s6Walls[si];
-          if (!w6 || w6.__step6Grid114HV_axis === 'v') continue;
-          var rr = bboxRectFromWall(w6);
-          if (rr) step6Rects.push(rr);
-        }
+      // ②-9 분절은 ②-8 폴리곤(기존 쿼드 기반) 경계 좌표만 사용해 생성한다.
+      // 외부/참조 선분 기반 추가 분할은 배제하여 "선분 따라 새 셀 생성"을 방지한다.
+      var gridRes = buildRectsFromBoundaryGrid(poly, stepTol);
+      var step6Rects = gridRes && Array.isArray(gridRes.rects) ? gridRes.rects : [];
+      tinyRectsDropped += gridRes && isFinite(Number(gridRes.tinyDrops)) ? Math.max(0, Number(gridRes.tinyDrops)) : 0;
+      if (step6Rects.length) {
+        boundaryGridPolyCount++;
+        boundaryGridRectCount += step6Rects.length;
       }
       if (!step6Rects.length) {
         var bb = frameDef2aV2QuadBBox(poly);
@@ -27556,6 +27599,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       wallCount: wallsOut.length,
       step7MergePasses: mergePasses,
       step7MergesTotal: mergesTotal,
+      boundaryGridPolyCount: boundaryGridPolyCount,
+      boundaryGridRectCount: boundaryGridRectCount,
+      tinyRectsDropped: tinyRectsDropped,
       cached: false,
       ts: Date.now()
     };

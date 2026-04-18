@@ -26528,6 +26528,202 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       }
       return out;
     }
+    function buildUnionRingsFromOrthoRects(groupPolys) {
+      var gPolys = Array.isArray(groupPolys) ? groupPolys : [];
+      if (!gPolys.length) return [];
+      function clustered2(vals, tol) {
+        var src = Array.isArray(vals) ? vals : [];
+        var t = Math.max(0.2, Number(tol) || 1.0);
+        var out = [];
+        for (var i = 0; i < src.length; i++) {
+          var v = Number(src[i]);
+          if (!isFinite(v)) continue;
+          var hit = -1;
+          for (var j = 0; j < out.length; j++) {
+            if (Math.abs(v - out[j]) <= t) { hit = j; break; }
+          }
+          if (hit >= 0) out[hit] = (out[hit] + v) * 0.5;
+          else out.push(v);
+          if (out.length > 2) return null;
+        }
+        out.sort(function(a, b) { return a - b; });
+        return out.length === 2 ? out : null;
+      }
+      function polyToOrthoRect(poly) {
+        if (!Array.isArray(poly) || poly.length < 4) return null;
+        var xs = [], ys = [];
+        for (var i = 0; i < poly.length; i++) {
+          var p = poly[i];
+          if (!p) continue;
+          xs.push(Number(p.x) || 0);
+          ys.push(Number(p.y) || 0);
+        }
+        if (xs.length < 4) return null;
+        var xx = clustered2(xs, 1.1);
+        var yy = clustered2(ys, 1.1);
+        if (!xx || !yy) return null;
+        var x0 = xx[0], x1 = xx[1], y0 = yy[0], y1 = yy[1];
+        if (!(x1 > x0 + 0.4 && y1 > y0 + 0.4)) return null;
+        for (var k = 0; k < poly.length; k++) {
+          var q = poly[k];
+          if (!q) continue;
+          var qx = Number(q.x) || 0, qy = Number(q.y) || 0;
+          var onX = (Math.abs(qx - x0) <= 1.2) || (Math.abs(qx - x1) <= 1.2);
+          var onY = (Math.abs(qy - y0) <= 1.2) || (Math.abs(qy - y1) <= 1.2);
+          if (!(onX && onY)) return null;
+        }
+        return { x0: x0, x1: x1, y0: y0, y1: y1 };
+      }
+      function addCoordUniq(arr, v, tol) {
+        var t = Math.max(0.2, Number(tol) || 0.6);
+        var n = Number(v);
+        if (!isFinite(n)) return;
+        for (var i = 0; i < arr.length; i++) {
+          if (Math.abs(arr[i] - n) <= t) return;
+        }
+        arr.push(n);
+      }
+      function coordIndex(sorted, v, tol) {
+        var t = Math.max(0.2, Number(tol) || 0.6);
+        for (var i = 0; i < sorted.length; i++) if (Math.abs(sorted[i] - v) <= t) return i;
+        return -1;
+      }
+      var rects = [];
+      for (var pi = 0; pi < gPolys.length; pi++) {
+        var rr = polyToOrthoRect(gPolys[pi]);
+        if (!rr) return [];
+        rects.push(rr);
+      }
+      if (!rects.length) return [];
+      var xsAll = [], ysAll = [];
+      for (var ri = 0; ri < rects.length; ri++) {
+        addCoordUniq(xsAll, rects[ri].x0, 0.6); addCoordUniq(xsAll, rects[ri].x1, 0.6);
+        addCoordUniq(ysAll, rects[ri].y0, 0.6); addCoordUniq(ysAll, rects[ri].y1, 0.6);
+      }
+      xsAll.sort(function(a, b) { return a - b; });
+      ysAll.sort(function(a, b) { return a - b; });
+      if (xsAll.length < 2 || ysAll.length < 2) return [];
+      var occ = {};
+      function cKey(ix, iy) { return String(ix) + ',' + String(iy); }
+      for (var r0 = 0; r0 < rects.length; r0++) {
+        var r = rects[r0];
+        var ix0 = coordIndex(xsAll, r.x0, 0.6), ix1 = coordIndex(xsAll, r.x1, 0.6);
+        var iy0 = coordIndex(ysAll, r.y0, 0.6), iy1 = coordIndex(ysAll, r.y1, 0.6);
+        if (!(ix0 >= 0 && ix1 > ix0 && iy0 >= 0 && iy1 > iy0)) continue;
+        for (var ix = ix0; ix < ix1; ix++) {
+          for (var iy = iy0; iy < iy1; iy++) occ[cKey(ix, iy)] = true;
+        }
+      }
+      var edges = [];
+      var edgeSeen = {};
+      function addEdge(ax, ay, bx, by) {
+        var dx = (Number(bx) || 0) - (Number(ax) || 0);
+        var dy = (Number(by) || 0) - (Number(ay) || 0);
+        if (Math.hypot(dx, dy) <= 1e-6) return;
+        var sa = String(Math.round((Number(ax) || 0) * 1000) / 1000) + ',' + String(Math.round((Number(ay) || 0) * 1000) / 1000);
+        var sb = String(Math.round((Number(bx) || 0) * 1000) / 1000) + ',' + String(Math.round((Number(by) || 0) * 1000) / 1000);
+        var k = sa + '>' + sb;
+        if (edgeSeen[k]) return;
+        edgeSeen[k] = true;
+        edges.push({ a: { x: Number(ax) || 0, y: Number(ay) || 0 }, b: { x: Number(bx) || 0, y: Number(by) || 0 }, aKey: sa, bKey: sb });
+      }
+      function isOcc(ix, iy) { return !!occ[cKey(ix, iy)]; }
+      var occKeys = Object.keys(occ);
+      for (var ok = 0; ok < occKeys.length; ok++) {
+        var sp = occKeys[ok].split(',');
+        var cx = Number(sp[0]), cy = Number(sp[1]);
+        if (!(isFinite(cx) && isFinite(cy))) continue;
+        var xL = xsAll[cx], xR = xsAll[cx + 1], yB = ysAll[cy], yT = ysAll[cy + 1];
+        if (!(isFinite(xL) && isFinite(xR) && isFinite(yB) && isFinite(yT))) continue;
+        // interior-on-left orientation
+        if (!isOcc(cx - 1, cy)) addEdge(xL, yT, xL, yB); // left
+        if (!isOcc(cx + 1, cy)) addEdge(xR, yB, xR, yT); // right
+        if (!isOcc(cx, cy - 1)) addEdge(xL, yB, xR, yB); // bottom
+        if (!isOcc(cx, cy + 1)) addEdge(xR, yT, xL, yT); // top
+      }
+      if (!edges.length) return [];
+      var adj = {};
+      for (var ei = 0; ei < edges.length; ei++) {
+        var ak = edges[ei].aKey;
+        if (!adj[ak]) adj[ak] = [];
+        adj[ak].push(ei);
+      }
+      function removeCollinear(pts) {
+        var src = Array.isArray(pts) ? pts : [];
+        if (src.length < 3) return src.slice();
+        var out = [];
+        for (var i = 0; i < src.length; i++) {
+          var p0 = src[(i - 1 + src.length) % src.length];
+          var p1 = src[i];
+          var p2 = src[(i + 1) % src.length];
+          var v1x = (Number(p1.x) || 0) - (Number(p0.x) || 0);
+          var v1y = (Number(p1.y) || 0) - (Number(p0.y) || 0);
+          var v2x = (Number(p2.x) || 0) - (Number(p1.x) || 0);
+          var v2y = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+          var cross = v1x * v2y - v1y * v2x;
+          if (Math.abs(cross) <= 1e-6) continue;
+          out.push({ x: Number(p1.x) || 0, y: Number(p1.y) || 0 });
+        }
+        return out.length >= 3 ? out : src.slice();
+      }
+      function pickNextEdge(cur, candIdxs, used) {
+        if (!Array.isArray(candIdxs) || !candIdxs.length) return -1;
+        var free = [];
+        for (var i = 0; i < candIdxs.length; i++) if (!used[candIdxs[i]]) free.push(candIdxs[i]);
+        if (!free.length) return -1;
+        if (free.length === 1) return free[0];
+        var vx = (Number(cur.b.x) || 0) - (Number(cur.a.x) || 0);
+        var vy = (Number(cur.b.y) || 0) - (Number(cur.a.y) || 0);
+        var vl = Math.hypot(vx, vy);
+        if (vl < 1e-9) return free[0];
+        vx /= vl; vy /= vl;
+        var best = free[0];
+        var bestScore = -Infinity;
+        for (var j = 0; j < free.length; j++) {
+          var e = edges[free[j]];
+          var wx = (Number(e.b.x) || 0) - (Number(e.a.x) || 0);
+          var wy = (Number(e.b.y) || 0) - (Number(e.a.y) || 0);
+          var wl = Math.hypot(wx, wy);
+          if (wl < 1e-9) continue;
+          wx /= wl; wy /= wl;
+          var cross = vx * wy - vy * wx;
+          var dot = vx * wx + vy * wy;
+          var score = cross * 3 + dot;
+          if (score > bestScore) { bestScore = score; best = free[j]; }
+        }
+        return best;
+      }
+      var used = new Array(edges.length);
+      for (var ui = 0; ui < used.length; ui++) used[ui] = false;
+      var loops = [];
+      for (var s = 0; s < edges.length; s++) {
+        if (used[s]) continue;
+        var start = edges[s];
+        var ring = [start.a];
+        var curIdx = s;
+        var safe = 0;
+        while (safe < edges.length + 8) {
+          safe++;
+          if (used[curIdx]) break;
+          used[curIdx] = true;
+          var cur = edges[curIdx];
+          ring.push(cur.b);
+          if (cur.bKey === start.aKey) break;
+          var nextArr = adj[cur.bKey] || [];
+          var nxt = pickNextEdge(cur, nextArr, used);
+          if (nxt < 0) break;
+          curIdx = nxt;
+        }
+        if (ring.length < 4) continue;
+        if (Math.hypot((Number(ring[0].x) || 0) - (Number(ring[ring.length - 1].x) || 0), (Number(ring[0].y) || 0) - (Number(ring[ring.length - 1].y) || 0)) <= 1e-6) ring.pop();
+        ring = removeCollinear(ring);
+        if (ring.length < 3) continue;
+        if (polygonAreaAbs(ring) < 1) continue;
+        loops.push(ring);
+      }
+      var uni = dedupeRingsUndirected(loops);
+      return uni.length ? uni : loops;
+    }
     function buildUnionRings(groupPolys) {
       var gPolys = Array.isArray(groupPolys) ? groupPolys : [];
       if (!gPolys.length) return [];
@@ -26818,7 +27014,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       var gp = [];
       for (var gi0 = 0; gi0 < ids.length; gi0++) gp.push(polys[ids[gi0]]);
       sourceGroups.push(gp.slice());
-      var gr = buildUnionRings(gp);
+      var gr = buildUnionRingsFromOrthoRects(gp);
+      if (!gr || !gr.length) gr = buildUnionRings(gp);
       if (!gr || !gr.length) gr = dedupePolySimple(gp);
       if (!gr.length) continue;
       mergedGroups.push(gr);

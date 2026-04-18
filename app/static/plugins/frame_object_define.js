@@ -27457,88 +27457,86 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var wallsOut = [];
     var mergePasses = 0;
     var mergesTotal = 0;
-    var boundaryGridPolyCount = 0;
-    var boundaryGridRectCount = 0;
-    var tinyRectsDropped = 0;
-    function snapSortedUnique(vals, tol) {
-      var srcVals = Array.isArray(vals) ? vals : [];
-      if (!srcVals.length) return [];
-      var t = Math.max(0.2, Number(tol) || 1.0);
-      var arr = srcVals.slice().sort(function(a, b) { return a - b; });
-      var out = [arr[0]];
-      for (var i = 1; i < arr.length; i++) {
-        var v = Number(arr[i]);
-        if (!isFinite(v)) continue;
-        var last = out[out.length - 1];
-        if (Math.abs(v - last) <= t) out[out.length - 1] = (last + v) * 0.5;
-        else out.push(v);
+    var step5RawSegCount = 0;
+    var step5FinalSegCount = 0;
+    function polyBoundaryEdges(poly) {
+      var out = [];
+      var srcPoly = Array.isArray(poly) ? poly : [];
+      if (srcPoly.length < 3) return out;
+      for (var i = 0; i < srcPoly.length; i++) {
+        var a = srcPoly[i];
+        var b = srcPoly[(i + 1) % srcPoly.length];
+        if (!a || !b) continue;
+        var ax = Number(a.x) || 0, ay = Number(a.y) || 0;
+        var bx = Number(b.x) || 0, by = Number(b.y) || 0;
+        var ll = Math.hypot(bx - ax, by - ay);
+        if (!(ll > 1e-6)) continue;
+        out.push({ p1: { x: ax, y: ay }, p2: { x: bx, y: by }, len: ll });
       }
       return out;
     }
-    function buildRectsFromBoundaryGrid(poly, tolMm) {
-      var out = [];
-      var tinyDropCount = 0;
-      if (!Array.isArray(poly) || poly.length < 3) return { rects: out, tinyDrops: tinyDropCount };
-      var pip = typeof frameDefPointInPolygon === 'function' ? frameDefPointInPolygon : null;
-      if (!pip) return { rects: out, tinyDrops: tinyDropCount };
-      var coordTol = Math.max(2, Math.min(18, (Number(tolMm) || 25) * 0.35));
-      var xs = [];
-      var ys = [];
-      for (var i = 0; i < poly.length; i++) {
-        var p = poly[i];
-        if (!p) continue;
-        var px = Number(p.x), py = Number(p.y);
-        if (!isFinite(px) || !isFinite(py)) continue;
-        xs.push(px);
-        ys.push(py);
-      }
-      xs = snapSortedUnique(xs, coordTol);
-      ys = snapSortedUnique(ys, coordTol);
-      if (xs.length < 2 || ys.length < 2) return { rects: out, tinyDrops: tinyDropCount };
-      if ((xs.length - 1) * (ys.length - 1) > 12000) return { rects: out, tinyDrops: tinyDropCount };
-      var edgePad = Math.max(0.4, coordTol * 0.25);
-      var shortTiny = Math.max(4, coordTol * 0.42);
-      var areaTiny = Math.max(90, coordTol * coordTol * 0.7);
-      for (var ix = 0; ix < xs.length - 1; ix++) {
-        var x0 = xs[ix], x1 = xs[ix + 1];
-        if (!(x1 > x0 + 1e-6)) continue;
-        for (var iy = 0; iy < ys.length - 1; iy++) {
-          var y0 = ys[iy], y1 = ys[iy + 1];
-          if (!(y1 > y0 + 1e-6)) continue;
-          var ww = x1 - x0;
-          var hh = y1 - y0;
-          var ar = ww * hh;
-          if (Math.min(ww, hh) < shortTiny && ar < areaTiny) {
-            tinyDropCount++;
-            continue;
-          }
-          var cx = (x0 + x1) * 0.5;
-          var cy = (y0 + y1) * 0.5;
-          var inside = pip({ x: cx, y: cy }, poly);
-          if (!inside && typeof frameDefOrthoRectTouchesPolyOutline === 'function') {
-            inside = frameDefOrthoRectTouchesPolyOutline(poly, x0 + edgePad, y0 + edgePad, x1 - edgePad, y1 - edgePad, Math.max(0.4, edgePad));
-          }
-          if (!inside) continue;
-          out.push({
-            x0: x0, y0: y0, x1: x1, y1: y1,
-            area: Math.round(ar * 100) / 100,
-            vertCount: 0
-          });
-        }
-      }
-      return { rects: out, tinyDrops: tinyDropCount };
+    function deriveStep5SegsForStep29(poly, tolMm) {
+      var tolUse = Math.max(1, Number(tolMm) || 25);
+      var rawPart = (typeof frameDefHatchInteriorPartitionCandidatesOrtho === 'function')
+        ? frameDefHatchInteriorPartitionCandidatesOrtho(poly, { tolMm: tolUse, orthoTolRat: 0.08 })
+        : { segs: [] };
+      var rawSegs = Array.isArray(rawPart && rawPart.segs) ? rawPart.segs : [];
+      var work = (typeof frameDefInteriorPartitionEnrichedWorkFromRaw === 'function')
+        ? frameDefInteriorPartitionEnrichedWorkFromRaw(rawSegs)
+        : rawSegs;
+      var parRes = (typeof frameDefInteriorParallelPairCullFromWork === 'function')
+        ? frameDefInteriorParallelPairCullFromWork(work, { tolMm: tolUse, parallelCullMode: 'centerConnectOnly' })
+        : { work: work };
+      var afterParallel = Array.isArray(parRes && parRes.work) ? parRes.work : [];
+      var coreRes = (typeof frameDefFilterInteriorPartitionSegsStep2Core === 'function')
+        ? frameDefFilterInteriorPartitionSegsStep2Core(afterParallel, {
+          maxChordMm: typeof FRAME_DEF_STEP124_INTERIOR_PARTITION_MAX_MM === 'number' ? FRAME_DEF_STEP124_INTERIOR_PARTITION_MAX_MM : 800,
+          tolMm: tolUse,
+          crossLenRatioMin: 1.42
+        })
+        : { segs: afterParallel };
+      var coreSegs = Array.isArray(coreRes && coreRes.segs) ? coreRes.segs : [];
+      var step4Res = (typeof frameDefFilterInteriorPartitionSegsStep4 === 'function')
+        ? frameDefFilterInteriorPartitionSegsStep4(coreSegs, polyBoundaryEdges(poly), { tolMm: tolUse, minOverlapRatio: 0.34 })
+        : { segs: coreSegs };
+      var step4Segs = Array.isArray(step4Res && step4Res.segs) ? step4Res.segs : [];
+      var step5Res = (typeof frameDefFilterInteriorPartitionSegsStep3LShape === 'function')
+        ? frameDefFilterInteriorPartitionSegsStep3LShape(step4Segs, { tolMm: tolUse })
+        : { segs: step4Segs };
+      var step5Segs = Array.isArray(step5Res && step5Res.segs) ? step5Res.segs : [];
+      return { rawCount: rawSegs.length, step5Count: step5Segs.length, segs: step5Segs };
     }
     for (var pi = 0; pi < src.length; pi++) {
       var poly = src[pi];
       if (!Array.isArray(poly) || poly.length < 3) continue;
-      // ②-9 분절은 ②-8 폴리곤(기존 쿼드 기반) 경계 좌표만 사용해 생성한다.
-      // 외부/참조 선분 기반 추가 분할은 배제하여 "선분 따라 새 셀 생성"을 방지한다.
-      var gridRes = buildRectsFromBoundaryGrid(poly, stepTol);
-      var step6Rects = gridRes && Array.isArray(gridRes.rects) ? gridRes.rects : [];
-      tinyRectsDropped += gridRes && isFinite(Number(gridRes.tinyDrops)) ? Math.max(0, Number(gridRes.tinyDrops)) : 0;
-      if (step6Rects.length) {
-        boundaryGridPolyCount++;
-        boundaryGridRectCount += step6Rects.length;
+      var step5 = deriveStep5SegsForStep29(poly, stepTol);
+      step5RawSegCount += Number(step5.rawCount) || 0;
+      step5FinalSegCount += Number(step5.step5Count) || 0;
+      var step6Rects = [];
+      if (typeof frameDefInteriorStep6VerticalSlabRects114FromStep5 === 'function') {
+        var s6 = frameDefInteriorStep6VerticalSlabRects114FromStep5(poly, step5.segs || [], {
+          tolMm: stepTol,
+          idBase: 'wall-step2a-29-' + String(pi),
+          chainIndex: pi,
+          entityIds: []
+        });
+        var s6Walls = s6 && Array.isArray(s6.walls) ? s6.walls : [];
+        for (var si = 0; si < s6Walls.length; si++) {
+          var w6 = s6Walls[si];
+          if (!w6 || w6.__step6Grid114HV_axis === 'v') continue;
+          var xa = [Number(w6.seg_a.p1.x) || 0, Number(w6.seg_a.p2.x) || 0, Number(w6.seg_b.p1.x) || 0, Number(w6.seg_b.p2.x) || 0];
+          var ya = [Number(w6.seg_a.p1.y) || 0, Number(w6.seg_a.p2.y) || 0, Number(w6.seg_b.p1.y) || 0, Number(w6.seg_b.p2.y) || 0];
+          var mx0 = Math.min(xa[0], xa[1], xa[2], xa[3]);
+          var mx1 = Math.max(xa[0], xa[1], xa[2], xa[3]);
+          var my0 = Math.min(ya[0], ya[1], ya[2], ya[3]);
+          var my1 = Math.max(ya[0], ya[1], ya[2], ya[3]);
+          if (!(mx1 > mx0 + 1e-6 && my1 > my0 + 1e-6)) continue;
+          step6Rects.push({
+            x0: mx0, y0: my0, x1: mx1, y1: my1,
+            area: Math.round((mx1 - mx0) * (my1 - my0) * 100) / 100,
+            vertCount: 0
+          });
+        }
       }
       if (!step6Rects.length) {
         var bb = frameDef2aV2QuadBBox(poly);
@@ -27599,9 +27597,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       wallCount: wallsOut.length,
       step7MergePasses: mergePasses,
       step7MergesTotal: mergesTotal,
-      boundaryGridPolyCount: boundaryGridPolyCount,
-      boundaryGridRectCount: boundaryGridRectCount,
-      tinyRectsDropped: tinyRectsDropped,
+      step5RawSegCount: step5RawSegCount,
+      step5FinalSegCount: step5FinalSegCount,
       cached: false,
       ts: Date.now()
     };

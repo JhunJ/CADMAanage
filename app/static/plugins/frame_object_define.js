@@ -26373,7 +26373,29 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     for (i = 0; i < arrP.length; i++) if (arrP[i] && Array.isArray(arrP[i].quad) && arrP[i].quad.length >= 3) src.push(arrP[i].quad);
     for (i = 0; i < arrN.length; i++) if (arrN[i] && Array.isArray(arrN[i].quad) && arrN[i].quad.length >= 3) src.push(arrN[i].quad);
     if (!src.length) return { sourcePolys: [], polys: [], mergedGroups: [], groupCount: 0 };
+    function polySigForCache(arr) {
+      var a = Array.isArray(arr) ? arr : [];
+      var out = [String(a.length)];
+      for (var si = 0; si < a.length; si++) {
+        var p = a[si];
+        if (!Array.isArray(p) || p.length < 3) { out.push('|_'); continue; }
+        out.push('|', String(p.length));
+        for (var sj = 0; sj < p.length; sj++) {
+          var pt = p[sj] || {};
+          out.push(',', String(Math.round((Number(pt.x) || 0) * 10) / 10), ',', String(Math.round((Number(pt.y) || 0) * 10) / 10));
+        }
+      }
+      return out.join('');
+    }
     var polys = dedupePolySimple(src);
+    var unionKey = polySigForCache(polys);
+    if (!st.__debugStep2aStep26UnionCache || typeof st.__debugStep2aStep26UnionCache !== 'object') {
+      st.__debugStep2aStep26UnionCache = { key: '', out: null };
+    }
+    var uc = st.__debugStep2aStep26UnionCache;
+    if (uc.key === unionKey && uc.out && typeof uc.out === 'object') {
+      return uc.out;
+    }
     var n = polys.length;
     if (!n) return { sourcePolys: [], polys: [], mergedGroups: [], groupCount: 0 };
     var minArea = 1;
@@ -27050,7 +27072,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       }
       mergedAreaCalc = sourceAreaCalc;
     }
-    return {
+    var outRes = {
       sourcePolys: polys,
       sourceGroups: sourceGroups,
       polys: mergedPolys,
@@ -27062,6 +27084,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       unionNoop: noopUnion,
       unionRawAreaRatio: rawRatio
     };
+    uc.key = unionKey;
+    uc.out = outRes;
+    return outRes;
   }
   function drawStep26MergedAreas(step25Plus, step25Minus) {
     var merged = buildStep25MergedAreas(step25Plus, step25Minus);
@@ -27223,38 +27248,44 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     }
     var outGroups = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
     var useFallbackDraw = !!(merged && merged.unionFallback);
+    var heavyDraw = outGroups.length > 120 || (merged && Array.isArray(merged.polys) && merged.polys.length > 420);
+    var useFastHatch = heavyDraw || forceComputeOnly;
     if (outGroups.length) {
       for (var gi = 0; gi < outGroups.length; gi++) {
         var grpRings = outGroups[gi];
         if (useFallbackDraw) {
           drawWorldPolySetUnion(grpRings, '#9333ea', {
-            fillAlpha: 0.44,
-            hatchAlpha: 0.68,
-            noHatch: false,
-            strokeWidth: 1.8,
-            step: FRAME_DEF_DEBUG_HATCH_STEP_PX
+            fillAlpha: useFastHatch ? 0.26 : 0.44,
+            hatchAlpha: useFastHatch ? 0.00 : 0.68,
+            noHatch: useFastHatch,
+            strokeWidth: useFastHatch ? 1.2 : 1.8,
+            step: useFastHatch ? Math.max(FRAME_DEF_DEBUG_HATCH_STEP_PX, 16) : FRAME_DEF_DEBUG_HATCH_STEP_PX
           }, 0.86);
         } else {
           drawWorldPolyRingsEvenOdd(grpRings, '#9333ea', {
-            fillAlpha: 0.40,
-            hatchAlpha: 0.62,
-            noHatch: false,
-            strokeWidth: 2.0,
-            step: FRAME_DEF_DEBUG_HATCH_STEP_PX
+            fillAlpha: useFastHatch ? 0.22 : 0.40,
+            hatchAlpha: useFastHatch ? 0.00 : 0.62,
+            noHatch: useFastHatch,
+            strokeWidth: useFastHatch ? 1.15 : 2.0,
+            step: useFastHatch ? Math.max(FRAME_DEF_DEBUG_HATCH_STEP_PX, 16) : FRAME_DEF_DEBUG_HATCH_STEP_PX
           }, 0.92);
           // even-odd 링 중복/상쇄 케이스에서도 경계는 반드시 보이도록 링 외곽선을 한 번 더 그린다.
-          for (var gri0 = 0; Array.isArray(grpRings) && gri0 < grpRings.length; gri0++) {
-            drawWorldPoly(grpRings[gri0], '#6d28d9', {
-              fillAlpha: 0.00,
-              hatchAlpha: 0.00,
-              noHatch: true,
-              strokeWidth: 1.25,
-              step: FRAME_DEF_DEBUG_HATCH_STEP_PX
-            }, 0.72);
+          if (!useFastHatch) {
+            for (var gri0 = 0; Array.isArray(grpRings) && gri0 < grpRings.length; gri0++) {
+              drawWorldPoly(grpRings[gri0], '#6d28d9', {
+                fillAlpha: 0.00,
+                hatchAlpha: 0.00,
+                noHatch: true,
+                strokeWidth: 1.25,
+                step: FRAME_DEF_DEBUG_HATCH_STEP_PX
+              }, 0.72);
+            }
           }
         }
-        for (var gri = 0; Array.isArray(grpRings) && gri < grpRings.length; gri++) {
-          if (isTinyOnScreen(grpRings[gri])) drawSmallPolyMarker(grpRings[gri], '#6d28d9');
+        if (!useFastHatch) {
+          for (var gri = 0; Array.isArray(grpRings) && gri < grpRings.length; gri++) {
+            if (isTinyOnScreen(grpRings[gri])) drawSmallPolyMarker(grpRings[gri], '#6d28d9');
+          }
         }
       }
       return;
@@ -27262,13 +27293,13 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var outPolys = merged && Array.isArray(merged.polys) ? merged.polys : [];
     for (var i2 = 0; i2 < outPolys.length; i2++) {
       drawWorldPoly(outPolys[i2], '#9333ea', {
-        fillAlpha: outGroups.length ? 0.22 : 0.36,
-        hatchAlpha: outGroups.length ? 0.36 : 0.58,
-        noHatch: false,
-        strokeWidth: outGroups.length ? 1.45 : 1.9,
-        step: FRAME_DEF_DEBUG_HATCH_STEP_PX
-      }, outGroups.length ? 0.58 : 0.92);
-      if (isTinyOnScreen(outPolys[i2])) drawSmallPolyMarker(outPolys[i2], '#9333ea');
+        fillAlpha: useFastHatch ? 0.18 : (outGroups.length ? 0.22 : 0.36),
+        hatchAlpha: useFastHatch ? 0.00 : (outGroups.length ? 0.36 : 0.58),
+        noHatch: useFastHatch,
+        strokeWidth: useFastHatch ? 1.1 : (outGroups.length ? 1.45 : 1.9),
+        step: useFastHatch ? Math.max(FRAME_DEF_DEBUG_HATCH_STEP_PX, 16) : FRAME_DEF_DEBUG_HATCH_STEP_PX
+      }, useFastHatch ? 0.48 : (outGroups.length ? 0.58 : 0.92));
+      if (!useFastHatch && isTinyOnScreen(outPolys[i2])) drawSmallPolyMarker(outPolys[i2], '#9333ea');
     }
   }
   function renderCandidateLists(plusPolys, minusPolys, palette) {

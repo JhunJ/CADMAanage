@@ -979,6 +979,12 @@ function frameDefRenderDebugPanel() {
   var dualStep27Face = dualStep27Stat && isFinite(Number(dualStep27Stat.mergedCount)) ? Math.max(0, Math.floor(Number(dualStep27Stat.mergedCount))) : 0;
   var dualStep27Groups = dualStep27Stat && isFinite(Number(dualStep27Stat.groupCount)) ? Math.max(0, Math.floor(Number(dualStep27Stat.groupCount))) : 0;
   var dualStep27StatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep27Src) + '개 · 병합면 ' + String(dualStep27Face) + '개 · 병합그룹 ' + String(dualStep27Groups) + '개</code>';
+  var showStep28Merged = st.debugStep2aShowDualStep28MergedArea === true;
+  var dualStep28Stat = st.debugStep2aDualStep28Stat && typeof st.debugStep2aDualStep28Stat === 'object' ? st.debugStep2aDualStep28Stat : null;
+  var dualStep28Src = dualStep28Stat && isFinite(Number(dualStep28Stat.sourceCount)) ? Math.max(0, Math.floor(Number(dualStep28Stat.sourceCount))) : dualStep26CheckKept;
+  var dualStep28Face = dualStep28Stat && isFinite(Number(dualStep28Stat.mergedCount)) ? Math.max(0, Math.floor(Number(dualStep28Stat.mergedCount))) : 0;
+  var dualStep28Groups = dualStep28Stat && isFinite(Number(dualStep28Stat.groupCount)) ? Math.max(0, Math.floor(Number(dualStep28Stat.groupCount))) : 0;
+  var dualStep28StatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep28Src) + '개 · 병합면 ' + String(dualStep28Face) + '개 · 병합그룹 ' + String(dualStep28Groups) + '개</code>';
   var n2aLoop = Array.isArray(st.wallStep2aClosedLoopChains) ? st.wallStep2aClosedLoopChains.length : 0;
   var n2aSrcSeg = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs.length : 0;
   var sc2a = st.wallStep2aSplitChainCounts && typeof st.wallStep2aSplitChainCounts === 'object' ? st.wallStep2aSplitChainCounts : null;
@@ -1016,6 +1022,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep25Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep25Remainder ? 'checked' : '') + ' /><span><b>②-5 ②-2 원본에서 ②-4 대상 제외분</b>' + dualStep25StatTxt + ' — ②-2 원본 후보를 유지한 상태에서, ②-4로 분리된 가운데 두꺼운 층을 제외한 나머지(+/-)만 별도로 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep26CheckQuadChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep26CheckQuad ? 'checked' : '') + ' /><span><b>②-6 체크 쿼드(준비)</b>' + dualStep26CheckStatTxt + ' — 새 체크 쿼드 기능용 표시 슬롯입니다. 현재는 상태/계산 경로만 준비되어 있습니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep27Chk" style="margin-top:2px;" ' + (showStep27Merged ? 'checked' : '') + ' /><span><b>②-7 ②-5 면 병합(유니온 렌더)</b>' + dualStep27StatTxt + ' — ②-5 입력 쿼드를 일반 다각형 boolean union으로 병합해 최종 병합면만 표시합니다.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep28Chk" style="margin-top:2px;" ' + (showStep28Merged ? 'checked' : '') + ' /><span><b>②-8 ②-6 면 병합(유니온 렌더)</b>' + dualStep28StatTxt + ' — ②-6에서 통과한 쿼드만 다시 일반 다각형 boolean union으로 병합해 최종 병합면을 표시합니다.</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
@@ -1575,6 +1582,14 @@ function frameDefRenderDebugPanel() {
       if (typeof draw === 'function') draw();
     };
   }
+  var step2aDualStep28Chk = document.getElementById('frameDefDebugStep2aDualStep28Chk');
+  if (step2aDualStep28Chk) {
+    step2aDualStep28Chk.onchange = function() {
+      var s = frameDefGetState();
+      s.debugStep2aShowDualStep28MergedArea = !!step2aDualStep28Chk.checked;
+      if (typeof draw === 'function') draw();
+    };
+  }
   var step2aDualStep23Chk = document.getElementById('frameDefDebugStep2aDualStep23Chk');
   if (step2aDualStep23Chk) {
     step2aDualStep23Chk.onchange = function() {
@@ -1739,7 +1754,7 @@ function frameDefStateDefaults() {
     autoRotatedWallKeys: {}, editDragState: null, editSnapGuide: null,
     rawSegs: [], descs: [], debugColumns: [],
     wallCandidates: [], wallPairs: [], wallStep2Segs: [], wallStep2aHatchWalls: [], wallStep2aSourceSegs: [], wallStep2aSourcePairs: [], wallStep2aClosedLoopChains: [], wallStep2aClosedLoopDebug: [], wallStep2aSplitChainCounts: { closed: 0, open: 0, openWalls: 0 }, wallCandidatesStep11: [], wallCandidatesStep11Rings: [], wallStep11ClosedChains: [], wallStep11ByCategory: {}, wallStep11Debug: null, wallStep12Walls: { '121': [], '122': [], '123': [], '124': [] },
-    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep2aShowDualOverlapPatches: false, debugStep2aDualStep24ExcludeIsolated: false, debugStep2aShowDualStep25Remainder: false, debugStep2aShowDualStep26CheckQuad: false, debugStep2aShowDualStep27MergedArea: false, debugStep2aShowDualStep26MergedArea: false, debugStep2aShowDualStep23FilteredPatches: false, debugStep11ShowHatch: false,
+    debugStep2ShowHatch: false, debugStep21ShowHatch: false, debugStep2aShowHatch: false, debugStep2aShowClosedLoopHatch: false, debugStep2aShowStep2Segs: false, debugStep2aShowWallSegMidLinks: false, debugStep2aShowHatchOverlapLabels: false, debugStep2aShowDualCandidates: false, debugStep2aShowDualOverlapPatches: false, debugStep2aDualStep24ExcludeIsolated: false, debugStep2aShowDualStep25Remainder: false, debugStep2aShowDualStep26CheckQuad: false, debugStep2aShowDualStep27MergedArea: false, debugStep2aShowDualStep28MergedArea: false, debugStep2aShowDualStep26MergedArea: false, debugStep2aShowDualStep23FilteredPatches: false, debugStep11ShowHatch: false,
     debugStep111ShowHatch: false, debugStep112ShowHatch: false, debugStep113ShowHatch: false, debugStep114ShowHatch: false, debugStep115ShowHatch: false, debugStep116ShowHatch: false,
     debugStep121ShowHatch: false, debugStep122ShowHatch: false, debugStep123ShowHatch: false, debugStep123ShowPreSwapHatch: false, debugStep124ShowHatch: false,
     debugStep124ShowSplitCandidates: false,
@@ -1817,6 +1832,7 @@ function frameDefGetState() {
   if (window.frameDefState.debugStep2aShowDualStep25Remainder !== true && window.frameDefState.debugStep2aShowDualStep25Remainder !== false) window.frameDefState.debugStep2aShowDualStep25Remainder = false;
   if (window.frameDefState.debugStep2aShowDualStep26CheckQuad !== true && window.frameDefState.debugStep2aShowDualStep26CheckQuad !== false) window.frameDefState.debugStep2aShowDualStep26CheckQuad = false;
   if (window.frameDefState.debugStep2aShowDualStep27MergedArea !== true && window.frameDefState.debugStep2aShowDualStep27MergedArea !== false) window.frameDefState.debugStep2aShowDualStep27MergedArea = false;
+  if (window.frameDefState.debugStep2aShowDualStep28MergedArea !== true && window.frameDefState.debugStep2aShowDualStep28MergedArea !== false) window.frameDefState.debugStep2aShowDualStep28MergedArea = false;
   if (window.frameDefState.debugStep2aShowDualStep26MergedArea !== true && window.frameDefState.debugStep2aShowDualStep26MergedArea !== false) window.frameDefState.debugStep2aShowDualStep26MergedArea = false;
   if (window.frameDefState.debugStep11ShowHatch !== true && window.frameDefState.debugStep11ShowHatch !== false) window.frameDefState.debugStep11ShowHatch = false;
   if (window.frameDefState.debugStep111ShowHatch !== true && window.frameDefState.debugStep111ShowHatch !== false) window.frameDefState.debugStep111ShowHatch = false;
@@ -24238,15 +24254,16 @@ function frameDefDrawPreviewOverlays() {
   var st = typeof frameDefGetState === 'function' ? frameDefGetState() : {};
   var frameFeatureActive = (typeof selectedFeatureId === 'undefined' || selectedFeatureId === 'frame-object-define');
   var showStep27Merged = st.debugStep2aShowDualStep27MergedArea === true || st.debugStep2aShowDualStep26MergedArea === true;
-  var force2aDebugDraw = st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true || st.debugStep2aShowDualStep25Remainder === true || st.debugStep2aShowDualStep26CheckQuad === true || showStep27Merged;
+  var showStep28Merged = st.debugStep2aShowDualStep28MergedArea === true;
+  var force2aDebugDraw = st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true || st.debugStep2aShowDualStep25Remainder === true || st.debugStep2aShowDualStep26CheckQuad === true || showStep27Merged || showStep28Merged;
   /** 미리보기 끔에도 일부 2a 디버그 오버레이는 표시(라벨·②-7 병합면 등). */
-  var allowWhenPreviewOff = st.debugStep2aShowHatchOverlapLabels === true || showStep27Merged;
+  var allowWhenPreviewOff = st.debugStep2aShowHatchOverlapLabels === true || showStep27Merged || showStep28Merged;
   if (st.previewVisible === false && !allowWhenPreviewOff) return;
   if (!frameFeatureActive && !force2aDebugDraw) return;
   var groups = frameDefPreviewGroups();
   var _lblMap = st.step2bTrainLabelsByWallKey;
   var _hasTrainLbl = _lblMap && typeof _lblMap === 'object' && !Array.isArray(_lblMap) && Object.keys(_lblMap).length > 0;
-  var hasExtras = (st.showGapIssues !== false) || !!st.selectedWallKey || !!st.editSnapGuide || (st.gapIssues && st.gapIssues.length) || st.debugStep2ShowHatch === true || st.debugStep21ShowHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true || st.debugStep2aShowDualStep25Remainder === true || st.debugStep2aShowDualStep26CheckQuad === true || showStep27Merged || st.debugStep2bShowCnn === true || st.debugStep2bShowXgb === true || st.debugStep2bShowRf === true || st.debugStep2bShowMlp === true || st.debugStep2bShowGnn === true || st.step2bTrainPickMode === true || _hasTrainLbl || st.debugStep11ShowHatch === true || st.debugStep111ShowHatch === true || st.debugStep112ShowHatch === true || st.debugStep113ShowHatch === true || st.debugStep114ShowHatch === true || st.debugStep115ShowHatch === true || st.debugStep116ShowHatch === true || st.debugStep121ShowHatch === true || st.debugStep122ShowHatch === true || st.debugStep123ShowHatch === true || st.debugStep123ShowPreSwapHatch === true || st.debugStep124ShowHatch === true || st.debugStep124ShowSplitCandidates === true || st.debugStep124ShowInteriorStep2 === true || st.debugStep124ShowInteriorStep3 === true || st.debugStep124ShowInteriorStep4 === true || st.debugStep124ShowInteriorStep5 === true || st.debugStep124ShowInteriorStep6 === true || st.debugStep124ShowInteriorStep7 === true || st.debugStep1240Show114Hatch === true;
+  var hasExtras = (st.showGapIssues !== false) || !!st.selectedWallKey || !!st.editSnapGuide || (st.gapIssues && st.gapIssues.length) || st.debugStep2ShowHatch === true || st.debugStep21ShowHatch === true || st.debugStep2aShowHatch === true || st.debugStep2aShowClosedLoopHatch === true || st.debugStep2aShowStep2Segs === true || st.debugStep2aShowWallSegMidLinks === true || st.debugStep2aShowHatchOverlapLabels === true || st.debugStep2aShowDualCandidates === true || st.debugStep2aShowDualOverlapPatches === true || st.debugStep2aShowDualStep23FilteredPatches === true || st.debugStep2aShowDualStep25Remainder === true || st.debugStep2aShowDualStep26CheckQuad === true || showStep27Merged || showStep28Merged || st.debugStep2bShowCnn === true || st.debugStep2bShowXgb === true || st.debugStep2bShowRf === true || st.debugStep2bShowMlp === true || st.debugStep2bShowGnn === true || st.step2bTrainPickMode === true || _hasTrainLbl || st.debugStep11ShowHatch === true || st.debugStep111ShowHatch === true || st.debugStep112ShowHatch === true || st.debugStep113ShowHatch === true || st.debugStep114ShowHatch === true || st.debugStep115ShowHatch === true || st.debugStep116ShowHatch === true || st.debugStep121ShowHatch === true || st.debugStep122ShowHatch === true || st.debugStep123ShowHatch === true || st.debugStep123ShowPreSwapHatch === true || st.debugStep124ShowHatch === true || st.debugStep124ShowSplitCandidates === true || st.debugStep124ShowInteriorStep2 === true || st.debugStep124ShowInteriorStep3 === true || st.debugStep124ShowInteriorStep4 === true || st.debugStep124ShowInteriorStep5 === true || st.debugStep124ShowInteriorStep6 === true || st.debugStep124ShowInteriorStep7 === true || st.debugStep1240Show114Hatch === true;
   if (!groups.length && !hasExtras) return;
   ctx.save(); ctx.font = '11px sans-serif';
   for (var i = 0; i < groups.length; i++) {
@@ -26236,9 +26253,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
   var showStep24 = !onlyStep27 && st.debugStep2aDualStep24ExcludeIsolated !== false;
   var showStep25 = !onlyStep27 && st.debugStep2aShowDualStep25Remainder === true;
   var showStep27 = st.debugStep2aShowDualStep27MergedArea === true || st.debugStep2aShowDualStep26MergedArea === true;
+  var showStep28 = st.debugStep2aShowDualStep28MergedArea === true;
   var showStep26Check = st.debugStep2aShowDualStep26CheckQuad === true;
   var showStep23 = !onlyStep27 && st.debugStep2aShowDualStep23FilteredPatches === true;
-  if (!forceComputeOnly && !showStep22 && !showStep24 && !showStep25 && !showStep27 && !showStep26Check && !showStep23) return;
+  if (!forceComputeOnly && !showStep22 && !showStep24 && !showStep25 && !showStep27 && !showStep28 && !showStep26Check && !showStep23) return;
   var list = Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
   if (!list.length) return;
   if (!forceComputeOnly && (typeof toScreen !== 'function' || typeof frameDefDrawHatchPolygon !== 'function')) return;
@@ -27342,7 +27360,32 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       }, useFast ? 0.58 : 0.9);
     }
   }
-function drawStep27MergedAreas(step25Plus, step25Minus) {
+  function splitStep26KeptRecordsForUnion(keptRecords) {
+    var src = Array.isArray(keptRecords) ? keptRecords : [];
+    var plus = [];
+    var minus = [];
+    for (var i = 0; i < src.length; i++) {
+      var r = src[i];
+      if (!r || !Array.isArray(r.quad) || r.quad.length < 3) continue;
+      var rec = {
+        wallIdx: isFinite(Number(r.wallIdx)) ? Math.floor(Number(r.wallIdx)) : -1,
+        quad: r.quad
+      };
+      if (r.sign === '-') minus.push(rec);
+      else plus.push(rec);
+    }
+    return { plus: plus, minus: minus };
+  }
+function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
+    optsUnion = optsUnion || {};
+    var statKey = typeof optsUnion.statKey === 'string' && optsUnion.statKey ? optsUnion.statKey : 'debugStep2aDualStep26Stat';
+    var probeRowsKey = typeof optsUnion.probeRowsKey === 'string' && optsUnion.probeRowsKey ? optsUnion.probeRowsKey : 'debugStep2aStep26ProbeRows';
+    var probeTsKey = typeof optsUnion.probeTsKey === 'string' && optsUnion.probeTsKey ? optsUnion.probeTsKey : 'debugStep2aStep26ProbeTs';
+    var inputAreaKey = typeof optsUnion.inputAreaKey === 'string' && optsUnion.inputAreaKey ? optsUnion.inputAreaKey : 'debugStep2aStep26InputAreaMm2';
+    var mergedAreaKey = typeof optsUnion.mergedAreaKey === 'string' && optsUnion.mergedAreaKey ? optsUnion.mergedAreaKey : 'debugStep2aStep26MergedAreaMm2';
+    var fillColor = typeof optsUnion.fillColor === 'string' && optsUnion.fillColor ? optsUnion.fillColor : '#9333ea';
+    var strokeColor = typeof optsUnion.strokeColor === 'string' && optsUnion.strokeColor ? optsUnion.strokeColor : '#6d28d9';
+    var shouldDraw = optsUnion.draw === true ? true : showStep27;
     var merged = buildStep25MergedAreas(step25Plus, step25Minus);
     function polyBBox(poly) {
       if (!Array.isArray(poly) || poly.length < 3) return null;
@@ -27449,11 +27492,11 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
         pushProbe(-1, ppi, outPolysProbe[ppi]);
       }
     }
-    st.debugStep2aStep26ProbeRows = probeRows;
-    st.debugStep2aStep26ProbeTs = Date.now();
-    st.debugStep2aStep26InputAreaMm2 = inputAreaSum;
-    st.debugStep2aStep26MergedAreaMm2 = mergedAreaSum;
-    st.debugStep2aDualStep26Stat = {
+    st[probeRowsKey] = probeRows;
+    st[probeTsKey] = Date.now();
+    st[inputAreaKey] = inputAreaSum;
+    st[mergedAreaKey] = mergedAreaSum;
+    st[statKey] = {
       sourceCount: (Array.isArray(step25Plus) ? step25Plus.length : 0) + (Array.isArray(step25Minus) ? step25Minus.length : 0),
       sourceUniqueCount: sourcePolysAll.length,
       mergedCount: merged && Array.isArray(merged.polys) ? merged.polys.length : 0,
@@ -27466,7 +27509,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
       unionRawAreaRatio: merged && isFinite(Number(merged.unionRawAreaRatio)) ? Number(merged.unionRawAreaRatio) : (inputAreaSum > 1e-6 ? (mergedAreaSum / inputAreaSum) : 0),
       ts: Date.now()
     };
-    if (!showStep27 || forceComputeOnly) return;
+    if (!shouldDraw || forceComputeOnly) return;
     function drawSmallPolyMarker(poly, color) {
       if (!Array.isArray(poly) || poly.length < 3 || typeof toScreen !== 'function' || typeof ctx === 'undefined' || !ctx) return;
       var bb = polyBBox(poly);
@@ -27476,8 +27519,8 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
       if (!cp || !isFinite(Number(cp.x)) || !isFinite(Number(cp.y))) return;
       ctx.save();
       ctx.setLineDash([]);
-      ctx.strokeStyle = frameDefColorWithAlpha(color || '#9333ea', 0.92);
-      ctx.fillStyle = frameDefColorWithAlpha(color || '#9333ea', 0.28);
+      ctx.strokeStyle = frameDefColorWithAlpha(color || fillColor, 0.92);
+      ctx.fillStyle = frameDefColorWithAlpha(color || fillColor, 0.28);
       ctx.lineWidth = 1.6;
       ctx.beginPath();
       ctx.arc(cp.x, cp.y, 4.5, 0, Math.PI * 2);
@@ -27508,7 +27551,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
       for (var gi = 0; gi < outGroups.length; gi++) {
         var grpRings = outGroups[gi];
         if (useFallbackDraw) {
-          drawWorldPolySetUnion(grpRings, '#9333ea', {
+          drawWorldPolySetUnion(grpRings, fillColor, {
             fillAlpha: useFastHatch ? 0.26 : 0.44,
             hatchAlpha: useFastHatch ? 0.00 : 0.68,
             noHatch: useFastHatch,
@@ -27516,7 +27559,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
             step: useFastHatch ? Math.max(FRAME_DEF_DEBUG_HATCH_STEP_PX, 16) : FRAME_DEF_DEBUG_HATCH_STEP_PX
           }, 0.86);
         } else {
-          drawWorldPolyRingsEvenOdd(grpRings, '#9333ea', {
+          drawWorldPolyRingsEvenOdd(grpRings, fillColor, {
             fillAlpha: useFastHatch ? 0.22 : 0.40,
             hatchAlpha: useFastHatch ? 0.00 : 0.62,
             noHatch: useFastHatch,
@@ -27526,7 +27569,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
           // even-odd 링 중복/상쇄 케이스에서도 경계는 반드시 보이도록 링 외곽선을 한 번 더 그린다.
           if (!useFastHatch) {
             for (var gri0 = 0; Array.isArray(grpRings) && gri0 < grpRings.length; gri0++) {
-              drawWorldPoly(grpRings[gri0], '#6d28d9', {
+              drawWorldPoly(grpRings[gri0], strokeColor, {
                 fillAlpha: 0.00,
                 hatchAlpha: 0.00,
                 noHatch: true,
@@ -27538,7 +27581,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
         }
         if (!useFastHatch) {
           for (var gri = 0; Array.isArray(grpRings) && gri < grpRings.length; gri++) {
-            if (isTinyOnScreen(grpRings[gri])) drawSmallPolyMarker(grpRings[gri], '#6d28d9');
+            if (isTinyOnScreen(grpRings[gri])) drawSmallPolyMarker(grpRings[gri], strokeColor);
           }
         }
       }
@@ -27546,14 +27589,14 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
     }
     var outPolys = merged && Array.isArray(merged.polys) ? merged.polys : [];
     for (var i2 = 0; i2 < outPolys.length; i2++) {
-      drawWorldPoly(outPolys[i2], '#9333ea', {
+      drawWorldPoly(outPolys[i2], fillColor, {
         fillAlpha: useFastHatch ? 0.18 : (outGroups.length ? 0.22 : 0.36),
         hatchAlpha: useFastHatch ? 0.00 : (outGroups.length ? 0.36 : 0.58),
         noHatch: useFastHatch,
         strokeWidth: useFastHatch ? 1.1 : (outGroups.length ? 1.45 : 1.9),
         step: useFastHatch ? Math.max(FRAME_DEF_DEBUG_HATCH_STEP_PX, 16) : FRAME_DEF_DEBUG_HATCH_STEP_PX
       }, useFastHatch ? 0.48 : (outGroups.length ? 0.58 : 0.92));
-      if (!useFastHatch && isTinyOnScreen(outPolys[i2])) drawSmallPolyMarker(outPolys[i2], '#9333ea');
+      if (!useFastHatch && isTinyOnScreen(outPolys[i2])) drawSmallPolyMarker(outPolys[i2], fillColor);
     }
   }
   function renderCandidateLists(plusPolys, minusPolys, palette) {
@@ -27651,7 +27694,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
     var minusBase = Array.isArray(minusIn) ? minusIn : [];
     // ②-4 체크가 꺼져 있어도 ②-5 체크가 켜져 있으면
     // "②-2 원본 - ②-4 대상" 계산을 위해 ②-4 분리 계산은 수행해야 한다.
-    var needStep24Split = (st.debugStep2aDualStep24ExcludeIsolated !== false) || showStep25 || showStep27 || showStep26Check;
+    var needStep24Split = (st.debugStep2aDualStep24ExcludeIsolated !== false) || showStep25 || showStep27 || showStep28 || showStep26Check;
     if (!needStep24Split) {
       var pl = plusBase.length;
       var ms = minusBase.length;
@@ -27782,7 +27825,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
       ts: Date.now(),
       cached: true
     };
-    if (forceComputeOnly || showStep22 || showStep24 || showStep25 || showStep27 || showStep26Check) {
+    if (forceComputeOnly || showStep22 || showStep24 || showStep25 || showStep27 || showStep28 || showStep26Check) {
       var a24c = applyStep24SplitForDisplay(cache.plus, cache.minus);
       if (typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
         st.debugStep2aStep25LineProbeText = frameDefBuildStep2aStep25LineProbeText(
@@ -27817,11 +27860,27 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
           minusSelHatch: 0.46, minusOppHatch: 0.20
         });
       }
+      var c26KeepCached = null;
+      if (showStep26Check || showStep28) {
+        c26KeepCached = deriveStep26CheckCandidates(a24c.step22Plus, a24c.step22Minus);
+      }
       if (showStep26Check) {
-        var c26 = deriveStep26CheckCandidates(a24c.step22Plus, a24c.step22Minus);
-        drawStep26CheckQuads(c26 && Array.isArray(c26.keptRecords) ? c26.keptRecords : []);
+        drawStep26CheckQuads(c26KeepCached && Array.isArray(c26KeepCached.keptRecords) ? c26KeepCached.keptRecords : []);
       }
       if (showStep27) drawStep27MergedAreas(a24c.step22Plus, a24c.step22Minus);
+      if (showStep28) {
+        var c26ListsC = splitStep26KeptRecordsForUnion(c26KeepCached && Array.isArray(c26KeepCached.keptRecords) ? c26KeepCached.keptRecords : []);
+        drawStep27MergedAreas(c26ListsC.plus, c26ListsC.minus, {
+          draw: true,
+          statKey: 'debugStep2aDualStep28Stat',
+          probeRowsKey: 'debugStep2aStep28ProbeRows',
+          probeTsKey: 'debugStep2aStep28ProbeTs',
+          inputAreaKey: 'debugStep2aStep28InputAreaMm2',
+          mergedAreaKey: 'debugStep2aStep28MergedAreaMm2',
+          fillColor: '#0284c7',
+          strokeColor: '#0369a1'
+        });
+      }
     }
     if (showStep23) {
       renderCandidateLists(cache.plus23, cache.minus23, {
@@ -28434,7 +28493,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
     ts: st.debugStep2aDualOverlapStat.ts,
     cached: false
   };
-  if (forceComputeOnly || showStep22 || showStep24 || showStep25 || showStep27 || showStep26Check) {
+  if (forceComputeOnly || showStep22 || showStep24 || showStep25 || showStep27 || showStep28 || showStep26Check) {
     var a24f = applyStep24SplitForDisplay(plusPolys, minusPolys);
     if (typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
       st.debugStep2aStep25LineProbeText = frameDefBuildStep2aStep25LineProbeText(
@@ -28469,11 +28528,27 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
         minusSelHatch: 0.46, minusOppHatch: 0.20
       });
     }
+    var c26KeepFresh = null;
+    if (showStep26Check || showStep28) {
+      c26KeepFresh = deriveStep26CheckCandidates(a24f.step22Plus, a24f.step22Minus);
+    }
     if (showStep26Check) {
-      var c26f = deriveStep26CheckCandidates(a24f.step22Plus, a24f.step22Minus);
-      drawStep26CheckQuads(c26f && Array.isArray(c26f.keptRecords) ? c26f.keptRecords : []);
+      drawStep26CheckQuads(c26KeepFresh && Array.isArray(c26KeepFresh.keptRecords) ? c26KeepFresh.keptRecords : []);
     }
     if (showStep27) drawStep27MergedAreas(a24f.step22Plus, a24f.step22Minus);
+    if (showStep28) {
+      var c26ListsF = splitStep26KeptRecordsForUnion(c26KeepFresh && Array.isArray(c26KeepFresh.keptRecords) ? c26KeepFresh.keptRecords : []);
+      drawStep27MergedAreas(c26ListsF.plus, c26ListsF.minus, {
+        draw: true,
+        statKey: 'debugStep2aDualStep28Stat',
+        probeRowsKey: 'debugStep2aStep28ProbeRows',
+        probeTsKey: 'debugStep2aStep28ProbeTs',
+        inputAreaKey: 'debugStep2aStep28InputAreaMm2',
+        mergedAreaKey: 'debugStep2aStep28MergedAreaMm2',
+        fillColor: '#0284c7',
+        strokeColor: '#0369a1'
+      });
+    }
   }
   if (showStep23) {
     renderCandidateLists(plusPolys23, minusPolys23, {

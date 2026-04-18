@@ -970,7 +970,9 @@ function frameDefRenderDebugPanel() {
   var dualStep25StatTxt = ' <code style="font-size:0.60rem;">표시 ' + String(dualStep25Total) + '개 (+' + String(dualStep25Plus) + '/-' + String(dualStep25Minus) + ')</code>';
   var dualStep26CheckStat = st.debugStep2aDualStep26CheckQuadStat && typeof st.debugStep2aDualStep26CheckQuadStat === 'object' ? st.debugStep2aDualStep26CheckQuadStat : null;
   var dualStep26CheckSrc = dualStep26CheckStat && isFinite(Number(dualStep26CheckStat.sourceCount)) ? Math.max(0, Math.floor(Number(dualStep26CheckStat.sourceCount))) : dualStep25Total;
-  var dualStep26CheckStatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep26CheckSrc) + '개 · 준비중</code>';
+  var dualStep26CheckKept = dualStep26CheckStat && isFinite(Number(dualStep26CheckStat.keptCount)) ? Math.max(0, Math.floor(Number(dualStep26CheckStat.keptCount))) : 0;
+  var dualStep26CheckEx = dualStep26CheckStat && isFinite(Number(dualStep26CheckStat.excludedCount)) ? Math.max(0, Math.floor(Number(dualStep26CheckStat.excludedCount))) : Math.max(0, dualStep26CheckSrc - dualStep26CheckKept);
+  var dualStep26CheckStatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep26CheckSrc) + '개 · 표시 ' + String(dualStep26CheckKept) + '개 · 제외 ' + String(dualStep26CheckEx) + '개</code>';
   var showStep27Merged = st.debugStep2aShowDualStep27MergedArea === true || st.debugStep2aShowDualStep26MergedArea === true;
   var dualStep27Stat = st.debugStep2aDualStep26Stat && typeof st.debugStep2aDualStep26Stat === 'object' ? st.debugStep2aDualStep26Stat : null;
   var dualStep27Src = dualStep27Stat && isFinite(Number(dualStep27Stat.sourceCount)) ? Math.max(0, Math.floor(Number(dualStep27Stat.sourceCount))) : dualStep25Total;
@@ -27111,6 +27113,165 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     uc.out = outRes;
     return outRes;
   }
+  function step26CheckBuildGuideSegments() {
+    var out = [];
+    var src = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs : [];
+    for (var i = 0; i < src.length; i++) {
+      var s = src[i];
+      if (!s || !s.p1 || !s.p2) continue;
+      var x1 = Number(s.p1.x) || 0, y1 = Number(s.p1.y) || 0;
+      var x2 = Number(s.p2.x) || 0, y2 = Number(s.p2.y) || 0;
+      var dx = x2 - x1, dy = y2 - y1;
+      var len = Math.hypot(dx, dy);
+      if (!(len > 1e-6)) continue;
+      out.push({ p1: { x: x1, y: y1 }, p2: { x: x2, y: y2 }, ux: dx / len, uy: dy / len, len: len });
+    }
+    if (out.length) return out;
+    // 원천 선이 비어 있으면 벽 중심선으로 폴백.
+    var walls = Array.isArray(list) ? list : [];
+    for (var wi = 0; wi < walls.length; wi++) {
+      var w = walls[wi];
+      if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) continue;
+      var a1 = w.seg_a.p1, a2 = w.seg_a.p2;
+      var ax1 = Number(a1.x) || 0, ay1 = Number(a1.y) || 0;
+      var ax2 = Number(a2.x) || 0, ay2 = Number(a2.y) || 0;
+      var adx = ax2 - ax1, ady = ay2 - ay1;
+      var al = Math.hypot(adx, ady);
+      if (!(al > 1e-6)) continue;
+      out.push({ p1: { x: ax1, y: ay1 }, p2: { x: ax2, y: ay2 }, ux: adx / al, uy: ady / al, len: al });
+    }
+    return out;
+  }
+  function step26CheckLongEdgesFromQuad(quad) {
+    if (!Array.isArray(quad) || quad.length < 4) return [];
+    var q = [];
+    for (var i = 0; i < 4; i++) {
+      var p = quad[i];
+      if (!p || !isFinite(Number(p.x)) || !isFinite(Number(p.y))) return [];
+      q.push({ x: Number(p.x), y: Number(p.y) });
+    }
+    var edges = [];
+    for (var ei = 0; ei < 4; ei++) {
+      var a = q[ei], b = q[(ei + 1) % 4];
+      var dx = b.x - a.x, dy = b.y - a.y;
+      var len = Math.hypot(dx, dy);
+      if (!(len > 1e-6)) return [];
+      edges.push({ p1: a, p2: b, ux: dx / len, uy: dy / len, len: len });
+    }
+    var baseIdx = 0;
+    for (var bi = 1; bi < 4; bi++) if (edges[bi].len > edges[baseIdx].len) baseIdx = bi;
+    return [edges[baseIdx], edges[(baseIdx + 2) % 4]];
+  }
+  function step26CheckEdgeOverlap(edge, segs) {
+    if (!edge || !edge.p1 || !edge.p2 || !Array.isArray(segs) || !segs.length) {
+      return { overlapMm: 0, coverage: 0, hitCount: 0, pass: false };
+    }
+    var dotMin = 0.985;
+    var normalTol = 18;
+    var minClip = 15;
+    var L = Number(edge.len) || 0;
+    if (!(L > 1e-6)) return { overlapMm: 0, coverage: 0, hitCount: 0, pass: false };
+    var nx = -(Number(edge.uy) || 0), ny = (Number(edge.ux) || 0);
+    var edgeN = (Number(edge.p1.x) || 0) * nx + (Number(edge.p1.y) || 0) * ny;
+    function projU(pt) {
+      return ((Number(pt.x) || 0) - (Number(edge.p1.x) || 0)) * (Number(edge.ux) || 0)
+        + ((Number(pt.y) || 0) - (Number(edge.p1.y) || 0)) * (Number(edge.uy) || 0);
+    }
+    var ivs = [];
+    for (var si = 0; si < segs.length; si++) {
+      var s = segs[si];
+      if (!s || !s.p1 || !s.p2) continue;
+      var dot = Math.abs((Number(s.ux) || 0) * (Number(edge.ux) || 0) + (Number(s.uy) || 0) * (Number(edge.uy) || 0));
+      if (dot < dotMin) continue;
+      var n0 = (Number(s.p1.x) || 0) * nx + (Number(s.p1.y) || 0) * ny;
+      var n1 = (Number(s.p2.x) || 0) * nx + (Number(s.p2.y) || 0) * ny;
+      if (Math.abs(n0 - edgeN) > normalTol || Math.abs(n1 - edgeN) > normalTol) continue;
+      var t0 = projU(s.p1), t1 = projU(s.p2);
+      var lo = Math.max(0, Math.min(t0, t1));
+      var hi = Math.min(L, Math.max(t0, t1));
+      if (hi - lo < minClip) continue;
+      ivs.push({ lo: lo, hi: hi });
+    }
+    if (!ivs.length) return { overlapMm: 0, coverage: 0, hitCount: 0, pass: false };
+    ivs.sort(function(a, b) { return a.lo - b.lo; });
+    var merged = [];
+    for (var ii = 0; ii < ivs.length; ii++) {
+      var cur = ivs[ii];
+      if (!merged.length || cur.lo > merged[merged.length - 1].hi + 2) merged.push({ lo: cur.lo, hi: cur.hi });
+      else if (cur.hi > merged[merged.length - 1].hi) merged[merged.length - 1].hi = cur.hi;
+    }
+    var sum = 0;
+    for (var mi = 0; mi < merged.length; mi++) sum += Math.max(0, merged[mi].hi - merged[mi].lo);
+    var coverage = sum / Math.max(1e-9, L);
+    var passLen = Math.max(80, L * 0.18);
+    var pass = sum >= passLen && coverage >= 0.16;
+    return {
+      overlapMm: Math.round(sum * 100) / 100,
+      coverage: Math.round(coverage * 10000) / 10000,
+      hitCount: merged.length,
+      pass: pass
+    };
+  }
+  function deriveStep26CheckCandidates(step25Plus, step25Minus) {
+    var srcPlus = Array.isArray(step25Plus) ? step25Plus : [];
+    var srcMinus = Array.isArray(step25Minus) ? step25Minus : [];
+    var input = [];
+    for (var i = 0; i < srcPlus.length; i++) input.push({ sign: '+', rec: srcPlus[i] });
+    for (var j = 0; j < srcMinus.length; j++) input.push({ sign: '-', rec: srcMinus[j] });
+    var segs = step26CheckBuildGuideSegments();
+    var kept = [];
+    var rows = [];
+    for (var k = 0; k < input.length; k++) {
+      var it = input[k];
+      var rec = it.rec;
+      if (!rec || !Array.isArray(rec.quad) || rec.quad.length < 4) continue;
+      var longEdges = step26CheckLongEdgesFromQuad(rec.quad);
+      if (!longEdges || longEdges.length < 2) continue;
+      var m0 = step26CheckEdgeOverlap(longEdges[0], segs);
+      var m1 = step26CheckEdgeOverlap(longEdges[1], segs);
+      var both = !!(m0.pass && m1.pass);
+      rows.push({
+        sign: it.sign,
+        wallIdx: isFinite(Number(rec.wallIdx)) ? Math.floor(Number(rec.wallIdx)) : -1,
+        edge0OverlapMm: m0.overlapMm,
+        edge1OverlapMm: m1.overlapMm,
+        edge0Coverage: m0.coverage,
+        edge1Coverage: m1.coverage,
+        bothLongEdgesHit: both
+      });
+      if (!both) continue;
+      kept.push({
+        sign: it.sign,
+        quad: rec.quad,
+        wallIdx: isFinite(Number(rec.wallIdx)) ? Math.floor(Number(rec.wallIdx)) : -1,
+        edge0: m0,
+        edge1: m1
+      });
+    }
+    st.debugStep2aDualStep26CheckQuadStat = {
+      sourceCount: input.length,
+      keptCount: kept.length,
+      excludedCount: Math.max(0, input.length - kept.length),
+      rows: rows.slice(0, 40),
+      ts: Date.now()
+    };
+    return { sourceCount: input.length, keptRecords: kept, rows: rows };
+  }
+  function drawStep26CheckQuads(keptRecords) {
+    var rows = Array.isArray(keptRecords) ? keptRecords : [];
+    if (!rows.length) return;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r || !Array.isArray(r.quad) || r.quad.length < 3) continue;
+      var col = r.sign === '-' ? '#1d4ed8' : '#0891b2';
+      drawWorldPoly(r.quad, col, {
+        fillAlpha: 0.42,
+        hatchAlpha: 0.54,
+        step: FRAME_DEF_DEBUG_HATCH_STEP_PX,
+        strokeWidth: 1.6
+      }, 0.9);
+    }
+  }
 function drawStep27MergedAreas(step25Plus, step25Minus) {
     var merged = buildStep25MergedAreas(step25Plus, step25Minus);
     function polyBBox(poly) {
@@ -27586,7 +27747,11 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
           minusSelHatch: 0.46, minusOppHatch: 0.20
         });
       }
-      drawStep27MergedAreas(a24c.step22Plus, a24c.step22Minus);
+      if (showStep26Check) {
+        var c26 = deriveStep26CheckCandidates(a24c.step22Plus, a24c.step22Minus);
+        drawStep26CheckQuads(c26 && Array.isArray(c26.keptRecords) ? c26.keptRecords : []);
+      }
+      if (showStep27) drawStep27MergedAreas(a24c.step22Plus, a24c.step22Minus);
     }
     if (showStep23) {
       renderCandidateLists(cache.plus23, cache.minus23, {
@@ -28234,7 +28399,11 @@ function drawStep27MergedAreas(step25Plus, step25Minus) {
         minusSelHatch: 0.46, minusOppHatch: 0.20
       });
     }
-    drawStep27MergedAreas(a24f.step22Plus, a24f.step22Minus);
+    if (showStep26Check) {
+      var c26f = deriveStep26CheckCandidates(a24f.step22Plus, a24f.step22Minus);
+      drawStep26CheckQuads(c26f && Array.isArray(c26f.keptRecords) ? c26f.keptRecords : []);
+    }
+    if (showStep27) drawStep27MergedAreas(a24f.step22Plus, a24f.step22Minus);
   }
   if (showStep23) {
     renderCandidateLists(plusPolys23, minusPolys23, {

@@ -27576,6 +27576,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var rows = Array.isArray(walls) ? walls : [];
     if (!rows.length) return;
     var useFast = rows.length > 260;
+    var veryHeavy = rows.length > 1200;
+    var drawSplitGuides = rows.length <= 1800;
     for (var i = 0; i < rows.length; i++) {
       var w = rows[i];
       if (!w || !w.seg_a || !w.seg_b || !w.seg_a.p1 || !w.seg_a.p2 || !w.seg_b.p1 || !w.seg_b.p2) continue;
@@ -27586,12 +27588,43 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
         { x: Number(w.seg_b.p1.x) || 0, y: Number(w.seg_b.p1.y) || 0 }
       ];
       drawWorldPoly(quad, '#1e3a8a', {
-        fillAlpha: useFast ? 0.22 : 0.36,
-        hatchAlpha: useFast ? 0.00 : 0.52,
-        noHatch: useFast,
+        fillAlpha: useFast ? 0.30 : 0.44,
+        hatchAlpha: veryHeavy ? 0.00 : (useFast ? 0.34 : 0.64),
+        noHatch: veryHeavy,
         step: FRAME_DEF_DEBUG_HATCH_STEP_PX,
-        strokeWidth: useFast ? 1.0 : 1.6
-      }, useFast ? 0.52 : 0.88);
+        strokeWidth: useFast ? 1.6 : 2.2
+      }, useFast ? 0.78 : 0.96);
+      if (!drawSplitGuides || typeof toScreen !== 'function' || typeof ctx === 'undefined' || !ctx) continue;
+      var a1 = toScreen(Number(w.seg_a.p1.x) || 0, Number(w.seg_a.p1.y) || 0);
+      var a2 = toScreen(Number(w.seg_a.p2.x) || 0, Number(w.seg_a.p2.y) || 0);
+      var b1 = toScreen(Number(w.seg_b.p1.x) || 0, Number(w.seg_b.p1.y) || 0);
+      var b2 = toScreen(Number(w.seg_b.p2.x) || 0, Number(w.seg_b.p2.y) || 0);
+      if (!a1 || !a2 || !b1 || !b2) continue;
+      ctx.save();
+      ctx.setLineDash([]);
+      // 분절 경계(외곽) 강조
+      ctx.strokeStyle = useFast ? 'rgba(191,219,254,0.85)' : 'rgba(224,231,255,0.96)';
+      ctx.lineWidth = useFast ? 1.2 : 1.8;
+      ctx.beginPath();
+      ctx.moveTo(a1.x, a1.y); ctx.lineTo(a2.x, a2.y);
+      ctx.lineTo(b2.x, b2.y); ctx.lineTo(b1.x, b1.y);
+      ctx.closePath();
+      ctx.stroke();
+      // 나누는 선(양쪽 기준선) 강조
+      ctx.strokeStyle = useFast ? 'rgba(56,189,248,0.78)' : 'rgba(34,211,238,0.94)';
+      ctx.lineWidth = useFast ? 1.0 : 1.5;
+      ctx.beginPath();
+      ctx.moveTo(a1.x, a1.y); ctx.lineTo(a2.x, a2.y);
+      ctx.moveTo(b1.x, b1.y); ctx.lineTo(b2.x, b2.y);
+      ctx.stroke();
+      // 횡단 분할선(끝단 연결선)
+      ctx.strokeStyle = useFast ? 'rgba(125,211,252,0.65)' : 'rgba(147,197,253,0.88)';
+      ctx.lineWidth = useFast ? 0.9 : 1.2;
+      ctx.beginPath();
+      ctx.moveTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y);
+      ctx.moveTo(a2.x, a2.y); ctx.lineTo(b2.x, b2.y);
+      ctx.stroke();
+      ctx.restore();
     }
   }
 function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {

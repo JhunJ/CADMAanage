@@ -102,6 +102,7 @@
       z-index: 1;
     }
     #annoOverlay.drawMode { pointer-events: auto; }
+    #annoOverlay.drawMode, #annoOverlay.drawMode canvas { touch-action: none; }
     #annoOverlay canvas { position: absolute; top: 0; left: 0; }
     #viewerToolbar {
       position: absolute; top: 8px; right: 8px; z-index: 100;
@@ -3670,32 +3671,102 @@
         annoCanvas.width = logicalWidth * dpr; annoCanvas.height = logicalHeight * dpr;
         annoCanvas.style.width = logicalWidth + 'px'; annoCanvas.style.height = logicalHeight + 'px';
         annoCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        function getOffset(ev) {
+        var activePointerId = null;
+        function getOffsetFromClient(clientX, clientY) {
           var rect = annoCanvas.getBoundingClientRect();
-          return { x: (ev.clientX - rect.left) * (logicalWidth / rect.width), y: (ev.clientY - rect.top) * (logicalHeight / rect.height) };
+          return { x: (clientX - rect.left) * (logicalWidth / rect.width), y: (clientY - rect.top) * (logicalHeight / rect.height) };
         }
-        annoCanvas.addEventListener('mousedown', function(e) {
-          if (!annoDrawMode || e.button !== 0) return;
-          var pt = getOffset(e), wp = toWorld(pt.x, pt.y);
+        function startStroke(clientX, clientY) {
+          var pt = getOffsetFromClient(clientX, clientY), wp = toWorld(pt.x, pt.y);
           currentStroke = { points: [wp], color: document.getElementById('annoColor').value, width: parseInt(document.getElementById('annoWidth').value, 10) || 2 };
-        });
-        annoCanvas.addEventListener('mousemove', function(e) {
-          if (!annoDrawMode || !currentStroke || e.buttons !== 1) return;
-          var pt = getOffset(e);
+        }
+        function pushStrokePoint(clientX, clientY) {
+          if (!currentStroke) return;
+          var pt = getOffsetFromClient(clientX, clientY);
           currentStroke.points.push(toWorld(pt.x, pt.y));
-          drawAnnotations();
-        });
-        annoCanvas.addEventListener('mouseup', function(e) {
-          if (!annoDrawMode || e.button !== 0 || !currentStroke) return;
+        }
+        function finishStroke() {
+          if (!currentStroke) return;
+          if (currentStroke.points && currentStroke.points.length === 1) {
+            currentStroke.points.push({ x: currentStroke.points[0].x, y: currentStroke.points[0].y });
+          }
           if (currentStroke.points && currentStroke.points.length >= 2) currentStrokes.push(currentStroke);
           currentStroke = null;
-          drawAnnotations();
-        });
-        annoCanvas.addEventListener('mouseleave', function() {
-          if (currentStroke && currentStroke.points && currentStroke.points.length >= 2) currentStrokes.push(currentStroke);
-          currentStroke = null;
-          drawAnnotations();
-        });
+        }
+        if (window.PointerEvent) {
+          annoCanvas.addEventListener('pointerdown', function(e) {
+            if (!annoDrawMode || e.button !== 0) return;
+            activePointerId = e.pointerId;
+            try { annoCanvas.setPointerCapture(e.pointerId); } catch (ignored) {}
+            startStroke(e.clientX, e.clientY);
+            e.preventDefault();
+          });
+          annoCanvas.addEventListener('pointermove', function(e) {
+            if (!annoDrawMode || !currentStroke) return;
+            if (activePointerId != null && e.pointerId !== activePointerId) return;
+            pushStrokePoint(e.clientX, e.clientY);
+            drawAnnotations();
+            e.preventDefault();
+          });
+          function onPointerEnd(e) {
+            if (activePointerId != null && e.pointerId !== activePointerId) return;
+            finishStroke();
+            if (activePointerId != null) {
+              try { annoCanvas.releasePointerCapture(activePointerId); } catch (ignored) {}
+            }
+            activePointerId = null;
+            drawAnnotations();
+            e.preventDefault();
+          }
+          annoCanvas.addEventListener('pointerup', onPointerEnd);
+          annoCanvas.addEventListener('pointercancel', onPointerEnd);
+          annoCanvas.addEventListener('pointerleave', function(e) {
+            if (activePointerId != null && e.pointerId !== activePointerId) return;
+            finishStroke();
+            activePointerId = null;
+            drawAnnotations();
+          });
+        } else {
+          annoCanvas.addEventListener('mousedown', function(e) {
+            if (!annoDrawMode || e.button !== 0) return;
+            startStroke(e.clientX, e.clientY);
+          });
+          annoCanvas.addEventListener('mousemove', function(e) {
+            if (!annoDrawMode || !currentStroke || e.buttons !== 1) return;
+            pushStrokePoint(e.clientX, e.clientY);
+            drawAnnotations();
+          });
+          annoCanvas.addEventListener('mouseup', function(e) {
+            if (!annoDrawMode || e.button !== 0 || !currentStroke) return;
+            finishStroke();
+            drawAnnotations();
+          });
+          annoCanvas.addEventListener('mouseleave', function() {
+            finishStroke();
+            drawAnnotations();
+          });
+          annoCanvas.addEventListener('touchstart', function(e) {
+            if (!annoDrawMode || !e.touches || e.touches.length < 1) return;
+            var t = e.touches[0];
+            startStroke(t.clientX, t.clientY);
+            e.preventDefault();
+          }, { passive: false });
+          annoCanvas.addEventListener('touchmove', function(e) {
+            if (!annoDrawMode || !currentStroke || !e.touches || e.touches.length < 1) return;
+            var t = e.touches[0];
+            pushStrokePoint(t.clientX, t.clientY);
+            drawAnnotations();
+            e.preventDefault();
+          }, { passive: false });
+          function onTouchEnd(e) {
+            if (!annoDrawMode || !currentStroke) return;
+            finishStroke();
+            drawAnnotations();
+            e.preventDefault();
+          }
+          annoCanvas.addEventListener('touchend', onTouchEnd, { passive: false });
+          annoCanvas.addEventListener('touchcancel', onTouchEnd, { passive: false });
+        }
       }
 
       async function loadAnnotations() {
@@ -3851,9 +3922,15 @@
         if (currentStroke && currentStroke.points && currentStroke.points.length >= 2) strokes.push(currentStroke);
         var title = document.getElementById('annoTitle').value ? document.getElementById('annoTitle').value.trim() : null;
         var content = document.getElementById('annoContent').value ? document.getElementById('annoContent').value.trim() : null;
-        if (strokes.length === 0 && !title && !content) { showMsg('msg', '스케치를 그리거나 제목/내용을 입력하세요.', 'error'); return; }
-        var curUser = document.getElementById('currentUser').value;
         var cat = document.getElementById('annoCategory').value || null;
+        var imgInput = document.getElementById('annoImages');
+        var hasSelection = selectedEntityIds.length === 1 || selectedPosition != null;
+        var hasImages = !!(imgInput && imgInput.files && imgInput.files.length > 0);
+        if (strokes.length === 0 && !title && !content && !cat && !hasSelection && !hasImages) {
+          showMsg('msg', '스케치/제목/내용/선택 객체/위치/이미지 중 하나 이상 입력하세요.', 'error');
+          return;
+        }
+        var curUser = document.getElementById('currentUser').value;
         var body = { strokes: strokes, created_by: curUser ? parseInt(curUser, 10) : null, title: title, content: content, category: cat, entity_id: selectedEntityIds.length === 1 ? selectedEntityIds[0] : null, position_x: selectedPosition ? selectedPosition.x : null, position_y: selectedPosition ? selectedPosition.y : null };
         try {
           var url = editingAnnotationId != null ? '/api/commits/' + cid + '/annotations/' + editingAnnotationId : '/api/commits/' + cid + '/annotations';
@@ -3861,7 +3938,6 @@
           var res = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
           if (!res.ok) throw new Error((await res.json().catch(function(){return{};})).detail || res.statusText);
           var data = await res.json();
-          var imgInput = document.getElementById('annoImages');
           if (imgInput && imgInput.files && imgInput.files.length > 0) {
             var fd = new FormData();
             for (var i = 0; i < imgInput.files.length; i++) fd.append('files', imgInput.files[i]);
@@ -3871,7 +3947,7 @@
           var wasEdit = editingAnnotationId != null;
           currentStrokes = []; currentStroke = null; selectedEntityIds = []; selectedPosition = null;
           document.getElementById('annoTitle').value = ''; document.getElementById('annoContent').value = '';
-          document.getElementById('annoSaveBtn').textContent = 'Save Note';
+          document.getElementById('annoSaveBtn').textContent = '주석 저장';
           editingAnnotationId = null;
           updateAnnoSelectionDisplay();
           loadAnnotations();
@@ -3921,7 +3997,7 @@
         w.style.display = show ? 'block' : 'none';
         if (show) {
           editingAnnotationId = null;
-          document.getElementById('annoSaveBtn').textContent = 'Save Note';
+          document.getElementById('annoSaveBtn').textContent = '주석 저장';
           document.getElementById('annoCategory').value = '';
           document.getElementById('annoTitle').value = '';
           document.getElementById('annoContent').value = '';

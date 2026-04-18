@@ -27457,80 +27457,6 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var wallsOut = [];
     var mergePasses = 0;
     var mergesTotal = 0;
-    var fastPathPolyCount = 0;
-    var fastPathRectCount = 0;
-    var slowPathPolyCount = 0;
-    var slowPathSkippedForPerf = 0;
-    function snapSortedUnique(vals, tol) {
-      var srcVals = Array.isArray(vals) ? vals : [];
-      if (!srcVals.length) return [];
-      var t = Math.max(0.1, Number(tol) || 0.8);
-      var arr = srcVals.slice().sort(function(a, b) { return a - b; });
-      var out = [arr[0]];
-      for (var i = 1; i < arr.length; i++) {
-        var v = Number(arr[i]);
-        if (!isFinite(v)) continue;
-        var last = out[out.length - 1];
-        if (Math.abs(v - last) <= t) out[out.length - 1] = (last + v) * 0.5;
-        else out.push(v);
-      }
-      return out;
-    }
-    function isAxisAlignedPoly(poly, eps) {
-      if (!Array.isArray(poly) || poly.length < 4) return false;
-      var tol = Math.max(0.2, Number(eps) || 1.2);
-      for (var i = 0; i < poly.length; i++) {
-        var a = poly[i];
-        var b = poly[(i + 1) % poly.length];
-        if (!a || !b) continue;
-        var dx = Math.abs((Number(b.x) || 0) - (Number(a.x) || 0));
-        var dy = Math.abs((Number(b.y) || 0) - (Number(a.y) || 0));
-        if (dx <= tol && dy <= tol) continue;
-        if (!(dx <= tol || dy <= tol)) return false;
-      }
-      return true;
-    }
-    function buildRectsFromOrthoPolyFast(poly, tolMm) {
-      if (!Array.isArray(poly) || poly.length < 4) return [];
-      var pip = typeof frameDefPointInPolygon === 'function' ? frameDefPointInPolygon : null;
-      if (!pip) return [];
-      var tol = Math.max(0.5, Number(tolMm) * 0.12 || 3);
-      var xs = [];
-      var ys = [];
-      for (var i = 0; i < poly.length; i++) {
-        var p = poly[i];
-        if (!p) continue;
-        xs.push(Number(p.x) || 0);
-        ys.push(Number(p.y) || 0);
-      }
-      xs = snapSortedUnique(xs, tol);
-      ys = snapSortedUnique(ys, tol);
-      if (xs.length < 2 || ys.length < 2) return [];
-      if ((xs.length - 1) * (ys.length - 1) > 8000) return [];
-      var out = [];
-      var edgePad = Math.max(0.1, tol * 0.35);
-      for (var ix = 0; ix < xs.length - 1; ix++) {
-        var x0 = xs[ix], x1 = xs[ix + 1];
-        if (!(x1 > x0 + 1e-6)) continue;
-        for (var iy = 0; iy < ys.length - 1; iy++) {
-          var y0 = ys[iy], y1 = ys[iy + 1];
-          if (!(y1 > y0 + 1e-6)) continue;
-          var cx = (x0 + x1) * 0.5;
-          var cy = (y0 + y1) * 0.5;
-          var inside = pip({ x: cx, y: cy }, poly);
-          if (!inside && typeof frameDefOrthoRectTouchesPolyOutline === 'function') {
-            inside = frameDefOrthoRectTouchesPolyOutline(poly, x0 + edgePad, y0 + edgePad, x1 - edgePad, y1 - edgePad, Math.max(0.4, edgePad));
-          }
-          if (!inside) continue;
-          out.push({
-            x0: x0, y0: y0, x1: x1, y1: y1,
-            area: Math.round((x1 - x0) * (y1 - y0) * 100) / 100,
-            vertCount: 0
-          });
-        }
-      }
-      return out;
-    }
     function bboxRectFromWall(w) {
       if (!w || !w.seg_a || !w.seg_b || !w.seg_a.p1 || !w.seg_a.p2 || !w.seg_b.p1 || !w.seg_b.p2) return null;
       var xs = [
@@ -27556,35 +27482,19 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       var poly = src[pi];
       if (!Array.isArray(poly) || poly.length < 3) continue;
       var step6Rects = [];
-      var fastRects = [];
-      var polyAxisAligned = isAxisAlignedPoly(poly, Math.max(1.0, stepTol * 0.10));
-      if (polyAxisAligned) {
-        fastRects = buildRectsFromOrthoPolyFast(poly, stepTol);
-        if (fastRects.length) {
-          step6Rects = fastRects;
-          fastPathPolyCount++;
-          fastPathRectCount += fastRects.length;
-        }
-      }
       if (typeof frameDefInteriorStep6VerticalSlabRects114FromStep5 === 'function') {
-        var skipSlowForThisPoly = polyAxisAligned && !step6Rects.length && poly.length > 64;
-        if (skipSlowForThisPoly) {
-          slowPathSkippedForPerf++;
-        } else if (!step6Rects.length) {
-          slowPathPolyCount++;
-          var s6 = frameDefInteriorStep6VerticalSlabRects114FromStep5(poly, [], {
-            tolMm: stepTol,
-            idBase: 'wall-step2a-29-' + String(pi),
-            chainIndex: pi,
-            entityIds: []
-          });
-          var s6Walls = s6 && Array.isArray(s6.walls) ? s6.walls : [];
-          for (var si = 0; si < s6Walls.length; si++) {
-            var w6 = s6Walls[si];
-            if (!w6 || w6.__step6Grid114HV_axis === 'v') continue;
-            var rr = bboxRectFromWall(w6);
-            if (rr) step6Rects.push(rr);
-          }
+        var s6 = frameDefInteriorStep6VerticalSlabRects114FromStep5(poly, [], {
+          tolMm: stepTol,
+          idBase: 'wall-step2a-29-' + String(pi),
+          chainIndex: pi,
+          entityIds: []
+        });
+        var s6Walls = s6 && Array.isArray(s6.walls) ? s6.walls : [];
+        for (var si = 0; si < s6Walls.length; si++) {
+          var w6 = s6Walls[si];
+          if (!w6 || w6.__step6Grid114HV_axis === 'v') continue;
+          var rr = bboxRectFromWall(w6);
+          if (rr) step6Rects.push(rr);
         }
       }
       if (!step6Rects.length) {
@@ -27646,10 +27556,6 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       wallCount: wallsOut.length,
       step7MergePasses: mergePasses,
       step7MergesTotal: mergesTotal,
-      fastPathPolyCount: fastPathPolyCount,
-      fastPathRectCount: fastPathRectCount,
-      slowPathPolyCount: slowPathPolyCount,
-      slowPathSkippedForPerf: slowPathSkippedForPerf,
       cached: false,
       ts: Date.now()
     };
@@ -27670,8 +27576,6 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var rows = Array.isArray(walls) ? walls : [];
     if (!rows.length) return;
     var useFast = rows.length > 260;
-    var drawLabels = rows.length <= 1200;
-    var labelStep = rows.length > 220 ? Math.max(1, Math.ceil(rows.length / 180)) : 1;
     for (var i = 0; i < rows.length; i++) {
       var w = rows[i];
       if (!w || !w.seg_a || !w.seg_b || !w.seg_a.p1 || !w.seg_a.p2 || !w.seg_b.p1 || !w.seg_b.p2) continue;
@@ -27688,26 +27592,6 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
         step: FRAME_DEF_DEBUG_HATCH_STEP_PX,
         strokeWidth: useFast ? 1.0 : 1.6
       }, useFast ? 0.52 : 0.88);
-      if (!drawLabels || (i % labelStep) !== 0 || typeof toScreen !== 'function' || typeof ctx === 'undefined' || !ctx) continue;
-      var c = (typeof frameDefWallItemCenter === 'function') ? frameDefWallItemCenter(w) : null;
-      if (!c || !isFinite(Number(c.x)) || !isFinite(Number(c.y))) {
-        c = {
-          x: ((Number(w.seg_a.p1.x) || 0) + (Number(w.seg_a.p2.x) || 0) + (Number(w.seg_b.p1.x) || 0) + (Number(w.seg_b.p2.x) || 0)) * 0.25,
-          y: ((Number(w.seg_a.p1.y) || 0) + (Number(w.seg_a.p2.y) || 0) + (Number(w.seg_b.p1.y) || 0) + (Number(w.seg_b.p2.y) || 0)) * 0.25
-        };
-      }
-      var cp = toScreen(c.x, c.y);
-      if (!cp || !isFinite(Number(cp.x)) || !isFinite(Number(cp.y))) continue;
-      var tVal = Number(w.thickness_mm);
-      if (!isFinite(tVal)) tVal = 0;
-      var tLabel = '벽체 ' + String(typeof frameDefRound10 === 'function' ? frameDefRound10(tVal) : Math.round(tVal * 10) / 10) + 'mm·7';
-      var tw = ctx.measureText(tLabel).width + 8;
-      ctx.globalAlpha = useFast ? 0.72 : 0.86;
-      ctx.fillStyle = '#0b1020';
-      ctx.fillRect(cp.x - 3, cp.y - 12, tw, 14);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = '#c7d2fe';
-      ctx.fillText(tLabel, cp.x + 1, cp.y);
     }
   }
 function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {

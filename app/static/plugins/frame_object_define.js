@@ -27142,6 +27142,51 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     }
     return out;
   }
+  function step26CheckSourceSegKey() {
+    var src = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs : [];
+    if (!st.__debugStep2aStep26CheckSegSig || typeof st.__debugStep2aStep26CheckSegSig !== 'object') {
+      st.__debugStep2aStep26CheckSegSig = { ref: null, key: '0' };
+    }
+    var sig = st.__debugStep2aStep26CheckSegSig;
+    if (sig.ref === src && typeof sig.key === 'string' && sig.key) return sig.key;
+    var out = [String(src.length)];
+    for (var i = 0; i < src.length; i++) {
+      var s = src[i];
+      if (!s || !s.p1 || !s.p2) { out.push('_'); continue; }
+      out.push(
+        String(Math.round((Number(s.p1.x) || 0) * 10) / 10), ',',
+        String(Math.round((Number(s.p1.y) || 0) * 10) / 10), ',',
+        String(Math.round((Number(s.p2.x) || 0) * 10) / 10), ',',
+        String(Math.round((Number(s.p2.y) || 0) * 10) / 10)
+      );
+    }
+    sig.ref = src;
+    sig.key = out.join('|');
+    return sig.key;
+  }
+  function step26CheckRecSig(rec) {
+    if (!rec) return '_';
+    var wi = isFinite(Number(rec.wallIdx)) ? Math.floor(Number(rec.wallIdx)) : -1;
+    var q = Array.isArray(rec.quad) ? rec.quad : [];
+    var out = [String(wi), ':', String(q.length)];
+    for (var qi = 0; qi < q.length; qi++) {
+      var p = q[qi] || {};
+      out.push(
+        ',',
+        String(Math.round((Number(p.x) || 0) * 10) / 10),
+        ',',
+        String(Math.round((Number(p.y) || 0) * 10) / 10)
+      );
+    }
+    return out.join('');
+  }
+  function step26CheckListSig(arr) {
+    var src = Array.isArray(arr) ? arr : [];
+    if (!src.length) return '0';
+    var out = [String(src.length)];
+    for (var i = 0; i < src.length; i++) out.push(step26CheckRecSig(src[i]));
+    return out.join('|');
+  }
   function step26CheckLongEdgesFromQuad(quad) {
     if (!Array.isArray(quad) || quad.length < 4) return [];
     var q = [];
@@ -27215,6 +27260,23 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
   function deriveStep26CheckCandidates(step25Plus, step25Minus) {
     var srcPlus = Array.isArray(step25Plus) ? step25Plus : [];
     var srcMinus = Array.isArray(step25Minus) ? step25Minus : [];
+    if (!st.__debugStep2aStep26CheckCache || typeof st.__debugStep2aStep26CheckCache !== 'object') {
+      st.__debugStep2aStep26CheckCache = { key: '', out: null };
+    }
+    var c24 = st.__debugStep2aDualStep24Cache && typeof st.__debugStep2aDualStep24Cache === 'object' ? st.__debugStep2aDualStep24Cache : null;
+    var baseKey = c24 && typeof c24.key === 'string' && c24.key
+      ? ('c24|' + c24.key)
+      : ('arr|' + step26CheckListSig(srcPlus) + '|' + step26CheckListSig(srcMinus));
+    var segKey = step26CheckSourceSegKey();
+    var cacheKey = baseKey + '|seg|' + segKey;
+    var c26 = st.__debugStep2aStep26CheckCache;
+    if (c26.key === cacheKey && c26.out && typeof c26.out === 'object') {
+      var hitStat = c26.out.stat && typeof c26.out.stat === 'object' ? c26.out.stat : null;
+      if (hitStat) {
+        st.debugStep2aDualStep26CheckQuadStat = Object.assign({}, hitStat, { cached: true, ts: Date.now() });
+      }
+      return c26.out;
+    }
     var input = [];
     for (var i = 0; i < srcPlus.length; i++) input.push({ sign: '+', rec: srcPlus[i] });
     for (var j = 0; j < srcMinus.length; j++) input.push({ sign: '-', rec: srcMinus[j] });
@@ -27248,28 +27310,36 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
         edge1: m1
       });
     }
-    st.debugStep2aDualStep26CheckQuadStat = {
+    var outStat = {
       sourceCount: input.length,
       keptCount: kept.length,
       excludedCount: Math.max(0, input.length - kept.length),
       rows: rows.slice(0, 40),
+      cached: false,
       ts: Date.now()
     };
-    return { sourceCount: input.length, keptRecords: kept, rows: rows };
+    st.debugStep2aDualStep26CheckQuadStat = outStat;
+    var outRes = { sourceCount: input.length, keptRecords: kept, rows: rows, stat: outStat };
+    c26.key = cacheKey;
+    c26.out = outRes;
+    return outRes;
   }
   function drawStep26CheckQuads(keptRecords) {
+    if (forceComputeOnly) return;
     var rows = Array.isArray(keptRecords) ? keptRecords : [];
     if (!rows.length) return;
+    var useFast = rows.length > 180;
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i];
       if (!r || !Array.isArray(r.quad) || r.quad.length < 3) continue;
       var col = r.sign === '-' ? '#1d4ed8' : '#0891b2';
       drawWorldPoly(r.quad, col, {
-        fillAlpha: 0.42,
-        hatchAlpha: 0.54,
+        fillAlpha: useFast ? 0.24 : 0.42,
+        hatchAlpha: useFast ? 0.00 : 0.54,
+        noHatch: useFast,
         step: FRAME_DEF_DEBUG_HATCH_STEP_PX,
-        strokeWidth: 1.6
-      }, 0.9);
+        strokeWidth: useFast ? 1.1 : 1.6
+      }, useFast ? 0.58 : 0.9);
     }
   }
 function drawStep27MergedAreas(step25Plus, step25Minus) {

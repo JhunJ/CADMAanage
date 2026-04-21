@@ -311,6 +311,10 @@ var FRAME_DEF_STEP2A_UI_FLOW_WATCH_IDS = [23628181, 23619661, 23619662];
 var FRAME_DEF_DEBUG_HATCH_STEP_PX = 16;
 /** 해치 대각선 스캔 상한(px). 축소 시 2a ② 등이 가벼워짐 */
 var FRAME_DEF_DEBUG_HATCH_STEP_MAX_PX = 40;
+/** 한 폴리곤 대각 해치 stroke() 상한(초과 시 step 자동 확대). 확대 줌에서 선분 폭증 방지 */
+var FRAME_DEF_DEBUG_HATCH_MAX_STROKES_PER_POLYGON = 160;
+/** 위 보정 시 step 상한(px). 화면상 큰 면에서만 적용 */
+var FRAME_DEF_DEBUG_HATCH_STEP_HARD_MAX_PX = 128;
 /** 2a ②: 뷰포트 컬링 시 bbox 여유(mm). 띠 반폭·해치 오버슈트 */
 var FRAME_DEF_STEP2A_2_VIEW_CULL_PAD_MM = 300;
 /** 2a ②: true면 면 채우기만 하고 대각 해치 스캔 생략(줌·팬 부하 대폭 감소) */
@@ -335,6 +339,14 @@ var FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 = 400;
 var FRAME_DEF_STEP2A_STEP29_ARCH_MIN_SLAB_MM = 4;
 /** true면 ②-8과 동일 면 해치를 먼저 한 번 그리고, 분절은 윤곽 위주로 겹침 */
 var FRAME_DEF_STEP2A_STEP29_UNDERLAY_STEP28_HATCH = true;
+/** true면 언더레이는 면 채움·윤곽만 하고 대각 해치 생략(확대 후 정지 시 프레임 부하 완화) */
+var FRAME_DEF_STEP2A_STEP29_UNDERLAY_NO_DIAGONAL_HATCH = true;
+/**
+ * ②-9 그리기 뷰 컬링 패드(mm). **0** = 끔 · **양수** = 고정 패드 · **미설정** = 자동(확대 시에만 컬링, 부하 완화).
+ */
+var FRAME_DEF_STEP2A_STEP29_VIEW_CULL_PAD_MM;
+/** 미설정 시 자동 컬링: 화면 1px당 월드 길이(mm)가 이 값 미만이면 뷰 밖 벽 스킵 */
+var FRAME_DEF_STEP2A_STEP29_VIEW_CULL_AUTO_MAX_MM_PER_PX = 6.5;
 /** ②-9: 극소 면 제거 */
 var FRAME_DEF_STEP2A_STEP29_POST_CULL_SLIVERS = true;
 var FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 = 1200;
@@ -357,6 +369,11 @@ var FRAME_DEF_STEP2A_STEP29_STRICT_SUBDIV_MAX_DEPTH = 16;
  * - legacy: 밴드 클립 후 bbox+격자+4분할 — 느리지만 극단 오목에 보수적.
  */
 var FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO = 'scanline';
+/**
+ * ②-6→②-8 유니온 입력: 쿼드 **짧은 변(폭)** 이 이 값(mm) 이하면, 긴변 한쪽만 원천 벽체선에 닿아도 동일 벽체 조각으로 본다.
+ * (얇은 띠·짧은 해치 조각이 긴변 양쪽 모두 검사에 걸리지 않는 경우 보정)
+ */
+var FRAME_DEF_STEP2A_STEP26_THIN_QUAD_SHORT_EDGE_MAX_MM = 52;
 /** 114→124 내부 2→3: 길이≥INTERIOR_PARTITION_MAX(800mm)인 chord(긴선)과 평행·투영 맞닿음/겹침일 때 수직(수평) 거리≤이 값이면 짧은쪽만 제거(mm) */
 var FRAME_DEF_STEP124_INTERIOR_NEAR_LONG_PARALLEL_MAX_MM = 60;
 /** 6: 격자 셀 단위 디버그. true면 동일 두께 공선까지 병합(s6m). */
@@ -2513,6 +2530,22 @@ function frameDefPathScreenPolygon(points) {
   ctx.closePath();
   return true;
 }
+/** 스크린 폴리곤 축정렬 bbox의 짧은 변 길이(px). 한 방향이 극단적으로 짧으면 확대해도 선이 사라진 것처럼 보일 수 있음 */
+function frameDefScreenPolyMinAxisSpanPx(pts) {
+  if (!Array.isArray(pts) || pts.length < 2) return Infinity;
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (var i = 0; i < pts.length; i++) {
+    var p = pts[i];
+    if (!p || !isFinite(Number(p.x)) || !isFinite(Number(p.y))) continue;
+    var x = Number(p.x), y = Number(p.y);
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  if (!isFinite(minX) || !isFinite(maxX)) return Infinity;
+  return Math.min(maxX - minX, maxY - minY);
+}
 function frameDefDrawHatchPolygon(screenPts, color, opts) {
   if (!screenPts || screenPts.length < 3) return;
   var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -2530,6 +2563,17 @@ function frameDefDrawHatchPolygon(screenPts, color, opts) {
   var stepMax = (typeof FRAME_DEF_DEBUG_HATCH_STEP_MAX_PX === 'number' && isFinite(FRAME_DEF_DEBUG_HATCH_STEP_MAX_PX)) ? FRAME_DEF_DEBUG_HATCH_STEP_MAX_PX : 40;
   if (step < 6) step = 6; if (step > stepMax) step = stepMax;
   var span = (maxX - minX) + (maxY - minY) + 30;
+  var rangeXH = (maxX - minX) + 2 * span;
+  var maxStrokeH = (typeof FRAME_DEF_DEBUG_HATCH_MAX_STROKES_PER_POLYGON === 'number' && isFinite(FRAME_DEF_DEBUG_HATCH_MAX_STROKES_PER_POLYGON))
+    ? Math.max(24, Math.floor(FRAME_DEF_DEBUG_HATCH_MAX_STROKES_PER_POLYGON)) : 220;
+  var estH = Math.ceil(rangeXH / Math.max(step, 1));
+  if (estH > maxStrokeH) {
+    step = Math.ceil(rangeXH / maxStrokeH);
+    var hardMaxH = (typeof FRAME_DEF_DEBUG_HATCH_STEP_HARD_MAX_PX === 'number' && isFinite(FRAME_DEF_DEBUG_HATCH_STEP_HARD_MAX_PX))
+      ? FRAME_DEF_DEBUG_HATCH_STEP_HARD_MAX_PX : 128;
+    if (step > hardMaxH) step = hardMaxH;
+    if (step < 6) step = 6;
+  }
   ctx.save();
   if (!frameDefPathScreenPolygon(screenPts)) { ctx.restore(); return; }
   ctx.fillStyle = frameDefColorWithAlpha(color, fillAlpha);
@@ -2584,6 +2628,17 @@ function frameDefDrawHatchPolygonEvenOdd(screenRings, color, opts) {
   var stepMaxE = (typeof FRAME_DEF_DEBUG_HATCH_STEP_MAX_PX === 'number' && isFinite(FRAME_DEF_DEBUG_HATCH_STEP_MAX_PX)) ? FRAME_DEF_DEBUG_HATCH_STEP_MAX_PX : 40;
   if (step < 6) step = 6; if (step > stepMaxE) step = stepMaxE;
   var span = (maxX - minX) + (maxY - minY) + 30;
+  var rangeXE = (maxX - minX) + 2 * span;
+  var maxStrokeE = (typeof FRAME_DEF_DEBUG_HATCH_MAX_STROKES_PER_POLYGON === 'number' && isFinite(FRAME_DEF_DEBUG_HATCH_MAX_STROKES_PER_POLYGON))
+    ? Math.max(24, Math.floor(FRAME_DEF_DEBUG_HATCH_MAX_STROKES_PER_POLYGON)) : 220;
+  var estE = Math.ceil(rangeXE / Math.max(step, 1));
+  if (estE > maxStrokeE) {
+    step = Math.ceil(rangeXE / maxStrokeE);
+    var hardMaxE = (typeof FRAME_DEF_DEBUG_HATCH_STEP_HARD_MAX_PX === 'number' && isFinite(FRAME_DEF_DEBUG_HATCH_STEP_HARD_MAX_PX))
+      ? FRAME_DEF_DEBUG_HATCH_STEP_HARD_MAX_PX : 128;
+    if (step > hardMaxE) step = hardMaxE;
+    if (step < 6) step = 6;
+  }
   ctx.save();
   if (!frameDefPathScreenRingsEvenOdd(screenRings)) { ctx.restore(); return; }
   ctx.fillStyle = frameDefColorWithAlpha(color, fillAlpha);
@@ -26283,6 +26338,53 @@ function frameDef2aWorldBBoxIntersectsView(b, padMm) {
   if (!isFinite(vx0) || !isFinite(vx1)) return true;
   return !(b.maxX + pad < vx0 || b.minX - pad > vx1 || b.maxY + pad < vy0 || b.minY - pad > vy1);
 }
+/** ②-9 벽 레코드 월드 bbox — `__step29FacePoly` 우선, 없으면 쿼드 네 꼭짓점 (`frameDef2aWorldBBoxIntersectsView`와 동일 키). 뷰 컬링용으로 두께 기반 여유 확장. */
+function frameDefStep29WallWorldBBox(w) {
+  if (!w) return null;
+  var thMm = Number(w.thickness_mm);
+  if (!isFinite(thMm) || thMm < FRAME_DEF_WALL_MIN_THICKNESS_MM) thMm = 170;
+  var padMm = Math.max(40, Math.min(380, thMm * 0.6 + 40));
+  function inflate(b) {
+    if (!b || !isFinite(b.minX)) return b;
+    return {
+      minX: b.minX - padMm,
+      minY: b.minY - padMm,
+      maxX: b.maxX + padMm,
+      maxY: b.maxY + padMm
+    };
+  }
+  var fp = Array.isArray(w.__step29FacePoly) && w.__step29FacePoly.length >= 3 ? w.__step29FacePoly : null;
+  if (fp) {
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (var fi = 0; fi < fp.length; fi++) {
+      var p = fp[fi];
+      if (!p) continue;
+      var x = Number(p.x) || 0, y = Number(p.y) || 0;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    if (isFinite(minX) && isFinite(minY) && isFinite(maxX) && isFinite(maxY)) {
+      return inflate({ minX: minX, minY: minY, maxX: maxX, maxY: maxY });
+    }
+  }
+  if (!w.seg_a || !w.seg_b || !w.seg_a.p1 || !w.seg_a.p2 || !w.seg_b.p1 || !w.seg_b.p2) return null;
+  var ax = [
+    Number(w.seg_a.p1.x) || 0, Number(w.seg_a.p2.x) || 0,
+    Number(w.seg_b.p1.x) || 0, Number(w.seg_b.p2.x) || 0
+  ];
+  var ay = [
+    Number(w.seg_a.p1.y) || 0, Number(w.seg_a.p2.y) || 0,
+    Number(w.seg_b.p1.y) || 0, Number(w.seg_b.p2.y) || 0
+  ];
+  return inflate({
+    minX: Math.min(ax[0], ax[1], ax[2], ax[3]),
+    maxX: Math.max(ax[0], ax[1], ax[2], ax[3]),
+    minY: Math.min(ay[0], ay[1], ay[2], ay[3]),
+    maxY: Math.max(ay[0], ay[1], ay[2], ay[3])
+  });
+}
 function frameDef2aCullChainsToView(chains, padMm) {
   if (!Array.isArray(chains) || !chains.length) return chains;
   if (typeof view === 'undefined' || !view) return chains;
@@ -27742,7 +27844,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     if (isFinite(sa) && sa > 0) {
       ctx.save();
       ctx.setLineDash([]);
-      ctx.lineWidth = hatchOpts && isFinite(Number(hatchOpts.strokeWidth)) ? Math.max(1, Number(hatchOpts.strokeWidth)) : 1.5;
+      var thinPx = typeof frameDefScreenPolyMinAxisSpanPx === 'function' ? frameDefScreenPolyMinAxisSpanPx(screenPoly) : Infinity;
+      var baseLw = hatchOpts && isFinite(Number(hatchOpts.strokeWidth)) ? Math.max(1, Number(hatchOpts.strokeWidth)) : 1.5;
+      ctx.lineWidth = (thinPx < 5.5 && thinPx > 1e-4) ? Math.max(baseLw, 2.5) : baseLw;
       ctx.strokeStyle = frameDefColorWithAlpha(color, Math.max(0, Math.min(1, sa)));
       if (frameDefPathScreenPolygon(screenPoly)) ctx.stroke();
       ctx.restore();
@@ -27768,9 +27872,11 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     if (isFinite(sa) && sa > 0) {
       ctx.save();
       ctx.setLineDash([]);
-      ctx.lineWidth = hatchOpts && isFinite(Number(hatchOpts.strokeWidth)) ? Math.max(1, Number(hatchOpts.strokeWidth)) : 1.6;
+      var baseLwR = hatchOpts && isFinite(Number(hatchOpts.strokeWidth)) ? Math.max(1, Number(hatchOpts.strokeWidth)) : 1.6;
       ctx.strokeStyle = frameDefColorWithAlpha(color, Math.max(0, Math.min(1, sa)));
       for (var si = 0; si < screenRings.length; si++) {
+        var thinR = typeof frameDefScreenPolyMinAxisSpanPx === 'function' ? frameDefScreenPolyMinAxisSpanPx(screenRings[si]) : Infinity;
+        ctx.lineWidth = (thinR < 5.5 && thinR > 1e-4) ? Math.max(baseLwR, 2.5) : baseLwR;
         if (frameDefPathScreenPolygon(screenRings[si])) ctx.stroke();
       }
       ctx.restore();
@@ -28665,6 +28771,20 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     for (var i = 0; i < src.length; i++) out.push(step26CheckRecSig(src[i]));
     return out.join('|');
   }
+  function step26CheckQuadEdgeLengthStats(quad) {
+    if (!Array.isArray(quad) || quad.length < 4) return null;
+    var minL = Infinity, maxL = 0;
+    for (var ei = 0; ei < 4; ei++) {
+      var a = quad[ei], b = quad[(ei + 1) % 4];
+      if (!a || !b || !isFinite(Number(a.x)) || !isFinite(Number(a.y)) || !isFinite(Number(b.x)) || !isFinite(Number(b.y))) return null;
+      var dx = (Number(b.x) || 0) - (Number(a.x) || 0), dy = (Number(b.y) || 0) - (Number(a.y) || 0);
+      var len = Math.hypot(dx, dy);
+      if (!(len > 1e-6)) return null;
+      if (len < minL) minL = len;
+      if (len > maxL) maxL = len;
+    }
+    return { min: minL, max: maxL };
+  }
   function step26CheckLongEdgesFromQuad(quad) {
     if (!Array.isArray(quad) || quad.length < 4) return [];
     var q = [];
@@ -28770,6 +28890,15 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       var m0 = step26CheckEdgeOverlap(longEdges[0], segs);
       var m1 = step26CheckEdgeOverlap(longEdges[1], segs);
       var both = !!(m0.pass && m1.pass);
+      var oneLongHits = !!(m0.pass || m1.pass);
+      var exactlyOneLongHit = oneLongHits && !both;
+      var edgeStats = step26CheckQuadEdgeLengthStats(rec.quad);
+      var shortEdgeMm = edgeStats && isFinite(edgeStats.min) ? edgeStats.min : Infinity;
+      var thinMax = (typeof FRAME_DEF_STEP2A_STEP26_THIN_QUAD_SHORT_EDGE_MAX_MM === 'number' && isFinite(FRAME_DEF_STEP2A_STEP26_THIN_QUAD_SHORT_EDGE_MAX_MM))
+        ? Math.max(40, Number(FRAME_DEF_STEP2A_STEP26_THIN_QUAD_SHORT_EDGE_MAX_MM)) : 52;
+      var thinWidth = isFinite(shortEdgeMm) && shortEdgeMm <= thinMax + 1e-6;
+      var weakThinBoth = thinWidth && ((Number(m0.overlapMm) || 0) + (Number(m1.overlapMm) || 0) > 0.4);
+      var keepQuad = both || exactlyOneLongHit || (oneLongHits && thinWidth) || weakThinBoth;
       rows.push({
         sign: it.sign,
         wallIdx: isFinite(Number(rec.wallIdx)) ? Math.floor(Number(rec.wallIdx)) : -1,
@@ -28777,9 +28906,14 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
         edge1OverlapMm: m1.overlapMm,
         edge0Coverage: m0.coverage,
         edge1Coverage: m1.coverage,
-        bothLongEdgesHit: both
+        bothLongEdgesHit: both,
+        shortEdgeMm: isFinite(shortEdgeMm) ? Math.round(shortEdgeMm * 100) / 100 : null,
+        thinWidthQuad: thinWidth,
+        exactlyOneLongEdgeOnGuide: exactlyOneLongHit,
+        weakThinOverlap: weakThinBoth,
+        keepForUnion: keepQuad
       });
-      if (!both) continue;
+      if (!keepQuad) continue;
       kept.push({
         sign: it.sign,
         quad: rec.quad,
@@ -29187,17 +29321,41 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     var rows = Array.isArray(walls) ? walls : [];
     if (!rows.length) return;
     var useFast = rows.length > 260;
-    var drawSplitGuides = rows.length <= 1800;
+    var mmPerPxView = (typeof view !== 'undefined' && view && view.minX != null && view.maxX != null
+      && typeof logicalWidth !== 'undefined' && logicalWidth > 0)
+      ? (Math.max(1e-9, Number(view.maxX) - Number(view.minX)) / logicalWidth) : 100;
+    var zoomedIn = mmPerPxView < (typeof FRAME_DEF_STEP2A_STEP29_VIEW_CULL_AUTO_MAX_MM_PER_PX === 'number' && isFinite(FRAME_DEF_STEP2A_STEP29_VIEW_CULL_AUTO_MAX_MM_PER_PX)
+      ? Math.max(2, Number(FRAME_DEF_STEP2A_STEP29_VIEW_CULL_AUTO_MAX_MM_PER_PX)) : 6.5);
+    var drawSplitGuides = rows.length <= 1800 && rows.length <= 500 && !zoomedIn;
     var noFaceHatch = FRAME_DEF_STEP2A_STEP29_DEBUG_NO_FACE_HATCH === true;
     var distinctStripColors = FRAME_DEF_STEP2A_STEP29_DEBUG_DISTINCT_STRIP_COLORS !== false;
     var underlay28 = FRAME_DEF_STEP2A_STEP29_UNDERLAY_STEP28_HATCH !== false;
+    var underlayNoDiag = FRAME_DEF_STEP2A_STEP29_UNDERLAY_NO_DIAGONAL_HATCH !== false;
     var hatchUnionDone = {};
     var guideBuckets = {};
+    var hatchBase29 = (typeof frameDef2aStep2DebugHatchStepPx === 'function')
+      ? frameDef2aStep2DebugHatchStepPx()
+      : ((typeof FRAME_DEF_DEBUG_HATCH_STEP_PX === 'number' && isFinite(FRAME_DEF_DEBUG_HATCH_STEP_PX)) ? FRAME_DEF_DEBUG_HATCH_STEP_PX : 16);
+    var hatchStep29 = Math.round(hatchBase29 * 2);
+    if (hatchStep29 < 14) hatchStep29 = 14;
+    var cullPad29 = 0;
+    if (typeof FRAME_DEF_STEP2A_STEP29_VIEW_CULL_PAD_MM === 'number' && isFinite(FRAME_DEF_STEP2A_STEP29_VIEW_CULL_PAD_MM)) {
+      cullPad29 = Math.max(0, Number(FRAME_DEF_STEP2A_STEP29_VIEW_CULL_PAD_MM));
+    } else {
+      if (zoomedIn) {
+        cullPad29 = (typeof FRAME_DEF_STEP2A_2_VIEW_CULL_PAD_MM === 'number' && isFinite(FRAME_DEF_STEP2A_2_VIEW_CULL_PAD_MM))
+          ? Math.max(280, Number(FRAME_DEF_STEP2A_2_VIEW_CULL_PAD_MM)) : 340;
+      }
+    }
+    var useCull29 = cullPad29 > 0 && typeof frameDef2aWorldBBoxIntersectsView === 'function' && typeof frameDefStep29WallWorldBBox === 'function';
     for (var i = 0; i < rows.length; i++) {
       var w = rows[i];
       if (!w || !w.seg_a || !w.seg_b || !w.seg_a.p1 || !w.seg_a.p2 || !w.seg_b.p1 || !w.seg_b.p2) continue;
+      if (useCull29) {
+        var bb29 = frameDefStep29WallWorldBBox(w);
+        if (bb29 && !frameDef2aWorldBBoxIntersectsView(bb29, cullPad29)) continue;
+      }
       var veryHeavy = rows.length > 1200;
-      var hatchStep29 = typeof FRAME_DEF_DEBUG_HATCH_STEP_PX === 'number' ? FRAME_DEF_DEBUG_HATCH_STEP_PX * 2.2 : 18;
       var piU = w.__step29UnionItemIndex;
       var siSlab = w.__step29ArchSlabIndex != null && isFinite(Number(w.__step29ArchSlabIndex)) ? Math.floor(Number(w.__step29ArchSlabIndex)) : i;
       var uBase = piU != null && isFinite(Number(piU)) ? Math.floor(Number(piU)) : 0;
@@ -29208,12 +29366,13 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
         ? String(w.__step29HatchLayerKey)
         : (piU != null ? ('u' + String(piU)) : '');
       if (underlay28 && hatchKey && w.__step29ArchSlab === true && hatchUnionDone[hatchKey] !== true) {
+        var ulNoH = veryHeavy || underlayNoDiag;
         if (Array.isArray(w.__step29HatchRingsEvenOdd) && w.__step29HatchRingsEvenOdd.length && typeof drawWorldPolyRingsEvenOdd === 'function') {
           hatchUnionDone[hatchKey] = true;
           drawWorldPolyRingsEvenOdd(w.__step29HatchRingsEvenOdd, '#0284c7', {
             fillAlpha: useFast ? 0.20 : 0.36,
-            hatchAlpha: veryHeavy ? 0.00 : (useFast ? 0.14 : 0.48),
-            noHatch: veryHeavy,
+            hatchAlpha: ulNoH ? 0.00 : (useFast ? 0.14 : 0.48),
+            noHatch: ulNoH,
             step: hatchStep29,
             strokeWidth: useFast ? 1.1 : 1.65
           }, 0.85);
@@ -29221,8 +29380,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
           hatchUnionDone[hatchKey] = true;
           drawWorldPoly(w.__step29HatchPolyOuter, '#0284c7', {
             fillAlpha: useFast ? 0.20 : 0.36,
-            hatchAlpha: veryHeavy ? 0.00 : (useFast ? 0.14 : 0.48),
-            noHatch: veryHeavy,
+            hatchAlpha: ulNoH ? 0.00 : (useFast ? 0.14 : 0.48),
+            noHatch: ulNoH,
             step: hatchStep29,
             strokeWidth: useFast ? 1.1 : 1.65
           }, 0.85);
@@ -29245,11 +29404,10 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
         var polyDraw = fp29 || quad;
         if (underlay28 && w.__step29ArchSlab === true) {
           var faSlab = distinctStripColors ? (useFast ? 0.22 : 0.34) : 0;
-          var haSlab = distinctStripColors && !veryHeavy ? (useFast ? 0.12 : 0.22) : 0;
           drawWorldPoly(polyDraw, faceTint, {
             fillAlpha: faSlab,
-            hatchAlpha: haSlab,
-            noHatch: veryHeavy || (!distinctStripColors),
+            hatchAlpha: 0,
+            noHatch: true,
             strokeWidth: useFast ? 1.12 : 1.52,
             step: hatchStep29
           }, 0.78);
@@ -29261,7 +29419,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
             step: hatchStep29,
             strokeWidth: useFast ? 1.6 : 2.2
           }, useFast ? 0.42 : 0.58);
-          if (!veryHeavy && !useFast) {
+          if (!veryHeavy && !useFast && rows.length <= 320 && !zoomedIn) {
             for (var _rstroke = 0; _rstroke < ringEO.length; _rstroke++) {
               if (ringEO[_rstroke] && ringEO[_rstroke].length >= 3) {
                 drawWorldPoly(ringEO[_rstroke], '#1e3a8a', {
@@ -29392,7 +29550,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       }
     }
     var partOv = (st && Array.isArray(st.debugStep2aStep29PartitionSegs)) ? st.debugStep2aStep29PartitionSegs : null;
-    if (partOv && partOv.length && typeof toScreen === 'function' && typeof ctx !== 'undefined' && ctx) {
+    if (partOv && partOv.length && !zoomedIn && rows.length <= 400 && typeof toScreen === 'function' && typeof ctx !== 'undefined' && ctx) {
       for (var pv = 0; pv < partOv.length; pv++) {
         var Pck = partOv[pv];
         var clipPv = Pck && Pck.clip;
@@ -29429,7 +29587,16 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
     var fillColor = typeof optsUnion.fillColor === 'string' && optsUnion.fillColor ? optsUnion.fillColor : '#9333ea';
     var strokeColor = typeof optsUnion.strokeColor === 'string' && optsUnion.strokeColor ? optsUnion.strokeColor : '#6d28d9';
     var shouldDraw = optsUnion.draw === true ? true : showStep27;
-    var merged = buildStep25MergedAreas(step25Plus, step25Minus);
+    var mergeResultCacheKey = typeof optsUnion.mergedAreasCacheKey === 'string' ? optsUnion.mergedAreasCacheKey : '';
+    var mrgSlot = st.__debugStep2aStep27MergeCache;
+    var mergedFromCache = !!(mergeResultCacheKey && mrgSlot && mrgSlot.key === mergeResultCacheKey && mrgSlot.merged);
+    var merged = mergedFromCache ? mrgSlot.merged : buildStep25MergedAreas(step25Plus, step25Minus);
+    if (!mergedFromCache && mergeResultCacheKey) {
+      if (!st.__debugStep2aStep27MergeCache || typeof st.__debugStep2aStep27MergeCache !== 'object') st.__debugStep2aStep27MergeCache = {};
+      st.__debugStep2aStep27MergeCache.key = mergeResultCacheKey;
+      st.__debugStep2aStep27MergeCache.merged = merged;
+    }
+    var needProbeStat = !mergedFromCache || shouldDraw || forceComputeOnly;
     function polyBBox(poly) {
       if (!Array.isArray(poly) || poly.length < 3) return null;
       var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
@@ -29515,43 +29682,45 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
       });
       probeAdded++;
     }
-    var sourcePolysAll = merged && Array.isArray(merged.sourcePolys) ? merged.sourcePolys : [];
-    var outPolysAll = merged && Array.isArray(merged.polys) ? merged.polys : [];
-    for (var ia = 0; ia < sourcePolysAll.length; ia++) inputAreaSum += polygonAreaAbs(sourcePolysAll[ia]);
-    var outGroupsProbe = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
-    if (outGroupsProbe.length) {
-      for (var pgi = 0; pgi < outGroupsProbe.length; pgi++) {
-        var prings = outGroupsProbe[pgi];
-        if (!Array.isArray(prings)) continue;
-        for (var pri = 0; pri < prings.length; pri++) {
-          mergedAreaSum += polygonAreaAbs(prings[pri]);
-          pushProbe(pgi, pri, prings[pri]);
+    if (needProbeStat) {
+      var sourcePolysAll = merged && Array.isArray(merged.sourcePolys) ? merged.sourcePolys : [];
+      var outPolysAll = merged && Array.isArray(merged.polys) ? merged.polys : [];
+      for (var ia = 0; ia < sourcePolysAll.length; ia++) inputAreaSum += polygonAreaAbs(sourcePolysAll[ia]);
+      var outGroupsProbe = merged && Array.isArray(merged.mergedGroups) ? merged.mergedGroups : [];
+      if (outGroupsProbe.length) {
+        for (var pgi = 0; pgi < outGroupsProbe.length; pgi++) {
+          var prings = outGroupsProbe[pgi];
+          if (!Array.isArray(prings)) continue;
+          for (var pri = 0; pri < prings.length; pri++) {
+            mergedAreaSum += polygonAreaAbs(prings[pri]);
+            pushProbe(pgi, pri, prings[pri]);
+          }
+        }
+      } else {
+        var outPolysProbe = outPolysAll;
+        for (var ppi = 0; ppi < outPolysProbe.length; ppi++) {
+          mergedAreaSum += polygonAreaAbs(outPolysProbe[ppi]);
+          pushProbe(-1, ppi, outPolysProbe[ppi]);
         }
       }
-    } else {
-      var outPolysProbe = outPolysAll;
-      for (var ppi = 0; ppi < outPolysProbe.length; ppi++) {
-        mergedAreaSum += polygonAreaAbs(outPolysProbe[ppi]);
-        pushProbe(-1, ppi, outPolysProbe[ppi]);
-      }
+      st[probeRowsKey] = probeRows;
+      st[probeTsKey] = Date.now();
+      st[inputAreaKey] = inputAreaSum;
+      st[mergedAreaKey] = mergedAreaSum;
+      st[statKey] = {
+        sourceCount: (Array.isArray(step25Plus) ? step25Plus.length : 0) + (Array.isArray(step25Minus) ? step25Minus.length : 0),
+        sourceUniqueCount: sourcePolysAll.length,
+        mergedCount: merged && Array.isArray(merged.polys) ? merged.polys.length : 0,
+        groupCount: merged && isFinite(Number(merged.groupCount)) ? Number(merged.groupCount) : 0,
+        sourceAreaMm2: Math.round(inputAreaSum * 10) / 10,
+        mergedAreaMm2: Math.round(mergedAreaSum * 10) / 10,
+        areaRatio: inputAreaSum > 1e-6 ? (mergedAreaSum / inputAreaSum) : 0,
+        unionFallback: !!(merged && merged.unionFallback),
+        unionNoop: !!(merged && merged.unionNoop),
+        unionRawAreaRatio: merged && isFinite(Number(merged.unionRawAreaRatio)) ? Number(merged.unionRawAreaRatio) : (inputAreaSum > 1e-6 ? (mergedAreaSum / inputAreaSum) : 0),
+        ts: Date.now()
+      };
     }
-    st[probeRowsKey] = probeRows;
-    st[probeTsKey] = Date.now();
-    st[inputAreaKey] = inputAreaSum;
-    st[mergedAreaKey] = mergedAreaSum;
-    st[statKey] = {
-      sourceCount: (Array.isArray(step25Plus) ? step25Plus.length : 0) + (Array.isArray(step25Minus) ? step25Minus.length : 0),
-      sourceUniqueCount: sourcePolysAll.length,
-      mergedCount: merged && Array.isArray(merged.polys) ? merged.polys.length : 0,
-      groupCount: merged && isFinite(Number(merged.groupCount)) ? Number(merged.groupCount) : 0,
-      sourceAreaMm2: Math.round(inputAreaSum * 10) / 10,
-      mergedAreaMm2: Math.round(mergedAreaSum * 10) / 10,
-      areaRatio: inputAreaSum > 1e-6 ? (mergedAreaSum / inputAreaSum) : 0,
-      unionFallback: !!(merged && merged.unionFallback),
-      unionNoop: !!(merged && merged.unionNoop),
-      unionRawAreaRatio: merged && isFinite(Number(merged.unionRawAreaRatio)) ? Number(merged.unionRawAreaRatio) : (inputAreaSum > 1e-6 ? (mergedAreaSum / inputAreaSum) : 0),
-      ts: Date.now()
-    };
     if (!shouldDraw || forceComputeOnly) return merged;
     function drawSmallPolyMarker(poly, color) {
       if (!Array.isArray(poly) || poly.length < 3 || typeof toScreen !== 'function' || typeof ctx === 'undefined' || !ctx) return;
@@ -29853,6 +30022,12 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
     String(parDotMin),
     dualOverlapGeomSig(list)
   ].join('|');
+  if (!st.__debugStep2aDualC26UnionPrepCache || typeof st.__debugStep2aDualC26UnionPrepCache !== 'object') {
+    st.__debugStep2aDualC26UnionPrepCache = { key: '', c26: null, split: null };
+  }
+  var c26prep = st.__debugStep2aDualC26UnionPrepCache;
+  var c26UnionPrepKey = cacheKey + '|c26u|v1';
+  var mergeAreasSubKey = cacheKey + '|dm27|v1';
   var cache = st.__debugStep2aDualOverlapCache;
   if (cache.key === cacheKey && Array.isArray(cache.plus) && Array.isArray(cache.minus) && Array.isArray(cache.plus23) && Array.isArray(cache.minus23)) {
     st.debugStep2aDualOverlapStat = cache.stat || {
@@ -29871,7 +30046,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
     };
     if (forceComputeOnly || showStep22 || showStep24 || showStep25 || showStep27 || showStep28 || showStep29 || showStep26Check) {
       var a24c = applyStep24SplitForDisplay(cache.plus, cache.minus);
-      if (typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
+      if (showStep25 && typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
         st.debugStep2aStep25LineProbeText = frameDefBuildStep2aStep25LineProbeText(
           st,
           a24c && Array.isArray(a24c.step22Plus) ? a24c.step22Plus : [],
@@ -29906,7 +30081,14 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
       }
       var c26KeepCached = null;
       if (showStep26Check || showStep28 || showStep29) {
-        c26KeepCached = deriveStep26CheckCandidates(a24c.step22Plus, a24c.step22Minus);
+        if (c26prep.key === c26UnionPrepKey && c26prep.c26) {
+          c26KeepCached = c26prep.c26;
+        } else {
+          c26KeepCached = deriveStep26CheckCandidates(a24c.step22Plus, a24c.step22Minus);
+          c26prep.key = c26UnionPrepKey;
+          c26prep.c26 = c26KeepCached;
+          c26prep.split = null;
+        }
       }
       if (showStep26Check) {
         drawStep26CheckQuads(c26KeepCached && Array.isArray(c26KeepCached.keptRecords) ? c26KeepCached.keptRecords : []);
@@ -29914,7 +30096,13 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
       if (showStep27) drawStep27MergedAreas(a24c.step22Plus, a24c.step22Minus);
       var step28ResultC = null;
       if (showStep28 || showStep29) {
-        var c26ListsC = splitStep26KeptRecordsForUnion(c26KeepCached && Array.isArray(c26KeepCached.keptRecords) ? c26KeepCached.keptRecords : []);
+        var c26ListsC;
+        if (c26prep.key === c26UnionPrepKey && c26prep.split) {
+          c26ListsC = c26prep.split;
+        } else {
+          c26ListsC = splitStep26KeptRecordsForUnion(c26KeepCached && Array.isArray(c26KeepCached.keptRecords) ? c26KeepCached.keptRecords : []);
+          if (c26prep.key === c26UnionPrepKey) c26prep.split = c26ListsC;
+        }
         step28ResultC = drawStep27MergedAreas(c26ListsC.plus, c26ListsC.minus, {
           draw: showStep28,
           statKey: 'debugStep2aDualStep28Stat',
@@ -29923,7 +30111,8 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
           inputAreaKey: 'debugStep2aStep28InputAreaMm2',
           mergedAreaKey: 'debugStep2aStep28MergedAreaMm2',
           fillColor: '#0284c7',
-          strokeColor: '#0369a1'
+          strokeColor: '#0369a1',
+          mergedAreasCacheKey: mergeAreasSubKey
         });
       }
       if (showStep29) {
@@ -30544,7 +30733,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
   };
   if (forceComputeOnly || showStep22 || showStep24 || showStep25 || showStep27 || showStep28 || showStep29 || showStep26Check) {
     var a24f = applyStep24SplitForDisplay(plusPolys, minusPolys);
-    if (typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
+    if (showStep25 && typeof frameDefBuildStep2aStep25LineProbeText === 'function') {
       st.debugStep2aStep25LineProbeText = frameDefBuildStep2aStep25LineProbeText(
         st,
         a24f && Array.isArray(a24f.step22Plus) ? a24f.step22Plus : [],

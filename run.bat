@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 REM ?붾툝?대┃ ??cmd /k 濡???李쎌뿉???ㅽ뻾 (李쎌씠 諛붾줈 爰쇱?吏 ?딆쓬)
 if not "%~1"=="_" (
     cmd /k "%~f0" _
@@ -25,9 +25,9 @@ set PYTHONIOENCODING=utf-8
 
 where pwsh >nul 2>&1
 if %ERRORLEVEL%==0 (
-    pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_local.ps1" -ListenHost 0.0.0.0 -PreparePostgres -MigrationRetries 12 -FromRunBat
+    pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_local.ps1" -ListenHost 0.0.0.0 -PreparePostgres -MigrationRetries 12 -FromRunBat -FreePort8000
 ) else (
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_local.ps1" -ListenHost 0.0.0.0 -PreparePostgres -MigrationRetries 12 -FromRunBat
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run_local.ps1" -ListenHost 0.0.0.0 -PreparePostgres -MigrationRetries 12 -FromRunBat -FreePort8000
 )
 set "PS_EXIT=%ERRORLEVEL%"
 

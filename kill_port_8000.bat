@@ -1,16 +1,41 @@
 @echo off
-REM 8000 포트 사용 중인 프로세스 종료. 관리자 권한으로 실행 권장.
-echo 8000 포트 LISTENING 프로세스 확인 중...
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do (
-    if not %%a==0 if not %%a==4 (
-        echo PID %%a 종료 시도...
-        taskkill /F /PID %%a
+REM Free every process listening on TCP 8000 (127.0.0.1 and 0.0.0.0 may differ).
+chcp 65001 >nul
+cd /d "%~dp0"
+
+echo ============================================
+echo   Free TCP port 8000
+echo ============================================
+echo.
+
+where powershell >nul 2>&1
+if errorlevel 1 (
+    echo PowerShell not found.
+    goto :fallback
+)
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kill_port_8000.ps1"
+if errorlevel 1 (
+    echo.
+    echo [fallback] taskkill via netstat ...
+    goto :fallback
+)
+goto :show
+
+:fallback
+for /f "tokens=5" %%a in ('netstat -ano 2^>nul ^| findstr ":8000" ^| findstr "LISTENING"') do (
+    if not "%%a"=="0" if not "%%a"=="4" (
+        echo taskkill /F /PID %%a
+        taskkill /F /PID %%a 2>nul
     )
 )
 timeout /t 2 /nobreak >nul
+
+:show
 echo.
-echo netstat 확인:
-netstat -ano | findstr ":8000" | findstr "LISTENING"
+echo netstat LISTENING on 8000 (empty = OK^):
+netstat -ano 2>nul | findstr ":8000" | findstr "LISTENING"
 echo.
-echo 위에 아무것도 없으면 8000 포트 비어 있음. run.bat 실행하세요.
+echo If lines remain, run this BAT as Administrator (right-click).
+echo Then run run.bat for CAD Manage.
 pause

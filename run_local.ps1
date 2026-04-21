@@ -1,8 +1,10 @@
-﻿param(
+param(
     [string]$ListenHost = "127.0.0.1",
     [switch]$PreparePostgres,
     [int]$MigrationRetries = 1,
-    [switch]$FromRunBat
+    [switch]$FromRunBat,
+    # true: 기동 전 8000 LISTEN 프로세스 종료(일람마스터 등 다른 앱 점유 해제 후 CAD Manage 기동)
+    [switch]$FreePort8000
 )
 
 # CAD Manage - Local run script (no Docker)
@@ -242,7 +244,34 @@ if (-not $migOk) {
     Write-Host "OK  Migration done." -ForegroundColor Green
 }
 
-# 7) Start API server
+# 7) Optional: free port 8000 (e.g. another Python app was listening)
+if ($FreePort8000) {
+    Write-Host ""
+    Write-Host "Freeing TCP port 8000 (LISTEN 프로세스 종료)..." -ForegroundColor Yellow
+    try {
+        $owning = @(Get-NetTCPConnection -State Listen -LocalPort 8000 -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty OwningProcess -Unique)
+        foreach ($opid in $owning) {
+            if (-not $opid -or $opid -le 0) { continue }
+            $pname = "?"
+            try {
+                $p = Get-Process -Id $opid -ErrorAction SilentlyContinue
+                if ($p) { $pname = $p.ProcessName }
+            } catch {}
+            Write-Host ("  종료 시도: PID {0} ({1})" -f $opid, $pname) -ForegroundColor Gray
+            try {
+                Stop-Process -Id $opid -Force -ErrorAction Stop
+            } catch {
+                Write-Host ("  PID {0} 종료 실패(관리자 권한 필요할 수 있음). kill_port_8000.bat 를 관리자로 실행하세요." -f $opid) -ForegroundColor Red
+            }
+        }
+        Start-Sleep -Seconds 1
+    } catch {
+        Write-Host "  포트 조회/종료 중 오류: $_" -ForegroundColor Red
+    }
+}
+
+# 8) Start API server
 Write-Host ""
 Write-Host "Starting API server (Ctrl+C to stop)" -ForegroundColor Cyan
 Write-Host "  API:  http://127.0.0.1:8000" -ForegroundColor Gray

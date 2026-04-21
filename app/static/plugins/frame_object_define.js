@@ -319,6 +319,44 @@ var FRAME_DEF_STEP2A_2_DEBUG_NO_DIAGONAL_HATCH = true;
 var FRAME_DEF_STEP2A_2_OPEN_DRAW_MAX_CHAINS = 260;
 /** 114→124 내부 분할: 2→3 평행 컬에서 길이 초과 제거 기준(mm), core에서도 최대 chord 한도로 사용 */
 var FRAME_DEF_STEP124_INTERIOR_PARTITION_MAX_MM = 800;
+/** ②-9 파이프라인. ②-8 **유니온 완료 면**만 입력 → 직교 **한 축 guillotine 띠**로 긴 벽체 직사각(문헌: rectilinear partition / horizontal-cut 계열). */
+var FRAME_DEF_STEP2A_STEP29_PIPELINE = 'step28UnionWallStrips';
+/** 'unionWallStrips' = ②-8 유니온 링/폴리만 1D 띠 분해+병합 | 'sourceQuads' = 유니온 직전 쿼드 각각 */
+var FRAME_DEF_STEP2A_STEP29_PARTITION_MODE = 'unionWallStrips';
+/** 분할 축: 'horizontal' = 수평 띠(y만 자름, 내부 **수직선 최소**) | 'vertical' = 수직 띠 | 'auto' = bbox 장축 | 'autoEdges' = 외곽 가·세 변 총장 비교 */
+var FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS = 'horizontal';
+/** 한 슬라브 구간이 이 값(mm)보다 길고 중간에 꼭짓점이 없으면 1회 중간 절단(과도한 긴 띠 방지) */
+var FRAME_DEF_STEP2A_STEP29_STRIP_LONG_SPAN_SPLIT_MM = 2600;
+/** 인접 슬랩 bbox 병합 시 좌표 허용차(mm) — 직교 평면에서 긴 벽체 띠처럼 보이게 */
+var FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM = 2.5;
+/** ②-9 슬랩 최소 면적(mm²) */
+var FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 = 400;
+/** ②-9 슬랩 최소 두께(mm) */
+var FRAME_DEF_STEP2A_STEP29_ARCH_MIN_SLAB_MM = 4;
+/** true면 ②-8과 동일 면 해치를 먼저 한 번 그리고, 분절은 윤곽 위주로 겹침 */
+var FRAME_DEF_STEP2A_STEP29_UNDERLAY_STEP28_HATCH = true;
+/** ②-9: 극소 면 제거 */
+var FRAME_DEF_STEP2A_STEP29_POST_CULL_SLIVERS = true;
+var FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 = 1200;
+var FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM = 18;
+/** ②-9 입력 면적 합 vs `debugStep2aDualStep28Stat.mergedAreaMm2` 허용 차이(mm²) */
+var FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2 = 1.5;
+/** ②-9 보조선(해치 가이드) */
+var FRAME_DEF_STEP2A_STEP29_GUIDE_MAX_SPAN_MM = 420;
+var FRAME_DEF_STEP2A_STEP29_GUIDE_SPAN_RATIO = 0.36;
+var FRAME_DEF_STEP2A_STEP29_DEBUG_NO_FACE_HATCH = false;
+/** true면 ②-9 벽체 띠마다 서로 다른 색으로 면 표시(유니온 인덱스+슬랩 인덱스 기준) */
+var FRAME_DEF_STEP2A_STEP29_DEBUG_DISTINCT_STRIP_COLORS = true;
+/** ②-8 유니온(even-odd) 안에만 직사각이 들어가는지 격자 샘플 검사 (한 변 분할) */
+var FRAME_DEF_STEP2A_STEP29_STRICT_RECT_GRID_N = 6;
+/** bbox가 유니온 밖으로 나갈 때 4분할 최대 깊이 */
+var FRAME_DEF_STEP2A_STEP29_STRICT_SUBDIV_MAX_DEPTH = 16;
+/**
+ * ②-9 유니온→직사각 벽체 분해 알고리즘.
+ * - scanline: 수평/수직 스캔라인으로 링 even-odd **구간**만 자름(plane sweep / slice 계열, O(띠×모서리)) — 기본·빠름.
+ * - legacy: 밴드 클립 후 bbox+격자+4분할 — 느리지만 극단 오목에 보수적.
+ */
+var FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO = 'scanline';
 /** 114→124 내부 2→3: 길이≥INTERIOR_PARTITION_MAX(800mm)인 chord(긴선)과 평행·투영 맞닿음/겹침일 때 수직(수평) 거리≤이 값이면 짧은쪽만 제거(mm) */
 var FRAME_DEF_STEP124_INTERIOR_NEAR_LONG_PARALLEL_MAX_MM = 60;
 /** 6: 격자 셀 단위 디버그. true면 동일 두께 공선까지 병합(s6m). */
@@ -989,9 +1027,25 @@ function frameDefRenderDebugPanel() {
   var dualStep29Stat = st.debugStep2aDualStep29Stat && typeof st.debugStep2aDualStep29Stat === 'object' ? st.debugStep2aDualStep29Stat : null;
   var dualStep29Src = dualStep29Stat && isFinite(Number(dualStep29Stat.sourceCount)) ? Math.max(0, Math.floor(Number(dualStep29Stat.sourceCount))) : dualStep28Face;
   var dualStep29Cell6 = dualStep29Stat && isFinite(Number(dualStep29Stat.step6RectCount)) ? Math.max(0, Math.floor(Number(dualStep29Stat.step6RectCount))) : 0;
-  var dualStep29Rect7 = dualStep29Stat && isFinite(Number(dualStep29Stat.mergedCount)) ? Math.max(0, Math.floor(Number(dualStep29Stat.mergedCount))) : 0;
   var dualStep29Wall = dualStep29Stat && isFinite(Number(dualStep29Stat.wallCount)) ? Math.max(0, Math.floor(Number(dualStep29Stat.wallCount))) : 0;
-  var dualStep29StatTxt = ' <code style="font-size:0.60rem;">입력 ' + String(dualStep29Src) + '개 · 6셀 ' + String(dualStep29Cell6) + '개 · 7직사각 ' + String(dualStep29Rect7) + '개 · 벽체 ' + String(dualStep29Wall) + '개</code>';
+  var dualStep29Cull = dualStep29Stat && isFinite(Number(dualStep29Stat.step29PostCullRemoved)) ? Math.max(0, Math.floor(Number(dualStep29Stat.step29PostCullRemoved))) : 0;
+  var dualStep29Dom = dualStep29Stat && isFinite(Number(dualStep29Stat.step29PostCullDominatingRemoved)) ? Math.max(0, Math.floor(Number(dualStep29Stat.step29PostCullDominatingRemoved))) : 0;
+  var dualStep29InArea = dualStep29Stat && isFinite(Number(dualStep29Stat.step29SourcePolysTotalAreaMm2)) ? Number(dualStep29Stat.step29SourcePolysTotalAreaMm2) : null;
+  var dualStep28RefArea = dualStep29Stat && isFinite(Number(dualStep29Stat.step28MergedAreaRefMm2)) ? Number(dualStep29Stat.step28MergedAreaRefMm2) : null;
+  var dualStep29Vs28Delta = dualStep29Stat && dualStep29Stat.step29VsStep28InputDeltaMm2 != null && isFinite(Number(dualStep29Stat.step29VsStep28InputDeltaMm2)) ? Number(dualStep29Stat.step29VsStep28InputDeltaMm2) : null;
+  var dualStep29AreaOk = dualStep29Stat && dualStep29Stat.step29InputAreaMatchesStep28 === true;
+  var dualStep29AreaTxt = '';
+  if (dualStep28RefArea == null) {
+    dualStep29AreaTxt = ' · ②-8면적기준없음';
+  } else {
+    dualStep29AreaTxt = ' · ②-9입합 ' + String(dualStep29InArea != null ? dualStep29InArea : '—') + ' / ②-8 ' + String(dualStep28RefArea);
+    if (dualStep29AreaOk) {
+      dualStep29AreaTxt += ' <span style="color:#0f766e;">면적일치</span>';
+    } else if (dualStep29Vs28Delta != null) {
+      dualStep29AreaTxt += ' <span style="color:#9a6700;">Δ' + String(dualStep29Vs28Delta) + 'mm²</span>';
+    }
+  }
+  var dualStep29StatTxt = ' <code style="font-size:0.60rem;">②-8면 ' + String(dualStep29Src) + '개 · 분절직사각 ' + String(dualStep29Cell6) + '개 · 벽체 ' + String(dualStep29Wall) + '개' + (dualStep29Cull > 0 ? ' · 극소제거 ' + String(dualStep29Cull) : '') + (dualStep29Dom > 0 ? ' · 대면적제거 ' + String(dualStep29Dom) : '') + dualStep29AreaTxt + '</code>';
   var n2aLoop = Array.isArray(st.wallStep2aClosedLoopChains) ? st.wallStep2aClosedLoopChains.length : 0;
   var n2aSrcSeg = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs.length : 0;
   var sc2a = st.wallStep2aSplitChainCounts && typeof st.wallStep2aSplitChainCounts === 'object' ? st.wallStep2aSplitChainCounts : null;
@@ -1030,7 +1084,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep26CheckQuadChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep26CheckQuad ? 'checked' : '') + ' /><span><b>②-6 체크 쿼드(준비)</b>' + dualStep26CheckStatTxt + ' — 새 체크 쿼드 기능용 표시 슬롯입니다. 현재는 상태/계산 경로만 준비되어 있습니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep27Chk" style="margin-top:2px;" ' + (showStep27Merged ? 'checked' : '') + ' /><span><b>②-7 ②-5 면 병합(유니온 렌더)</b>' + dualStep27StatTxt + ' — ②-5 입력 쿼드를 일반 다각형 boolean union으로 병합해 최종 병합면만 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep28Chk" style="margin-top:2px;" ' + (showStep28Merged ? 'checked' : '') + ' /><span><b>②-8 ②-6 면 병합(유니온 렌더)</b>' + dualStep28StatTxt + ' — ②-6에서 통과한 쿼드만 다시 일반 다각형 boolean union으로 병합해 최종 병합면을 표시합니다.</span></label>');
-  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep29Chk" style="margin-top:2px;" ' + (showStep29Walls ? 'checked' : '') + ' /><span><b>②-9 ②-8 면적 기반 124-7식 벽체화</b>' + dualStep29StatTxt + ' — ②-8 병합면을 1.2.4의 6(격자)→7(병합 직사각) 방식으로 재분할/병합해 벽체를 생성·표시합니다.</span></label>');
+  html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep29Chk" style="margin-top:2px;" ' + (showStep29Walls ? 'checked' : '') + ' /><span><b>②-9 ②-8 유니온 면 → 긴 벽체 띠</b>' + dualStep29StatTxt + ' — 유니온 **완료 외곽**만으로 한 축 guillotine 띠를 자르고 인접 띠를 병합합니다(기본 수평 띠·수직선 최소). `PARTITION_MODE=sourceQuads`는 유니온 직전 쿼드 각각.</span></label>');
   html.push('<div style="font-size:0.72rem; color:#57606a;">원천 ' + String(n2aSrcSeg) + (n2aV2Walls != null ? (' · 2a-v2 벽체 ' + String(n2aV2Walls) + '개' + (n2aOutlineBv != null ? (' · 외곽내부판별 꼭짓점 ' + String(n2aOutlineBv) + (Number(n2aOutlineBv) >= 3 ? '' : ' (0이면 닫힌 루프 미검출·쌍만으로 부호)')) : '')) : (' · 조인 닫힘/열림 ' + String(n2aJoinC) + '/' + String(n2aJoinO) + (n2aPitlike != null ? ' · ㄷ·공동닫힘제외 ' + String(n2aPitlike) : '') + (n2aSandwich != null ? ' · ㄷ샌드위치가운데제외 ' + String(n2aSandwich) : '') + (n2aSkip11 != null ? ' · 1.1중복닫힘제외 ' + String(n2aSkip11) : '') + (n2aOrphan != null ? ' · 고아체인 ' + String(n2aOrphan) : '') + ' · 열림→벽 ' + String(n2aOpenWalls) + ' · 124루프 ' + String(n2aLoop))) + ' · 벽 ' + String(n2a) + (t2a ? ' · ' + t2a : '') + '</div>');
   html.push(typeof frameDefFormatStep2aEntityFlowReportBlock === 'function' ? frameDefFormatStep2aEntityFlowReportBlock(st) : '');
   html.push(typeof frameDefFormatStep2aFocusEntityDebugBlock === 'function' ? frameDefFormatStep2aFocusEntityDebugBlock(st) : '');
@@ -15255,6 +15309,11 @@ function frameDefInteriorStep6VerticalSlabRects114FromStep5(verts114, step5Segs,
   var minSlab = typeof FRAME_DEF_STEP124_INTERIOR_STEP6_MIN_SLAB_MM === 'number' ? FRAME_DEF_STEP124_INTERIOR_STEP6_MIN_SLAB_MM : 4;
   var minArea = typeof FRAME_DEF_STEP124_INTERIOR_STEP6_MIN_CELL_AREA_MM2 === 'number' ? FRAME_DEF_STEP124_INTERIOR_STEP6_MIN_CELL_AREA_MM2 : 400;
   var maxShort = typeof FRAME_DEF_STEP124_INTERIOR_STEP6_MAX_CELL_SHORT_MM === 'number' ? FRAME_DEF_STEP124_INTERIOR_STEP6_MAX_CELL_SHORT_MM : 520;
+  if (opts.minCellAreaMm2 != null && isFinite(Number(opts.minCellAreaMm2)) && Number(opts.minCellAreaMm2) > 0) minArea = Number(opts.minCellAreaMm2);
+  if (opts.maxCellShortMm != null && isFinite(Number(opts.maxCellShortMm)) && Number(opts.maxCellShortMm) > 0) maxShort = Number(opts.maxCellShortMm);
+  var stripAspectMaxUse = typeof FRAME_DEF_STEP124_INTERIOR_STEP6_STRIP_ASPECT_MAX === 'number' ? FRAME_DEF_STEP124_INTERIOR_STEP6_STRIP_ASPECT_MAX : 0.42;
+  if (opts.stripAspectMax != null && isFinite(Number(opts.stripAspectMax)) && Number(opts.stripAspectMax) > 0) stripAspectMaxUse = Number(opts.stripAspectMax);
+  var bypassStripFilter = opts.bypassStripFilter === true;
   var hatch = Array.isArray(verts114) && verts114.length >= 3 ? verts114 : [];
   var pip = typeof frameDefPointInPolygon === 'function' ? frameDefPointInPolygon : null;
   var segs = Array.isArray(step5Segs) ? step5Segs : [];
@@ -15279,7 +15338,8 @@ function frameDefInteriorStep6VerticalSlabRects114FromStep5(verts114, step5Segs,
     step5ClassH: 0,
     step5ClassOther: 0,
     wallPairH: 0,
-    wallPairV: 0
+    wallPairV: 0,
+    skippedLowClipFill: 0
   };
 
   function isVerticalSeg(s) {
@@ -15497,6 +15557,8 @@ function frameDefInteriorStep6VerticalSlabRects114FromStep5(verts114, step5Segs,
   }
 
   var snapGrid = Math.max(eps, tolMm * 0.08);
+  /** false: 격자 절단을 bbox+5단계 분할선만 사용(②-9 비정형에서 꼭짓점마다 슬라이스하면 내부에 잘못된 띠 다발 생성되기 쉬움). 기본 true=124 동작 */
+  var includeOutlineVtx = opts.includeHatchOutlineVertexCuts !== false;
 
   stats.step5SegTotal = segs.length;
   for (var sc = 0; sc < segs.length; sc++) {
@@ -15507,8 +15569,10 @@ function frameDefInteriorStep6VerticalSlabRects114FromStep5(verts114, step5Segs,
   }
 
   var xCuts = [bb.x0, bb.x1];
-  for (var hxi = 0; hxi < basePoly.length; hxi++) {
-    xCuts.push(basePoly[hxi].x);
+  if (includeOutlineVtx) {
+    for (var hxi = 0; hxi < basePoly.length; hxi++) {
+      xCuts.push(basePoly[hxi].x);
+    }
   }
   for (var si = 0; si < segs.length; si++) {
     var sg = segs[si];
@@ -15522,8 +15586,10 @@ function frameDefInteriorStep6VerticalSlabRects114FromStep5(verts114, step5Segs,
   stats.xBreakCount = xCuts.length;
 
   var yCuts = [bb.y0, bb.y1];
-  for (var hyi = 0; hyi < basePoly.length; hyi++) {
-    yCuts.push(basePoly[hyi].y);
+  if (includeOutlineVtx) {
+    for (var hyi = 0; hyi < basePoly.length; hyi++) {
+      yCuts.push(basePoly[hyi].y);
+    }
   }
   for (var sj = 0; sj < segs.length; sj++) {
     var sg2 = segs[sj];
@@ -15560,6 +15626,17 @@ function frameDefInteriorStep6VerticalSlabRects114FromStep5(verts114, step5Segs,
         stats.skippedTinyArea++;
         continue;
       }
+      var cellBbW = xR - xL;
+      var cellBbH = yHi - yLo;
+      var cellBbArea = cellBbW * cellBbH;
+      var minFillR = opts.minClipFillRatio != null && isFinite(Number(opts.minClipFillRatio)) ? Number(opts.minClipFillRatio) : 0;
+      if (minFillR > 0 && cellBbArea > 1e-6) {
+        var fillRatio = ar / cellBbArea;
+        if (fillRatio < minFillR - 1e-9) {
+          stats.skippedLowClipFill++;
+          continue;
+        }
+      }
       var bx = polyBbox(p2);
       if (!bx) continue;
       var r6w = bx.x1 - bx.x0;
@@ -15568,8 +15645,7 @@ function frameDefInteriorStep6VerticalSlabRects114FromStep5(verts114, step5Segs,
       var shortSide = Math.min(r6w, r6h);
       var longSide = Math.max(r6w, r6h);
       var aspect = longSide > 1e-6 ? shortSide / longSide : 0;
-      var stripAsp = typeof FRAME_DEF_STEP124_INTERIOR_STEP6_STRIP_ASPECT_MAX === 'number' ? FRAME_DEF_STEP124_INTERIOR_STEP6_STRIP_ASPECT_MAX : 0.42;
-      var isStripLike = shortSide <= maxShort || aspect <= stripAsp;
+      var isStripLike = bypassStripFilter || shortSide <= maxShort || aspect <= stripAspectMaxUse;
       if (!isStripLike) {
         stats.skippedNonStrip++;
         continue;
@@ -21141,6 +21217,1369 @@ function frameDefClipPolygonToHalfPlane(poly, edge) {
   if (out.length < 3) return null;
   return out;
 }
+/** 단일 폐곡선(②-8 등)과 축정렬 직사각형의 교차 — 면/해치를 직사각 전체가 아닌 실제 겹침 경계로 그릴 때 사용 */
+function frameDefIntersectPolygonAxisRect(poly, rect) {
+  if (!Array.isArray(poly) || poly.length < 3 || !rect) return [];
+  var minX = Number(rect.minX), maxX = Number(rect.maxX), minY = Number(rect.minY), maxY = Number(rect.maxY);
+  if (!(isFinite(minX) && isFinite(maxX) && isFinite(minY) && isFinite(maxY) && minX < maxX && minY < maxY)) return [];
+  var p = poly;
+  p = frameDefClipPolygonToHalfPlane(p, { x: minX, left: false });
+  if (!p || p.length < 3) return [];
+  p = frameDefClipPolygonToHalfPlane(p, { x: maxX, left: true });
+  if (!p || p.length < 3) return [];
+  p = frameDefClipPolygonToHalfPlane(p, { y: minY, bottom: false });
+  if (!p || p.length < 3) return [];
+  p = frameDefClipPolygonToHalfPlane(p, { y: maxY, bottom: true });
+  if (!p || p.length < 3) return [];
+  return [p];
+}
+/** 수평 선분 [xL,xR]×{y} 와 단순 폴리곤(②-8 등)의 교집합을 1차원 구간 배열로 반환(mm). ②-9 분할 가이드가 면 밖으로 나가지 않게 할 때 사용 */
+function frameDefHorizSegIntervalsInPolygon(y, xL, xR, poly) {
+  if (!Array.isArray(poly) || poly.length < 3 || typeof frameDefPointInPolygon !== 'function') return [];
+  var polyUse = poly;
+  if (poly.length >= 4 && typeof frameDefStripDuplicateClosingVertex === 'function') {
+    polyUse = poly.slice();
+    frameDefStripDuplicateClosingVertex(polyUse);
+    if (polyUse.length < 3) polyUse = poly;
+  }
+  var x0 = Math.min(Number(xL) || 0, Number(xR) || 0), x1 = Math.max(Number(xL) || 0, Number(xR) || 0);
+  if (!(x1 > x0 + 1e-9)) return [];
+  var yw = Number(y) || 0;
+  var horizTol = 0.55;
+  var marks = [x0, x1];
+  var n = polyUse.length;
+  for (var i = 0; i < n; i++) {
+    var a = polyUse[i], b = polyUse[(i + 1) % n];
+    if (!a || !b) continue;
+    var ax = Number(a.x) || 0, ay = Number(a.y) || 0, bx = Number(b.x) || 0, by = Number(b.y) || 0;
+    if (Math.abs(ay - by) < 1e-7) {
+      if (Math.abs(yw - ay) < horizTol) {
+        marks.push(Math.min(ax, bx), Math.max(ax, bx));
+      }
+      continue;
+    }
+    var ymin = Math.min(ay, by), ymax = Math.max(ay, by);
+    if (yw < ymin || yw > ymax) continue;
+    if (yw <= ymin || yw >= ymax) continue;
+    var xi = ax + (yw - ay) * (bx - ax) / (by - ay);
+    marks.push(xi);
+  }
+  marks.sort(function(u, v) { return u - v; });
+  var uniq = [];
+  for (var m = 0; m < marks.length; m++) {
+    if (!uniq.length || marks[m] > uniq[uniq.length - 1] + 1e-4) uniq.push(marks[m]);
+  }
+  function probeIn(xm) {
+    if (frameDefPointInPolygon({ x: xm, y: yw }, polyUse)) return true;
+    var offs = [0.15, -0.15, 0.4, -0.4, 0.7, -0.7];
+    for (var oi = 0; oi < offs.length; oi++) {
+      if (frameDefPointInPolygon({ x: xm, y: yw + offs[oi] }, polyUse)) return true;
+    }
+    return false;
+  }
+  /** 한 x구간이 수평선상에서 폴리 **전 구간** 면 안에 있는지(중점만 보면 오목형에서 공동을 건너 뛰는 잘못된 장선분 생김) */
+  function probeIntervalFullyInside(sl, sr) {
+    if (!(sr > sl + 1e-6)) return false;
+    var rat = [0.04, 0.12, 0.22, 0.35, 0.5, 0.65, 0.78, 0.88, 0.96];
+    for (var ri = 0; ri < rat.length; ri++) {
+      var xm = sl + (sr - sl) * rat[ri];
+      if (!probeIn(xm)) return false;
+    }
+    return true;
+  }
+  var out = [];
+  for (var k = 0; k < uniq.length - 1; k++) {
+    var xa = uniq[k], xb = uniq[k + 1];
+    if (xb <= x0 + 1e-6 || xa >= x1 - 1e-6) continue;
+    var sl = Math.max(x0, xa), sr = Math.min(x1, xb);
+    if (sr <= sl + 1e-3) continue;
+    if (!probeIntervalFullyInside(sl, sr)) continue;
+    out.push({ x0: sl, x1: sr });
+  }
+  return out;
+}
+/** ②-8 유니온 `merged`에서 ②-9 벽체 항목: `PARTITION_MODE`에 따라 유니온 직전 쿼드 또는 **유니온 결과** 링/폴리. */
+function frameDefCopyPolyline2d(ring) {
+  var out = [];
+  if (!Array.isArray(ring)) return out;
+  for (var i = 0; i < ring.length; i++) {
+    var p = ring[i];
+    if (!p) continue;
+    out.push({ x: Number(p.x) || 0, y: Number(p.y) || 0 });
+  }
+  return out;
+}
+function frameDefCopyRings2d(rings) {
+  var out = [];
+  if (!Array.isArray(rings)) return out;
+  for (var i = 0; i < rings.length; i++) {
+    var r = frameDefCopyPolyline2d(rings[i]);
+    if (r.length >= 3) out.push(r);
+  }
+  return out;
+}
+function frameDefStep29UnionItemsFromMerged(merged) {
+  var items = [];
+  var m = merged && typeof merged === 'object' ? merged : null;
+  if (!m) return items;
+  if (Array.isArray(m.mergedGroups) && m.mergedGroups.length) {
+    for (var gi = 0; gi < m.mergedGroups.length; gi++) {
+      var rings = frameDefCopyRings2d(m.mergedGroups[gi]);
+      if (rings.length) items.push({ kind: 'rings', rings: rings });
+    }
+  } else if (Array.isArray(m.polys) && m.polys.length) {
+    for (var pi = 0; pi < m.polys.length; pi++) {
+      var pr = frameDefCopyPolyline2d(m.polys[pi]);
+      if (pr.length >= 3) items.push({ kind: 'poly', poly: pr });
+    }
+  }
+  return items;
+}
+/**
+ * ②-9 입력 항목: PARTITION_MODE가 sourceQuads일 때만 유니온 직전 쿼드 우선, 아니면 **유니온 결과**(mergedGroups/polys)만 사용.
+ */
+function frameDefStep29UnionItemsFromStep28ForWalls(merged) {
+  var m = merged && typeof merged === 'object' ? merged : null;
+  if (!m) return [];
+  var partMode = typeof FRAME_DEF_STEP2A_STEP29_PARTITION_MODE === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_MODE : 'unionWallStrips';
+  if (partMode !== 'sourceQuads') {
+    return typeof frameDefStep29UnionItemsFromMerged === 'function' ? frameDefStep29UnionItemsFromMerged(m) : [];
+  }
+  if (Array.isArray(m.sourceGroups) && m.sourceGroups.length
+    && Array.isArray(m.mergedGroups) && m.mergedGroups.length === m.sourceGroups.length) {
+    var itemsG = [];
+    for (var gi = 0; gi < m.sourceGroups.length; gi++) {
+      var grp = m.sourceGroups[gi];
+      if (!Array.isArray(grp)) continue;
+      for (var qi = 0; qi < grp.length; qi++) {
+        var pr = frameDefCopyPolyline2d(grp[qi]);
+        if (pr.length >= 3) {
+          itemsG.push({
+            kind: 'sourceQuad',
+            poly: pr,
+            groupIndex: gi,
+            pieceIndex: qi
+          });
+        }
+      }
+    }
+    if (itemsG.length) return itemsG;
+  }
+  if (Array.isArray(m.sourcePolys) && m.sourcePolys.length) {
+    var itemsF = [];
+    for (var si = 0; si < m.sourcePolys.length; si++) {
+      var pr2 = frameDefCopyPolyline2d(m.sourcePolys[si]);
+      if (pr2.length >= 3) {
+        itemsF.push({
+          kind: 'sourceQuad',
+          poly: pr2,
+          groupIndex: -1,
+          pieceIndex: si
+        });
+      }
+    }
+    if (itemsF.length) return itemsF;
+  }
+  return typeof frameDefStep29UnionItemsFromMerged === 'function' ? frameDefStep29UnionItemsFromMerged(m) : [];
+}
+function frameDefStep29UnionItemAreaMm2(item) {
+  function pa(poly) {
+    return typeof frameDefPolygonAreaAbs === 'function' ? Math.abs(Number(frameDefPolygonAreaAbs(poly)) || 0) : 0;
+  }
+  if (!item) return 0;
+  if (item.kind === 'sourceQuad' && Array.isArray(item.poly)) return pa(item.poly);
+  if (item.kind === 'poly') return pa(item.poly);
+  if (item.kind === 'rings' && Array.isArray(item.rings)) {
+    var s = 0;
+    for (var i = 0; i < item.rings.length; i++) s += pa(item.rings[i]);
+    return s;
+  }
+  return 0;
+}
+function frameDefBboxUnionOfPointRings(rings) {
+  var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  if (!Array.isArray(rings)) return null;
+  for (var ri = 0; ri < rings.length; ri++) {
+    var r = rings[ri];
+    if (!Array.isArray(r)) continue;
+    for (var j = 0; j < r.length; j++) {
+      var p = r[j];
+      if (!p) continue;
+      var px = Number(p.x) || 0, py = Number(p.y) || 0;
+      if (px < x0) x0 = px;
+      if (px > x1) x1 = px;
+      if (py < y0) y0 = py;
+      if (py > y1) y1 = py;
+    }
+  }
+  if (!(x1 > x0 + 1e-9 && y1 > y0 + 1e-9)) return null;
+  return { minX: x0, maxX: x1, minY: y0, maxY: y1 };
+}
+/** even-odd 채움 기준: 링 전체(외곽+구멍)에 대한 점 포함. ②-9 격자 셀 중심이 구멍이면 스킵 */
+function frameDefPointInRingsEvenOddFill(pt, rings) {
+  if (!pt || !Array.isArray(rings) || !rings.length) return false;
+  var x = Number(pt.x), y = Number(pt.y);
+  if (!isFinite(x) || !isFinite(y)) return false;
+  var odd = false;
+  for (var ri = 0; ri < rings.length; ri++) {
+    var ring = rings[ri];
+    if (!Array.isArray(ring) || ring.length < 3) continue;
+    var n = ring.length;
+    for (var i = 0; i < n; i++) {
+      var a = ring[i], b = ring[(i + 1) % n];
+      if (!a || !b) continue;
+      var ay = Number(a.y) || 0, by = Number(b.y) || 0;
+      if ((ay > y) === (by > y)) continue;
+      var ax = Number(a.x) || 0, bx = Number(b.x) || 0;
+      var dy = by - ay;
+      if (Math.abs(dy) < 1e-12) continue;
+      var xInt = ax + (y - ay) * (bx - ax) / dy;
+      if (xInt > x) odd = !odd;
+    }
+  }
+  return odd;
+}
+function frameDefStep29PolyAreaAbs2d(poly) {
+  if (!Array.isArray(poly) || poly.length < 3) return 0;
+  var a = 0;
+  for (var i = 0; i < poly.length; i++) {
+    var j = (i + 1) % poly.length;
+    var p = poly[i], q = poly[j];
+    if (!p || !q) continue;
+    a += (Number(p.x) || 0) * (Number(q.y) || 0) - (Number(q.x) || 0) * (Number(p.y) || 0);
+  }
+  return Math.abs(a) * 0.5;
+}
+/** 124-6과 동일: 폴리를 [xL,xR]×[yLo,yHi] 축 박스로 클립한 결과(없으면 null) */
+function frameDefStep29ClipPolyToAxisCell(poly, xL, xR, yLo, yHi, eps) {
+  if (!Array.isArray(poly) || poly.length < 3) return null;
+  var e = Math.max(0.08, Number(eps) || 0.35);
+  function clipPolyXMin(p, x0) {
+    var out = [];
+    var n = p.length;
+    if (n < 2) return out;
+    function ins(pt) { return (Number(pt.x) || 0) >= x0 - e; }
+    function inter(p1, p2) {
+      var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0);
+      if (Math.abs(dx) < 1e-12) return null;
+      var t = (x0 - (Number(p1.x) || 0)) / dx;
+      if (t < -1e-8 || t > 1 + 1e-8) return null;
+      return { x: x0, y: (Number(p1.y) || 0) + t * ((Number(p2.y) || 0) - (Number(p1.y) || 0)) };
+    }
+    var prev = p[n - 1], prevI = ins(prev);
+    for (var i = 0; i < n; i++) {
+      var cur = p[i], curI = ins(cur);
+      if (curI) {
+        if (!prevI) {
+          var ip = inter(prev, cur);
+          if (ip) out.push(ip);
+        }
+        out.push(cur);
+      } else if (prevI) {
+        var ip2 = inter(prev, cur);
+        if (ip2) out.push(ip2);
+      }
+      prev = cur;
+      prevI = curI;
+    }
+    return out;
+  }
+  function clipPolyXMax(p, x1) {
+    var out = [];
+    var n = p.length;
+    if (n < 2) return out;
+    function ins(pt) { return (Number(pt.x) || 0) <= x1 + e; }
+    function inter(p1, p2) {
+      var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0);
+      if (Math.abs(dx) < 1e-12) return null;
+      var t = (x1 - (Number(p1.x) || 0)) / dx;
+      if (t < -1e-8 || t > 1 + 1e-8) return null;
+      return { x: x1, y: (Number(p1.y) || 0) + t * ((Number(p2.y) || 0) - (Number(p1.y) || 0)) };
+    }
+    var prev = p[n - 1], prevI = ins(prev);
+    for (var i = 0; i < n; i++) {
+      var cur = p[i], curI = ins(cur);
+      if (curI) {
+        if (!prevI) {
+          var ip = inter(prev, cur);
+          if (ip) out.push(ip);
+        }
+        out.push(cur);
+      } else if (prevI) {
+        var ip2 = inter(prev, cur);
+        if (ip2) out.push(ip2);
+      }
+      prev = cur;
+      prevI = curI;
+    }
+    return out;
+  }
+  function clipPolyYMin(p, y0) {
+    var out = [];
+    var n = p.length;
+    if (n < 2) return out;
+    function ins(pt) { return (Number(pt.y) || 0) >= y0 - e; }
+    function inter(p1, p2) {
+      var dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+      if (Math.abs(dy) < 1e-12) return null;
+      var t = (y0 - (Number(p1.y) || 0)) / dy;
+      if (t < -1e-8 || t > 1 + 1e-8) return null;
+      return { x: (Number(p1.x) || 0) + t * ((Number(p2.x) || 0) - (Number(p1.x) || 0)), y: y0 };
+    }
+    var prev = p[n - 1], prevI = ins(prev);
+    for (var i = 0; i < n; i++) {
+      var cur = p[i], curI = ins(cur);
+      if (curI) {
+        if (!prevI) {
+          var ip = inter(prev, cur);
+          if (ip) out.push(ip);
+        }
+        out.push(cur);
+      } else if (prevI) {
+        var ip2 = inter(prev, cur);
+        if (ip2) out.push(ip2);
+      }
+      prev = cur;
+      prevI = curI;
+    }
+    return out;
+  }
+  function clipPolyYMax(p, y1) {
+    var out = [];
+    var n = p.length;
+    if (n < 2) return out;
+    function ins(pt) { return (Number(pt.y) || 0) <= y1 + e; }
+    function inter(p1, p2) {
+      var dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+      if (Math.abs(dy) < 1e-12) return null;
+      var t = (y1 - (Number(p1.y) || 0)) / dy;
+      if (t < -1e-8 || t > 1 + 1e-8) return null;
+      return { x: (Number(p1.x) || 0) + t * ((Number(p2.x) || 0) - (Number(p1.x) || 0)), y: y1 };
+    }
+    var prev = p[n - 1], prevI = ins(prev);
+    for (var i = 0; i < n; i++) {
+      var cur = p[i], curI = ins(cur);
+      if (curI) {
+        if (!prevI) {
+          var ip = inter(prev, cur);
+          if (ip) out.push(ip);
+        }
+        out.push(cur);
+      } else if (prevI) {
+        var ip2 = inter(prev, cur);
+        if (ip2) out.push(ip2);
+      }
+      prev = cur;
+      prevI = curI;
+    }
+    return out;
+  }
+  var p0 = poly.slice();
+  var px1 = clipPolyXMin(p0, xL);
+  var px2 = clipPolyXMax(px1, xR);
+  var py1 = clipPolyYMin(px2, yLo);
+  var p2 = clipPolyYMax(py1, yHi);
+  if (!p2 || p2.length < 3) return null;
+  return p2;
+}
+/** 외곽만: x∈[xL,xR] 반평면 클립(수직 슬랩 띠). */
+function frameDefStep29ClipPolyVerticalBand(poly, xL, xR, eps) {
+  if (!Array.isArray(poly) || poly.length < 3) return null;
+  var e = Math.max(0.08, Number(eps) || 0.35);
+  function clipPolyXMin(p, x0) {
+    var out = [];
+    var n = p.length;
+    if (n < 2) return out;
+    function ins(pt) { return (Number(pt.x) || 0) >= x0 - e; }
+    function inter(p1, p2) {
+      var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0);
+      if (Math.abs(dx) < 1e-12) return null;
+      var t = (x0 - (Number(p1.x) || 0)) / dx;
+      if (t < -1e-8 || t > 1 + 1e-8) return null;
+      return { x: x0, y: (Number(p1.y) || 0) + t * ((Number(p2.y) || 0) - (Number(p1.y) || 0)) };
+    }
+    var prev = p[n - 1], prevI = ins(prev);
+    for (var i = 0; i < n; i++) {
+      var cur = p[i], curI = ins(cur);
+      if (curI) {
+        if (!prevI) {
+          var ip = inter(prev, cur);
+          if (ip) out.push(ip);
+        }
+        out.push(cur);
+      } else if (prevI) {
+        var ip2 = inter(prev, cur);
+        if (ip2) out.push(ip2);
+      }
+      prev = cur;
+      prevI = curI;
+    }
+    return out;
+  }
+  function clipPolyXMax(p, x1) {
+    var out = [];
+    var n = p.length;
+    if (n < 2) return out;
+    function ins(pt) { return (Number(pt.x) || 0) <= x1 + e; }
+    function inter(p1, p2) {
+      var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0);
+      if (Math.abs(dx) < 1e-12) return null;
+      var t = (x1 - (Number(p1.x) || 0)) / dx;
+      if (t < -1e-8 || t > 1 + 1e-8) return null;
+      return { x: x1, y: (Number(p1.y) || 0) + t * ((Number(p2.y) || 0) - (Number(p1.y) || 0)) };
+    }
+    var prev = p[n - 1], prevI = ins(prev);
+    for (var i = 0; i < n; i++) {
+      var cur = p[i], curI = ins(cur);
+      if (curI) {
+        if (!prevI) {
+          var ip = inter(prev, cur);
+          if (ip) out.push(ip);
+        }
+        out.push(cur);
+      } else if (prevI) {
+        var ip2 = inter(prev, cur);
+        if (ip2) out.push(ip2);
+      }
+      prev = cur;
+      prevI = curI;
+    }
+    return out;
+  }
+  var p0 = poly.slice();
+  var px1 = clipPolyXMin(p0, xL);
+  var px2 = clipPolyXMax(px1, xR);
+  if (!px2 || px2.length < 3) return null;
+  return px2;
+}
+/** 외곽만: y∈[yLo,yHi] 반평면 클립(수평 슬랩 띠). */
+function frameDefStep29ClipPolyHorizontalBand(poly, yLo, yHi, eps) {
+  if (!Array.isArray(poly) || poly.length < 3) return null;
+  var e = Math.max(0.08, Number(eps) || 0.35);
+  function clipPolyYMin(p, y0) {
+    var out = [];
+    var n = p.length;
+    if (n < 2) return out;
+    function ins(pt) { return (Number(pt.y) || 0) >= y0 - e; }
+    function inter(p1, p2) {
+      var dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+      if (Math.abs(dy) < 1e-12) return null;
+      var t = (y0 - (Number(p1.y) || 0)) / dy;
+      if (t < -1e-8 || t > 1 + 1e-8) return null;
+      return { x: (Number(p1.x) || 0) + t * ((Number(p2.x) || 0) - (Number(p1.x) || 0)), y: y0 };
+    }
+    var prev = p[n - 1], prevI = ins(prev);
+    for (var i = 0; i < n; i++) {
+      var cur = p[i], curI = ins(cur);
+      if (curI) {
+        if (!prevI) {
+          var ip = inter(prev, cur);
+          if (ip) out.push(ip);
+        }
+        out.push(cur);
+      } else if (prevI) {
+        var ip2 = inter(prev, cur);
+        if (ip2) out.push(ip2);
+      }
+      prev = cur;
+      prevI = curI;
+    }
+    return out;
+  }
+  function clipPolyYMax(p, y1) {
+    var out = [];
+    var n = p.length;
+    if (n < 2) return out;
+    function ins(pt) { return (Number(pt.y) || 0) <= y1 + e; }
+    function inter(p1, p2) {
+      var dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+      if (Math.abs(dy) < 1e-12) return null;
+      var t = (y1 - (Number(p1.y) || 0)) / dy;
+      if (t < -1e-8 || t > 1 + 1e-8) return null;
+      return { x: (Number(p1.x) || 0) + t * ((Number(p2.x) || 0) - (Number(p1.x) || 0)), y: y1 };
+    }
+    var prev = p[n - 1], prevI = ins(prev);
+    for (var i = 0; i < n; i++) {
+      var cur = p[i], curI = ins(cur);
+      if (curI) {
+        if (!prevI) {
+          var ip = inter(prev, cur);
+          if (ip) out.push(ip);
+        }
+        out.push(cur);
+      } else if (prevI) {
+        var ip2 = inter(prev, cur);
+        if (ip2) out.push(ip2);
+      }
+      prev = cur;
+      prevI = curI;
+    }
+    return out;
+  }
+  var p0 = poly.slice();
+  var py1 = clipPolyYMin(p0, yLo);
+  var py2 = clipPolyYMax(py1, yHi);
+  if (!py2 || py2.length < 3) return null;
+  return py2;
+}
+function frameDefStep29SnapUniqueSorted1d(vals, tol) {
+  if (!Array.isArray(vals) || !vals.length) return [];
+  var a = vals.slice().sort(function(u, v) { return u - v; });
+  var out = [a[0]];
+  for (var i = 1; i < a.length; i++) {
+    if (Math.abs(a[i] - out[out.length - 1]) > tol) out.push(a[i]);
+  }
+  return out;
+}
+function frameDefStep29InsertLongSpanMidCuts(sortedCuts, eps) {
+  if (!Array.isArray(sortedCuts) || sortedCuts.length < 2) return sortedCuts;
+  var e = Math.max(0.15, Number(eps) || 0.5);
+  var splitAt = typeof FRAME_DEF_STEP2A_STEP29_STRIP_LONG_SPAN_SPLIT_MM === 'number' && isFinite(FRAME_DEF_STEP2A_STEP29_STRIP_LONG_SPAN_SPLIT_MM)
+    ? Math.max(400, Number(FRAME_DEF_STEP2A_STEP29_STRIP_LONG_SPAN_SPLIT_MM)) : 2600;
+  var acc = [sortedCuts[0]];
+  var i, a, b;
+  for (i = 0; i < sortedCuts.length - 1; i++) {
+    a = sortedCuts[i];
+    b = sortedCuts[i + 1];
+    if (b - a > splitAt + e) acc.push((a + b) * 0.5);
+    acc.push(b);
+  }
+  acc.sort(function(u, v) { return u - v; });
+  return frameDefStep29SnapUniqueSorted1d(acc, e);
+}
+/**
+ * 직교 슬랩 bbox 병합: 같은 “줄”(수직 슬라이스면 동일 y구간, 수평이면 동일 x구간)에서
+ * x(또는 y) 구간이 맞닿거나 겹치면 하나의 긴 직사각으로 합침 — 단순 guillotine 띠의 과분할 완화.
+ */
+function frameDefStep29MergeAdjacentOrthoSlabs(rects, stripAxis, tolMm) {
+  if (!Array.isArray(rects) || rects.length < 2) return rects;
+  var tol = Math.max(0.4, Number(tolMm) || 2.5);
+  function near(a, b) { return Math.abs(Number(a) - Number(b)) <= tol + 1e-9; }
+  var list = rects.slice();
+  var merged = true;
+  while (merged) {
+    merged = false;
+    outer:
+    for (var i = 0; i < list.length; i++) {
+      for (var j = i + 1; j < list.length; j++) {
+        var A = list[i], B = list[j];
+        if (!A || !B) continue;
+        var ax0 = Number(A.x0), ay0 = Number(A.y0), ax1 = Number(A.x1), ay1 = Number(A.y1);
+        var bx0 = Number(B.x0), by0 = Number(B.y0), bx1 = Number(B.x1), by1 = Number(B.y1);
+        var nx0, ny0, nx1, ny1, na;
+        if (stripAxis === 'vertical') {
+          if (near(ay0, by0) && near(ay1, by1) && ax0 <= bx1 + tol && bx0 <= ax1 + tol) {
+            nx0 = Math.min(ax0, bx0);
+            ny0 = ay0;
+            nx1 = Math.max(ax1, bx1);
+            ny1 = ay1;
+          } else continue;
+        } else {
+          if (near(ax0, bx0) && near(ax1, bx1) && ay0 <= by1 + tol && by0 <= ay1 + tol) {
+            nx0 = ax0;
+            ny0 = Math.min(ay0, by0);
+            nx1 = ax1;
+            ny1 = Math.max(ay1, by1);
+          } else continue;
+        }
+        na = (nx1 - nx0) * (ny1 - ny0);
+        var faceQuad = [
+          { x: nx0, y: ny0 },
+          { x: nx1, y: ny0 },
+          { x: nx1, y: ny1 },
+          { x: nx0, y: ny1 }
+        ];
+        var C = {
+          x0: nx0, y0: ny0, x1: nx1, y1: ny1,
+          clipPoly: faceQuad.slice(),
+          faceQuad: faceQuad,
+          cellAreaMm2: Math.round(na * 10) / 10,
+          __step29StripAxis: stripAxis,
+          __step29SlabMerged: true
+        };
+        list.splice(j, 1);
+        list.splice(i, 1, C);
+        merged = true;
+        break outer;
+      }
+    }
+  }
+  return list;
+}
+/**
+ * ②-8 유니온 **외곽** 직교 변: 수평·수직에 가까운 변의 길이 합(mm). guillotine 띠 축 선택(가로벽 위주면 수평 띠 권장).
+ */
+function frameDefStep29OrthoBoundaryHVEdgeLength(outerPoly) {
+  var h = 0;
+  var v = 0;
+  if (!Array.isArray(outerPoly) || outerPoly.length < 2) return { h: 0, v: 0 };
+  var n = outerPoly.length;
+  var i, a, b, dx, dy, L;
+  for (i = 0; i < n; i++) {
+    a = outerPoly[i];
+    b = outerPoly[(i + 1) % n];
+    if (!a || !b) continue;
+    dx = (Number(b.x) || 0) - (Number(a.x) || 0);
+    dy = (Number(b.y) || 0) - (Number(a.y) || 0);
+    L = Math.sqrt(dx * dx + dy * dy);
+    if (L < 1e-4) continue;
+    if (Math.abs(dy) <= Math.abs(dx) * 0.08) h += L;
+    else if (Math.abs(dx) <= Math.abs(dy) * 0.08) v += L;
+  }
+  return { h: h, v: v };
+}
+/** 축평행 직사각 [x0,x1]×[y0,y1]이 링 even-odd 채움 안에 완전히 들어가는지(경계 포함) 격자로 검사 */
+function frameDefStep29AxisRectFullyInRingsEvenOdd(x0, y0, x1, y1, ringsHit, gridN) {
+  if (!Array.isArray(ringsHit) || !ringsHit.length) return true;
+  var gn = gridN != null && isFinite(Number(gridN)) ? Math.max(2, Math.floor(Number(gridN))) : 6;
+  var i, j, px, py;
+  for (j = 0; j <= gn; j++) {
+    for (i = 0; i <= gn; i++) {
+      px = x0 + (x1 - x0) * (i / gn);
+      py = y0 + (y1 - y0) * (j / gn);
+      if (typeof frameDefPointInRingsEvenOddFill !== 'function'
+        || !frameDefPointInRingsEvenOddFill({ x: px, y: py }, ringsHit)) return false;
+    }
+  }
+  return true;
+}
+/** 링 없을 때: 직사각이 클립된 밴드 다각형 p2 안에 격자 샘플로 들어가는지 */
+function frameDefStep29AxisRectFullyInPoly2d(x0, y0, x1, y1, poly2d, gridN) {
+  if (!Array.isArray(poly2d) || poly2d.length < 3 || typeof frameDefPointInPolygon !== 'function') return true;
+  var gn = gridN != null && isFinite(Number(gridN)) ? Math.max(2, Math.floor(Number(gridN))) : 6;
+  var i, j, px, py;
+  for (j = 0; j <= gn; j++) {
+    for (i = 0; i <= gn; i++) {
+      px = x0 + (x1 - x0) * (i / gn);
+      py = y0 + (y1 - y0) * (j / gn);
+      if (!frameDefPointInPolygon({ x: px, y: py }, poly2d)) return false;
+    }
+  }
+  return true;
+}
+/**
+ * 밴드 bbox를 ②-8 유니온(또는 클립 p2) 안에만 들어가는 직사각들로만 분해. bbox가 다각형 밖으로 튀는 경우 4분할.
+ */
+function frameDefStep29StrictOrthoQuadsFromBbox(x0, y0, x1, y1, ringsHit, p2fallback, minArea, stripAxis, depth) {
+  var out = [];
+  var maxD = typeof FRAME_DEF_STEP2A_STEP29_STRICT_SUBDIV_MAX_DEPTH === 'number'
+    ? Math.max(4, Math.floor(Number(FRAME_DEF_STEP2A_STEP29_STRICT_SUBDIV_MAX_DEPTH))) : 16;
+  var gridN = typeof FRAME_DEF_STEP2A_STEP29_STRICT_RECT_GRID_N === 'number'
+    ? Math.max(2, Math.floor(Number(FRAME_DEF_STEP2A_STEP29_STRICT_RECT_GRID_N))) : 6;
+  var area = (x1 - x0) * (y1 - y0);
+  if (!(area >= minArea - 1e-6) || depth > maxD) return out;
+  var inside;
+  if (Array.isArray(ringsHit) && ringsHit.length) {
+    inside = frameDefStep29AxisRectFullyInRingsEvenOdd(x0, y0, x1, y1, ringsHit, gridN);
+  } else {
+    inside = frameDefStep29AxisRectFullyInPoly2d(x0, y0, x1, y1, p2fallback, gridN);
+  }
+  if (inside) {
+    var fq = [
+      { x: x0, y: y0 },
+      { x: x1, y: y0 },
+      { x: x1, y: y1 },
+      { x: x0, y: y1 }
+    ];
+    out.push({
+      x0: x0, y0: y0, x1: x1, y1: y1,
+      clipPoly: fq.slice(),
+      faceQuad: fq.slice(),
+      cellAreaMm2: Math.round(area * 10) / 10,
+      __step29StripAxis: stripAxis
+    });
+    return out;
+  }
+  if (x1 - x0 < 4 || y1 - y0 < 4) return out;
+  var mx = (x0 + x1) * 0.5;
+  var my = (y0 + y1) * 0.5;
+  var parts = [
+    [x0, y0, mx, my],
+    [mx, y0, x1, my],
+    [x0, my, mx, y1],
+    [mx, my, x1, y1]
+  ];
+  var pi, chunk;
+  for (pi = 0; pi < 4; pi++) {
+    chunk = parts[pi];
+    out = out.concat(frameDefStep29StrictOrthoQuadsFromBbox(chunk[0], chunk[1], chunk[2], chunk[3], ringsHit, p2fallback, minArea, stripAxis, depth + 1));
+  }
+  return out;
+}
+/**
+ * ②-8 유니온 링(even-odd)과 수평선 y의 교차 → [x0,x1] 구간들(내부만). plane-sweep / slice 요약에 가깝게 O(모서리).
+ */
+function frameDefStep29HorizSegIntervalsInRingsEvenOdd(y, xL, xR, ringsHit) {
+  if (!Array.isArray(ringsHit) || !ringsHit.length || typeof frameDefPointInRingsEvenOddFill !== 'function') return [];
+  var x0 = Math.min(Number(xL) || 0, Number(xR) || 0);
+  var x1 = Math.max(Number(xL) || 0, Number(xR) || 0);
+  if (!(x1 > x0 + 1e-9)) return [];
+  var yw = Number(y) || 0;
+  var horizTol = 0.55;
+  var marks = [x0, x1];
+  var ri, ring, n, i, a, b, ax, ay, bx, by, ymin, ymax, xi;
+  for (ri = 0; ri < ringsHit.length; ri++) {
+    ring = ringsHit[ri];
+    if (!Array.isArray(ring) || ring.length < 2) continue;
+    n = ring.length;
+    for (i = 0; i < n; i++) {
+      a = ring[i];
+      b = ring[(i + 1) % n];
+      if (!a || !b) continue;
+      ax = Number(a.x) || 0;
+      ay = Number(a.y) || 0;
+      bx = Number(b.x) || 0;
+      by = Number(b.y) || 0;
+      if (Math.abs(ay - by) < 1e-7) {
+        if (Math.abs(yw - ay) < horizTol) {
+          marks.push(Math.min(ax, bx), Math.max(ax, bx));
+        }
+        continue;
+      }
+      ymin = Math.min(ay, by);
+      ymax = Math.max(ay, by);
+      if (yw <= ymin || yw >= ymax) continue;
+      xi = ax + (yw - ay) * (bx - ax) / (by - ay);
+      marks.push(xi);
+    }
+  }
+  marks.sort(function(u, v) { return u - v; });
+  var uniq = [];
+  for (var m = 0; m < marks.length; m++) {
+    if (!uniq.length || marks[m] > uniq[uniq.length - 1] + 1e-4) uniq.push(marks[m]);
+  }
+  var out = [];
+  for (var k = 0; k < uniq.length - 1; k++) {
+    var xa = uniq[k];
+    var xb = uniq[k + 1];
+    if (xb <= x0 + 1e-6 || xa >= x1 - 1e-6) continue;
+    var sl = Math.max(x0, xa);
+    var sr = Math.min(x1, xb);
+    if (sr <= sl + 1e-3) continue;
+    var xm = (sl + sr) * 0.5;
+    if (frameDefPointInRingsEvenOddFill({ x: xm, y: yw }, ringsHit)) {
+      out.push({ x0: sl, x1: sr });
+    }
+  }
+  return out;
+}
+/**
+ * 수직선 x와 링 even-odd → [y0,y1] 구간들.
+ */
+function frameDefStep29VertSegIntervalsInRingsEvenOdd(x, yL, yR, ringsHit) {
+  if (!Array.isArray(ringsHit) || !ringsHit.length || typeof frameDefPointInRingsEvenOddFill !== 'function') return [];
+  var y0 = Math.min(Number(yL) || 0, Number(yR) || 0);
+  var y1 = Math.max(Number(yL) || 0, Number(yR) || 0);
+  if (!(y1 > y0 + 1e-9)) return [];
+  var xw = Number(x) || 0;
+  var vertTol = 0.55;
+  var marks = [y0, y1];
+  var ri, ring, n, i, a, b, ax, ay, bx, by, xmin, xmax, yi;
+  for (ri = 0; ri < ringsHit.length; ri++) {
+    ring = ringsHit[ri];
+    if (!Array.isArray(ring) || ring.length < 2) continue;
+    n = ring.length;
+    for (i = 0; i < n; i++) {
+      a = ring[i];
+      b = ring[(i + 1) % n];
+      if (!a || !b) continue;
+      ax = Number(a.x) || 0;
+      ay = Number(a.y) || 0;
+      bx = Number(b.x) || 0;
+      by = Number(b.y) || 0;
+      if (Math.abs(ax - bx) < 1e-7) {
+        if (Math.abs(xw - ax) < vertTol) {
+          marks.push(Math.min(ay, by), Math.max(ay, by));
+        }
+        continue;
+      }
+      xmin = Math.min(ax, bx);
+      xmax = Math.max(ax, bx);
+      if (xw <= xmin || xw >= xmax) continue;
+      yi = ay + (xw - ax) * (by - ay) / (bx - ax);
+      marks.push(yi);
+    }
+  }
+  marks.sort(function(u, v) { return u - v; });
+  var uniq2 = [];
+  for (var m2 = 0; m2 < marks.length; m2++) {
+    if (!uniq2.length || marks[m2] > uniq2[uniq2.length - 1] + 1e-4) uniq2.push(marks[m2]);
+  }
+  var out2 = [];
+  for (var k2 = 0; k2 < uniq2.length - 1; k2++) {
+    var ya = uniq2[k2];
+    var yb = uniq2[k2 + 1];
+    if (yb <= y0 + 1e-6 || ya >= y1 - 1e-6) continue;
+    var slo = Math.max(y0, ya);
+    var sro = Math.min(y1, yb);
+    if (sro <= slo + 1e-3) continue;
+    var ym = (slo + sro) * 0.5;
+    if (frameDefPointInRingsEvenOddFill({ x: xw, y: ym }, ringsHit)) {
+      out2.push({ y0: slo, y1: sro });
+    }
+  }
+  return out2;
+}
+function frameDefStep29IntersectXIntervalLists(A, B) {
+  if (!Array.isArray(A) || !Array.isArray(B) || !A.length || !B.length) return [];
+  var R = [];
+  var i, j, lo, hi;
+  for (i = 0; i < A.length; i++) {
+    for (j = 0; j < B.length; j++) {
+      lo = Math.max(A[i].x0, B[j].x0);
+      hi = Math.min(A[i].x1, B[j].x1);
+      if (hi > lo + 1e-4) R.push({ x0: lo, x1: hi });
+    }
+  }
+  return R;
+}
+function frameDefStep29IntersectYIntervalLists(A, B) {
+  if (!Array.isArray(A) || !Array.isArray(B) || !A.length || !B.length) return [];
+  var R2 = [];
+  var ia, jb, lo2, hi2;
+  for (ia = 0; ia < A.length; ia++) {
+    for (jb = 0; jb < B.length; jb++) {
+      lo2 = Math.max(A[ia].y0, B[jb].y0);
+      hi2 = Math.min(A[ia].y1, B[jb].y1);
+      if (hi2 > lo2 + 1e-4) R2.push({ y0: lo2, y1: hi2 });
+    }
+  }
+  return R2;
+}
+/**
+ * 스캔라인 기반: ②-8 유니온(링)을 꼭짓점 띠마다 자르고, 각 띠에서 **실제 채움 구간**만 직사각으로 쌓음(격자/4분할 없음).
+ */
+function frameDefStep29ScanlineSlabRectsFromOuterPoly(outerPoly, ringsForHitTest, opts) {
+  opts = opts || {};
+  var out = [];
+  if (!Array.isArray(outerPoly) || outerPoly.length < 3) return out;
+  var base = frameDefCopyPolyline2d(outerPoly);
+  if (base.length < 3) return out;
+  var tolMm = Math.max(8, Number(opts.tolMm) || 25);
+  var epsSc = Math.max(0.1, tolMm * 1e-3);
+  var snapGrid = Math.max(epsSc, tolMm * 0.08);
+  var minArea = typeof FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 === 'number' ? Math.max(0, Number(FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2)) : 400;
+  if (opts.minCellAreaMm2 != null && isFinite(Number(opts.minCellAreaMm2))) minArea = Number(opts.minCellAreaMm2);
+  var minSlab = typeof FRAME_DEF_STEP2A_STEP29_ARCH_MIN_SLAB_MM === 'number' ? Math.max(1, Number(FRAME_DEF_STEP2A_STEP29_ARCH_MIN_SLAB_MM)) : 4;
+  var x0b = Infinity, x1b = -Infinity, y0b = Infinity, y1b = -Infinity;
+  for (var bi = 0; bi < base.length; bi++) {
+    var pb = base[bi];
+    if (!pb) continue;
+    var px = Number(pb.x) || 0, py = Number(pb.y) || 0;
+    if (px < x0b) x0b = px;
+    if (px > x1b) x1b = px;
+    if (py < y0b) y0b = py;
+    if (py > y1b) y1b = py;
+  }
+  if (!(x1b > x0b + minSlab) || !(y1b > y0b + minSlab)) return out;
+  var dx = x1b - x0b, dy = y1b - y0b;
+  var axisMode = typeof FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS === 'string' ? FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS : 'auto';
+  var verticalSlices = dx < dy;
+  if (axisMode === 'vertical') verticalSlices = true;
+  else if (axisMode === 'horizontal') verticalSlices = false;
+  else if (axisMode === 'autoEdges') {
+    var hvE2 = frameDefStep29OrthoBoundaryHVEdgeLength(base);
+    verticalSlices = hvE2.v > hvE2.h * 1.12;
+  } else if (axisMode === 'auto') {
+    verticalSlices = dx < dy;
+  }
+  var ringsHit = Array.isArray(ringsForHitTest) && ringsForHitTest.length ? ringsForHitTest : [base];
+  var cuts, ci, cLo, cHi, fq, ivUse, ii, xi0, xi1, yi0, yi1, yMid, xMid, yDel, xDel, iv1, iv2;
+  if (verticalSlices) {
+    cuts = [x0b, x1b];
+    for (var hxi = 0; hxi < base.length; hxi++) cuts.push(Number(base[hxi].x) || 0);
+    cuts = frameDefStep29SnapUniqueSorted1d(cuts, snapGrid);
+    cuts = frameDefStep29InsertLongSpanMidCuts(cuts, snapGrid);
+    for (ci = 0; ci + 1 < cuts.length; ci++) {
+      cLo = cuts[ci];
+      cHi = cuts[ci + 1];
+      if (cHi - cLo < minSlab) continue;
+      xMid = (cLo + cHi) * 0.5;
+      xDel = Math.min(0.45, (cHi - cLo) * 0.1);
+      ivUse = frameDefStep29VertSegIntervalsInRingsEvenOdd(xMid, y0b, y1b, ringsHit);
+      if (cHi - cLo > minSlab * 5) {
+        iv1 = frameDefStep29VertSegIntervalsInRingsEvenOdd(cLo + xDel, y0b, y1b, ringsHit);
+        iv2 = frameDefStep29VertSegIntervalsInRingsEvenOdd(cHi - xDel, y0b, y1b, ringsHit);
+        ivUse = frameDefStep29IntersectYIntervalLists(ivUse, iv1);
+        ivUse = frameDefStep29IntersectYIntervalLists(ivUse, iv2);
+      }
+      for (ii = 0; ii < ivUse.length; ii++) {
+        yi0 = ivUse[ii].y0;
+        yi1 = ivUse[ii].y1;
+        if ((cHi - cLo) * (yi1 - yi0) < minArea - 1e-6) continue;
+        fq = [
+          { x: cLo, y: yi0 },
+          { x: cHi, y: yi0 },
+          { x: cHi, y: yi1 },
+          { x: cLo, y: yi1 }
+        ];
+        out.push({
+          x0: cLo, y0: yi0, x1: cHi, y1: yi1,
+          clipPoly: fq.slice(),
+          faceQuad: fq.slice(),
+          cellAreaMm2: Math.round((cHi - cLo) * (yi1 - yi0) * 10) / 10,
+          __step29StripAxis: 'vertical'
+        });
+      }
+    }
+  } else {
+    cuts = [y0b, y1b];
+    for (var hyi = 0; hyi < base.length; hyi++) cuts.push(Number(base[hyi].y) || 0);
+    cuts = frameDefStep29SnapUniqueSorted1d(cuts, snapGrid);
+    cuts = frameDefStep29InsertLongSpanMidCuts(cuts, snapGrid);
+    for (ci = 0; ci + 1 < cuts.length; ci++) {
+      cLo = cuts[ci];
+      cHi = cuts[ci + 1];
+      if (cHi - cLo < minSlab) continue;
+      yMid = (cLo + cHi) * 0.5;
+      yDel = Math.min(0.45, (cHi - cLo) * 0.1);
+      ivUse = frameDefStep29HorizSegIntervalsInRingsEvenOdd(yMid, x0b, x1b, ringsHit);
+      if (cHi - cLo > minSlab * 5) {
+        iv1 = frameDefStep29HorizSegIntervalsInRingsEvenOdd(cLo + yDel, x0b, x1b, ringsHit);
+        iv2 = frameDefStep29HorizSegIntervalsInRingsEvenOdd(cHi - yDel, x0b, x1b, ringsHit);
+        ivUse = frameDefStep29IntersectXIntervalLists(ivUse, iv1);
+        ivUse = frameDefStep29IntersectXIntervalLists(ivUse, iv2);
+      }
+      for (ii = 0; ii < ivUse.length; ii++) {
+        xi0 = ivUse[ii].x0;
+        xi1 = ivUse[ii].x1;
+        if ((xi1 - xi0) * (cHi - cLo) < minArea - 1e-6) continue;
+        fq = [
+          { x: xi0, y: cLo },
+          { x: xi1, y: cLo },
+          { x: xi1, y: cHi },
+          { x: xi0, y: cHi }
+        ];
+        out.push({
+          x0: xi0, y0: cLo, x1: xi1, y1: cHi,
+          clipPoly: fq.slice(),
+          faceQuad: fq.slice(),
+          cellAreaMm2: Math.round((xi1 - xi0) * (cHi - cLo) * 10) / 10,
+          __step29StripAxis: 'horizontal'
+        });
+      }
+    }
+  }
+  if (out.length >= 2) {
+    var mergeTol = typeof FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM === 'number' ? Number(FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM) : 2.5;
+    var prim = verticalSlices ? 'vertical' : 'horizontal';
+    var sec = verticalSlices ? 'horizontal' : 'vertical';
+    var mc = 0;
+    while (mc++ < 18) {
+      var ob0 = out.length;
+      out = frameDefStep29MergeAdjacentOrthoSlabs(out, prim, mergeTol);
+      out = frameDefStep29MergeAdjacentOrthoSlabs(out, sec, mergeTol);
+      if (out.length === ob0) break;
+    }
+  }
+  return out;
+}
+/**
+ * ②-8 외곽 폴리: **한 축만** 슬라이스(꼭짓점 x/y + 장축 자동). 균등 격자 없음 → 가로선·세로선 과다 방지.
+ * ringsForHitTest: 도넛이면 슬랩 bbox 중심 even-odd로 제외.
+ * PARTITION_ALGO === 'legacy' 일 때만 사용(느림·격자+4분할).
+ */
+function frameDefStep29LegacyGuillotineStrictSlabRectsFromOuterPoly(outerPoly, ringsForHitTest, opts) {
+  opts = opts || {};
+  var out = [];
+  if (!Array.isArray(outerPoly) || outerPoly.length < 3) return out;
+  var base = frameDefCopyPolyline2d(outerPoly);
+  if (base.length < 3) return out;
+  var tolMm = Math.max(8, Number(opts.tolMm) || 25);
+  var eps = Math.max(0.1, tolMm * 1e-3);
+  var snapGrid = Math.max(eps, tolMm * 0.08);
+  var minArea = typeof FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 === 'number' ? Math.max(0, Number(FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2)) : 400;
+  if (opts.minCellAreaMm2 != null && isFinite(Number(opts.minCellAreaMm2))) minArea = Number(opts.minCellAreaMm2);
+  var minSlab = typeof FRAME_DEF_STEP2A_STEP29_ARCH_MIN_SLAB_MM === 'number' ? Math.max(1, Number(FRAME_DEF_STEP2A_STEP29_ARCH_MIN_SLAB_MM)) : 4;
+  var x0b = Infinity, x1b = -Infinity, y0b = Infinity, y1b = -Infinity;
+  for (var bi = 0; bi < base.length; bi++) {
+    var pb = base[bi];
+    if (!pb) continue;
+    var px = Number(pb.x) || 0, py = Number(pb.y) || 0;
+    if (px < x0b) x0b = px;
+    if (px > x1b) x1b = px;
+    if (py < y0b) y0b = py;
+    if (py > y1b) y1b = py;
+  }
+  if (!(x1b > x0b + minSlab) || !(y1b > y0b + minSlab)) return out;
+  var dx = x1b - x0b, dy = y1b - y0b;
+  var axisMode = typeof FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS === 'string' ? FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS : 'auto';
+  /** verticalSlices=true → x방향 띠(슬랩 사이 **수직** 절단). false → y방향 띠(**수평** 절단 위주, 긴 가로 벽체에 유리). */
+  var verticalSlices = dx < dy;
+  if (axisMode === 'vertical') verticalSlices = true;
+  else if (axisMode === 'horizontal') verticalSlices = false;
+  else if (axisMode === 'autoEdges') {
+    var hvE = frameDefStep29OrthoBoundaryHVEdgeLength(base);
+    verticalSlices = hvE.v > hvE.h * 1.12;
+  } else if (axisMode === 'auto') {
+    verticalSlices = dx < dy;
+  }
+  var ringsHit = Array.isArray(ringsForHitTest) && ringsForHitTest.length ? ringsForHitTest : null;
+  var cuts, ci, cLo, cHi, p2, ar, bx, cx, cy, bj, pp, pxx, pyy, sqk, subQ;
+  var gridStrict = typeof FRAME_DEF_STEP2A_STEP29_STRICT_RECT_GRID_N === 'number' ? FRAME_DEF_STEP2A_STEP29_STRICT_RECT_GRID_N : 6;
+
+  if (verticalSlices) {
+    cuts = [x0b, x1b];
+    for (var hxi = 0; hxi < base.length; hxi++) cuts.push(Number(base[hxi].x) || 0);
+    cuts = frameDefStep29SnapUniqueSorted1d(cuts, snapGrid);
+    cuts = frameDefStep29InsertLongSpanMidCuts(cuts, snapGrid);
+    for (ci = 0; ci + 1 < cuts.length; ci++) {
+      cLo = cuts[ci];
+      cHi = cuts[ci + 1];
+      if (cHi - cLo < minSlab) continue;
+      p2 = frameDefStep29ClipPolyVerticalBand(base, cLo, cHi, eps);
+      if (!p2 || p2.length < 3) continue;
+      ar = frameDefStep29PolyAreaAbs2d(p2);
+      if (ar < minArea) continue;
+      bx = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+      for (bj = 0; bj < p2.length; bj++) {
+        pp = p2[bj];
+        if (!pp) continue;
+        pxx = Number(pp.x) || 0;
+        pyy = Number(pp.y) || 0;
+        if (pxx < bx.x0) bx.x0 = pxx;
+        if (pxx > bx.x1) bx.x1 = pxx;
+        if (pyy < bx.y0) bx.y0 = pyy;
+        if (pyy > bx.y1) bx.y1 = pyy;
+      }
+      if (!(bx.x1 > bx.x0 + 1e-6 && bx.y1 > bx.y0 + 1e-6)) continue;
+      cx = (bx.x0 + bx.x1) * 0.5;
+      cy = (bx.y0 + bx.y1) * 0.5;
+      if (ringsHit && !frameDefPointInRingsEvenOddFill({ x: cx, y: cy }, ringsHit)) continue;
+      subQ = frameDefStep29StrictOrthoQuadsFromBbox(bx.x0, bx.y0, bx.x1, bx.y1, ringsHit, p2, minArea, 'vertical', 0);
+      for (sqk = 0; sqk < subQ.length; sqk++) {
+        out.push(subQ[sqk]);
+      }
+    }
+  } else {
+    cuts = [y0b, y1b];
+    for (var hyi = 0; hyi < base.length; hyi++) cuts.push(Number(base[hyi].y) || 0);
+    cuts = frameDefStep29SnapUniqueSorted1d(cuts, snapGrid);
+    cuts = frameDefStep29InsertLongSpanMidCuts(cuts, snapGrid);
+    for (ci = 0; ci + 1 < cuts.length; ci++) {
+      cLo = cuts[ci];
+      cHi = cuts[ci + 1];
+      if (cHi - cLo < minSlab) continue;
+      p2 = frameDefStep29ClipPolyHorizontalBand(base, cLo, cHi, eps);
+      if (!p2 || p2.length < 3) continue;
+      ar = frameDefStep29PolyAreaAbs2d(p2);
+      if (ar < minArea) continue;
+      bx = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+      for (bj = 0; bj < p2.length; bj++) {
+        pp = p2[bj];
+        if (!pp) continue;
+        pxx = Number(pp.x) || 0;
+        pyy = Number(pp.y) || 0;
+        if (pxx < bx.x0) bx.x0 = pxx;
+        if (pxx > bx.x1) bx.x1 = pxx;
+        if (pyy < bx.y0) bx.y0 = pyy;
+        if (pyy > bx.y1) bx.y1 = pyy;
+      }
+      if (!(bx.x1 > bx.x0 + 1e-6 && bx.y1 > bx.y0 + 1e-6)) continue;
+      cx = (bx.x0 + bx.x1) * 0.5;
+      cy = (bx.y0 + bx.y1) * 0.5;
+      if (ringsHit && !frameDefPointInRingsEvenOddFill({ x: cx, y: cy }, ringsHit)) continue;
+      subQ = frameDefStep29StrictOrthoQuadsFromBbox(bx.x0, bx.y0, bx.x1, bx.y1, ringsHit, p2, minArea, 'horizontal', 0);
+      for (sqk = 0; sqk < subQ.length; sqk++) {
+        out.push(subQ[sqk]);
+      }
+    }
+  }
+  if (out.length >= 2) {
+    var mergeTol = typeof FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM === 'number' ? Number(FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM) : 2.5;
+    var prim = verticalSlices ? 'vertical' : 'horizontal';
+    var sec = verticalSlices ? 'horizontal' : 'vertical';
+    var mc = 0;
+    while (mc++ < 18) {
+      var ob0 = out.length;
+      out = frameDefStep29MergeAdjacentOrthoSlabs(out, prim, mergeTol);
+      out = frameDefStep29MergeAdjacentOrthoSlabs(out, sec, mergeTol);
+      if (out.length === ob0) break;
+    }
+  }
+  if (out.length && ringsHit && ringsHit.length) {
+    var filtEnd = [];
+    var fe;
+    for (fe = 0; fe < out.length; fe++) {
+      var sfe = out[fe];
+      if (!sfe) continue;
+      if (frameDefStep29AxisRectFullyInRingsEvenOdd(sfe.x0, sfe.y0, sfe.x1, sfe.y1, ringsHit, gridStrict)) filtEnd.push(sfe);
+    }
+    out = filtEnd;
+  }
+  return out;
+}
+/** ②-9 슬랩: `PARTITION_ALGO`에 따라 스캔라인(기본) 또는 legacy(격자+4분할). */
+function frameDefStep29ArchitecturalSlabRectsFromOuterPoly(outerPoly, ringsForHitTest, opts) {
+  opts = opts || {};
+  var partAlgo = typeof FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO : 'scanline';
+  if (partAlgo === 'scanline') {
+    return frameDefStep29ScanlineSlabRectsFromOuterPoly(outerPoly, ringsForHitTest, opts);
+  }
+  return frameDefStep29LegacyGuillotineStrictSlabRectsFromOuterPoly(outerPoly, ringsForHitTest, opts);
+}
+/** ②-9 보조선: 실제 면(__step29FacePoly)의 수평 모서리만 — ②-8 전체와 스캔선 교차로 그리면 다른 팔·공동으로 선이 번짐 */
+function frameDefStep29HorizGuideSegsFromFacePoly(facePoly, yRef, xClipLo, xClipHi, tolMm) {
+  if (!Array.isArray(facePoly) || facePoly.length < 3) return [];
+  var work = facePoly.slice();
+  if (typeof frameDefStripDuplicateClosingVertex === 'function') frameDefStripDuplicateClosingVertex(work);
+  if (work.length < 3) work = facePoly;
+  var tol = Math.max(0.8, Number(tolMm) || 2.5);
+  var xc0 = Math.min(Number(xClipLo), Number(xClipHi));
+  var xc1 = Math.max(Number(xClipLo), Number(xClipHi));
+  var yT = Number(yRef) || 0;
+  var raw = [];
+  var n = work.length;
+  for (var i = 0; i < n; i++) {
+    var a = work[i], b = work[(i + 1) % n];
+    if (!a || !b) continue;
+    var ax = Number(a.x) || 0, ay = Number(a.y) || 0, bx = Number(b.x) || 0, by = Number(b.y) || 0;
+    if (Math.abs(ay - by) > 0.35) continue;
+    var ym = (ay + by) * 0.5;
+    if (Math.abs(ym - yT) > tol) continue;
+    var xl = Math.min(ax, bx), xr = Math.max(ax, bx);
+    var sl = Math.max(xc0, xl), sr = Math.min(xc1, xr);
+    if (sr > sl + 1e-3) raw.push({ x0: sl, x1: sr, y: ym });
+  }
+  if (!raw.length) return [];
+  raw.sort(function(u, v) { return u.x0 - v.x0; });
+  var merged = [raw[0]];
+  for (var j = 1; j < raw.length; j++) {
+    var R = raw[j], L = merged[merged.length - 1];
+    if (R.x0 <= L.x1 + 1.2) {
+      if (R.x1 > L.x1) L.x1 = R.x1;
+    } else merged.push(R);
+  }
+  return merged;
+}
+/** ②-9 보조선: 긴 x구간을 중앙 일부만 표시(끝까지 넘어가지 않게) */
+function frameDefStep29ClipGuideSpanCenter(xa, xb) {
+  var lo = Math.min(Number(xa), Number(xb));
+  var hi = Math.max(Number(xa), Number(xb));
+  var L = hi - lo;
+  if (!(L > 1e-3)) return null;
+  var ratio = typeof FRAME_DEF_STEP2A_STEP29_GUIDE_SPAN_RATIO === 'number' && isFinite(FRAME_DEF_STEP2A_STEP29_GUIDE_SPAN_RATIO)
+    ? Math.min(0.92, Math.max(0.1, FRAME_DEF_STEP2A_STEP29_GUIDE_SPAN_RATIO)) : 0.36;
+  var maxSp = typeof FRAME_DEF_STEP2A_STEP29_GUIDE_MAX_SPAN_MM === 'number' && isFinite(FRAME_DEF_STEP2A_STEP29_GUIDE_MAX_SPAN_MM) && FRAME_DEF_STEP2A_STEP29_GUIDE_MAX_SPAN_MM > 12
+    ? FRAME_DEF_STEP2A_STEP29_GUIDE_MAX_SPAN_MM : 420;
+  var cap = Math.min(maxSp, L * ratio);
+  if (cap > L - 1e-4) cap = L;
+  var cx = (lo + hi) * 0.5;
+  var na = cx - cap * 0.5;
+  var nb = cx + cap * 0.5;
+  if (na < lo) { nb += lo - na; na = lo; }
+  if (nb > hi) { na -= nb - hi; nb = hi; }
+  if (nb <= na + 1e-3) return null;
+  return { x0: na, x1: nb };
+}
+/** ②-9: 벽체 띠(직사각) 구분용 디버그 색 — 인덱스마다 다른 톤 */
+function frameDefStep29DebugStripPaletteColor(idx) {
+  var pal = [
+    '#e11d48', '#ea580c', '#ca8a04', '#65a30d', '#16a34a', '#0d9488', '#0891b2', '#2563eb',
+    '#6366f1', '#7c3aed', '#a855f7', '#db2777', '#be123c', '#c2410c', '#4d7c0f', '#0f766e', '#4338ca'
+  ];
+  var k = Math.floor(Number(idx)) || 0;
+  k = ((k % pal.length) + pal.length) % pal.length;
+  return pal[k];
+}
+/** 닫힌 링에서 첫·마지막 꼭짓점이 중복이면 마지막 제거(스캔선 교차 이중 카운트 완화) */
+function frameDefStripDuplicateClosingVertex(poly) {
+  if (!Array.isArray(poly) || poly.length < 4) return poly;
+  var a = poly[0], b = poly[poly.length - 1];
+  if (!a || !b) return poly;
+  var dx = (Number(a.x) || 0) - (Number(b.x) || 0), dy = (Number(a.y) || 0) - (Number(b.y) || 0);
+  if (dx * dx + dy * dy < 0.36) poly.pop();
+  return poly;
+}
+/** ②-9: 같은 클립 폴리 내 인접 셀이 공유하는 y에서 가로 보조선이 겹쳐 이중선으로 보일 때 병합 */
+function frameDefStep29MergeColinearHorizSegs(segs, yTolMm) {
+  if (!Array.isArray(segs) || !segs.length) return [];
+  var yTol = Math.max(0.15, Number(yTolMm) || 0.55);
+  var arr = segs.slice();
+  arr.sort(function(u, v) {
+    var yu = Number(u.y) || 0, yv = Number(v.y) || 0;
+    if (Math.abs(yu - yv) > yTol) return yu - yv;
+    return (Number(u.x0) || 0) - (Number(v.x0) || 0);
+  });
+  var out = [];
+  var cur = null;
+  for (var i = 0; i < arr.length; i++) {
+    var s = arr[i];
+    if (!s || !(s.x1 > s.x0 + 1e-5)) continue;
+    var y = Number(s.y) || 0;
+    if (!cur || Math.abs(y - cur.y) > yTol) {
+      if (cur) out.push(cur);
+      cur = { x0: Number(s.x0), x1: Number(s.x1), y: y };
+      continue;
+    }
+    if (s.x0 <= cur.x1 + 1.2) {
+      if (s.x1 > cur.x1) cur.x1 = s.x1;
+    } else {
+      out.push(cur);
+      cur = { x0: Number(s.x0), x1: Number(s.x1), y: y };
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+function frameDefStep29ClipPolyKey(clip29pl) {
+  if (!Array.isArray(clip29pl) || clip29pl.length < 3) return '';
+  var parts = [];
+  var n = Math.min(clip29pl.length, 24);
+  for (var i = 0; i < n; i++) {
+    var q = clip29pl[i];
+    if (!q) continue;
+    parts.push(String(Math.round(Number(q.x) * 100) / 100) + ',' + String(Math.round(Number(q.y) * 100) / 100));
+  }
+  return parts.join('|') + '|L' + String(clip29pl.length);
+}
+/** ②-9 우측 디버그 벽체: 극소 면·허용치 이하 짧은 bbox 띠 제거 */
+function frameDefStep29CullWallOutputsSlivers(walls) {
+  if (FRAME_DEF_STEP2A_STEP29_POST_CULL_SLIVERS === false || !Array.isArray(walls) || !walls.length) return walls;
+  var minA = typeof FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 === 'number' ? Math.max(0, Number(FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2)) : 1200;
+  var minShort = typeof FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM === 'number' ? Math.max(0, Number(FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM)) : 18;
+  var out = [];
+  for (var i = 0; i < walls.length; i++) {
+    var w = walls[i];
+    if (!w || w.__step29Wall !== true) {
+      out.push(w);
+      continue;
+    }
+    if (Array.isArray(w.__step29RingEvenOdd) && w.__step29RingEvenOdd.length >= 1 && isFinite(Number(w.__step29RingAreaMm2))) {
+      var ringA = Number(w.__step29RingAreaMm2);
+      if (ringA < minA - 1e-6) continue;
+      var ro = w.__step29RingEvenOdd[0];
+      if (Array.isArray(ro) && ro.length >= 3) {
+        var x0r = Infinity, x1r = -Infinity, y0r = Infinity, y1r = -Infinity;
+        for (var kr = 0; kr < ro.length; kr++) {
+          var pr = ro[kr];
+          if (!pr) continue;
+          var pxr = Number(pr.x) || 0, pyr = Number(pr.y) || 0;
+          if (pxr < x0r) x0r = pxr;
+          if (pxr > x1r) x1r = pxr;
+          if (pyr < y0r) y0r = pyr;
+          if (pyr > y1r) y1r = pyr;
+        }
+        if (x1r > x0r + 1e-6 && y1r > y0r + 1e-6) {
+          var shr = Math.min(x1r - x0r, y1r - y0r);
+          if (shr < minShort - 1e-6) continue;
+        }
+      }
+      out.push(w);
+      continue;
+    }
+    var fp = Array.isArray(w.__step29FacePoly) ? w.__step29FacePoly : null;
+    if (!fp || fp.length < 3) {
+      out.push(w);
+      continue;
+    }
+    var aa = 0;
+    for (var j = 0; j < fp.length; j++) {
+      var j2 = (j + 1) % fp.length;
+      aa += (Number(fp[j].x) || 0) * (Number(fp[j2].y) || 0) - (Number(fp[j2].x) || 0) * (Number(fp[j].y) || 0);
+    }
+    var areaAbs = Math.abs(aa) * 0.5;
+    if (areaAbs < minA - 1e-6) continue;
+    var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (var k = 0; k < fp.length; k++) {
+      var p = fp[k];
+      if (!p) continue;
+      var px = Number(p.x) || 0, py = Number(p.y) || 0;
+      if (px < x0) x0 = px;
+      if (px > x1) x1 = px;
+      if (py < y0) y0 = py;
+      if (py > y1) y1 = py;
+    }
+    if (!(x1 > x0 + 1e-6 && y1 > y0 + 1e-6)) {
+      out.push(w);
+      continue;
+    }
+    var sh = Math.min(x1 - x0, y1 - y0);
+    if (sh < minShort - 1e-6) continue;
+    out.push(w);
+  }
+  return out;
+}
+/** ②-9: 구 격자용 대면적 벽 제거 — 현재 step28SourceQuads 에서는 미사용 */
+function frameDefStep29CullWallFacesTooLargeVsClip(walls) {
+  return walls;
+}
+/** ②-8 단순 중점(직교 외곽 띠 안쪽 방향 폴백) */
+function frameDefPolygonCentroidRough(poly) {
+  if (!Array.isArray(poly) || poly.length < 3) return { x: 0, y: 0 };
+  var sx = 0, sy = 0, nn = 0;
+  for (var ci = 0; ci < poly.length; ci++) {
+    var p = poly[ci];
+    if (!p) continue;
+    sx += Number(p.x) || 0;
+    sy += Number(p.y) || 0;
+    nn++;
+  }
+  return { x: sx / Math.max(1, nn), y: sy / Math.max(1, nn) };
+}
+/** 직교 닫힌 폴리곤만: 각 변 안쪽으로 T 이상 떨어진 점만 남기는 침식(연속 half-plane 클립). */
+function frameDefStep29EdgeInteriorProbe(poly, ax, ay, bx, by) {
+  var tol = 0.45;
+  var mx = (ax + bx) * 0.5, my = (ay + by) * 0.5;
+  var pIn = typeof frameDefPointInPolygon === 'function' ? frameDefPointInPolygon : function() { return false; };
+  if (Math.abs(ay - by) < tol) {
+    var y0 = ay;
+    var dyP = Math.max(1.2, 3);
+    var up = pIn({ x: mx, y: y0 + dyP }, poly);
+    var dn = pIn({ x: mx, y: y0 - dyP }, poly);
+    if (up && !dn) return { h: true, inUp: true };
+    if (!up && dn) return { h: true, inUp: false };
+    var c = frameDefPolygonCentroidRough(poly);
+    return { h: true, inUp: c.y >= y0 - tol };
+  }
+  if (Math.abs(ax - bx) < tol) {
+    var x0 = ax;
+    var dxP = Math.max(1.2, 3);
+    var rt = pIn({ x: x0 + dxP, y: my }, poly);
+    var lf = pIn({ x: x0 - dxP, y: my }, poly);
+    if (rt && !lf) return { h: false, inRight: true };
+    if (!rt && lf) return { h: false, inRight: false };
+    var c2 = frameDefPolygonCentroidRough(poly);
+    return { h: false, inRight: c2.x >= x0 - tol };
+  }
+  return null;
+}
+function frameDefOrthoPolygonErosionHalfPlanes(poly, T) {
+  var tol = 0.45;
+  if (!Array.isArray(poly) || poly.length < 3 || !(Number(T) > 0)) return null;
+  var orig = poly.slice();
+  if (typeof frameDefStripDuplicateClosingVertex === 'function') frameDefStripDuplicateClosingVertex(orig);
+  var n = orig.length;
+  if (n < 3) return null;
+  for (var ei = 0; ei < n; ei++) {
+    var a = orig[ei], b = orig[(ei + 1) % n];
+    if (!a || !b) return null;
+    var ax = Number(a.x) || 0, ay = Number(a.y) || 0, bx = Number(b.x) || 0, by = Number(b.y) || 0;
+    if (Math.abs(ax - bx) > tol && Math.abs(ay - by) > tol) return null;
+  }
+  var work = orig.slice();
+  var tUse = Number(T);
+  for (var ej = 0; ej < n; ej++) {
+    var a1 = orig[ej], b1 = orig[(ej + 1) % n];
+    var ax1 = Number(a1.x) || 0, ay1 = Number(a1.y) || 0, bx1 = Number(b1.x) || 0, by1 = Number(b1.y) || 0;
+    var pr = frameDefStep29EdgeInteriorProbe(orig, ax1, ay1, bx1, by1);
+    if (!pr) return null;
+    var edge = null;
+    if (pr.h) {
+      var y0 = ay1;
+      if (pr.inUp) edge = { y: y0 + tUse, bottom: false };
+      else edge = { y: y0 - tUse, bottom: true };
+    } else {
+      var x0 = ax1;
+      if (pr.inRight) edge = { x: x0 + tUse, left: false };
+      else edge = { x: x0 - tUse, left: true };
+    }
+    var next = frameDefClipPolygonToHalfPlane(work, edge);
+    if (!next || next.length < 3) return null;
+    work = next;
+  }
+  return work;
+}
 function frameDefClipPolygonByRect(poly, rect) {
   if (!Array.isArray(poly) || poly.length < 3 || !rect || rect.minX >= rect.maxX || rect.minY >= rect.maxY) return [poly];
   var minX = Number(rect.minX) || 0, minY = Number(rect.minY) || 0, maxX = Number(rect.maxX) || 0, maxY = Number(rect.maxY) || 0;
@@ -24082,8 +25521,10 @@ function frameDefInterior124DebugHatchClip(hatchMask) {
   var hmFirst = true;
   for (var hi = 0; hi < hatchMask.length; hi++) {
     var hp = hatchMask[hi];
-    if (!hp || typeof hp.x !== 'number' || typeof hp.y !== 'number') continue;
-    var sp = toScreen(hp.x, hp.y);
+    if (!hp) continue;
+    var hx = Number(hp.x), hy = Number(hp.y);
+    if (!isFinite(hx) || !isFinite(hy)) continue;
+    var sp = toScreen(hx, hy);
     if (!sp) continue;
     if (hmFirst) { ctx.moveTo(sp.x, sp.y); hmFirst = false; } else ctx.lineTo(sp.x, sp.y);
   }
@@ -27395,279 +28836,587 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     }
     return { plus: plus, minus: minus };
   }
-  function step29ExtractStep28Polys(step28Result) {
-    var out = [];
-    var src = step28Result && typeof step28Result === 'object' ? step28Result : null;
-    function pushPoly(poly) {
-      if (!Array.isArray(poly) || poly.length < 3) return;
-      var ring = [];
-      for (var i = 0; i < poly.length; i++) {
-        var p = poly[i];
-        if (!p || !isFinite(Number(p.x)) || !isFinite(Number(p.y))) continue;
-        ring.push({ x: Number(p.x), y: Number(p.y) });
-      }
-      if (ring.length >= 3) out.push(ring);
+  function buildStep29WallsFromStep28Merged(step28Merged) {
+    var unionItems = typeof frameDefStep29UnionItemsFromStep28ForWalls === 'function'
+      ? frameDefStep29UnionItemsFromStep28ForWalls(step28Merged)
+      : (typeof frameDefStep29UnionItemsFromMerged === 'function' ? frameDefStep29UnionItemsFromMerged(step28Merged) : []);
+    var step29SourcePolysTotalAreaMm2 = 0;
+    for (var _sai = 0; _sai < unionItems.length; _sai++) {
+      step29SourcePolysTotalAreaMm2 += typeof frameDefStep29UnionItemAreaMm2 === 'function'
+        ? frameDefStep29UnionItemAreaMm2(unionItems[_sai]) : 0;
     }
-    if (src && Array.isArray(src.mergedGroups) && src.mergedGroups.length) {
-      for (var gi = 0; gi < src.mergedGroups.length; gi++) {
-        var grp = src.mergedGroups[gi];
-        if (!Array.isArray(grp)) continue;
-        for (var ri = 0; ri < grp.length; ri++) pushPoly(grp[ri]);
-      }
-    } else if (src && Array.isArray(src.polys)) {
-      for (var pi = 0; pi < src.polys.length; pi++) pushPoly(src.polys[pi]);
-    }
-    return dedupePolySimple(out);
-  }
-  function buildStep29WallsFromStep28Polys(step28Polys) {
-    var src = dedupePolySimple(Array.isArray(step28Polys) ? step28Polys : []);
+    step29SourcePolysTotalAreaMm2 = Math.round(step29SourcePolysTotalAreaMm2 * 10) / 10;
     if (!st.__debugStep2aStep29Cache || typeof st.__debugStep2aStep29Cache !== 'object') {
       st.__debugStep2aStep29Cache = { key: '', out: null };
     }
-    function polySigForStep29(arr) {
-      var a = Array.isArray(arr) ? arr : [];
-      var out = [String(a.length)];
-      for (var i = 0; i < a.length; i++) {
-        var p = a[i];
-        if (!Array.isArray(p) || p.length < 3) { out.push('|_'); continue; }
-        out.push('|', String(p.length));
-        for (var j = 0; j < p.length; j++) {
-          var pt = p[j] || {};
-          out.push(
-            ',',
-            String(Math.round((Number(pt.x) || 0) * 10) / 10),
-            ',',
-            String(Math.round((Number(pt.y) || 0) * 10) / 10)
-          );
+    function polySigForStep29Items(items) {
+      var a = Array.isArray(items) ? items : [];
+      var out = [
+        'pfe', 'v20scanline',
+        'pl', String(typeof FRAME_DEF_STEP2A_STEP29_PIPELINE === 'string' ? FRAME_DEF_STEP2A_STEP29_PIPELINE : ''),
+        'pm', String(typeof FRAME_DEF_STEP2A_STEP29_PARTITION_MODE === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_MODE : ''),
+        'palgo', String(typeof FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO : ''),
+        'pc', FRAME_DEF_STEP2A_STEP29_POST_CULL_SLIVERS !== false ? '1' : '0',
+        'pa', String(typeof FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 === 'number' ? FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 : -1),
+        'ps', String(typeof FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM : -1),
+        't28', String(typeof FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2 === 'number' ? FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2 : -1),
+        'ax', String(typeof FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS === 'string' ? FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS : ''),
+        'sp', String(typeof FRAME_DEF_STEP2A_STEP29_STRIP_LONG_SPAN_SPLIT_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_STRIP_LONG_SPAN_SPLIT_MM : -1),
+        'uh', FRAME_DEF_STEP2A_STEP29_UNDERLAY_STEP28_HATCH !== false ? '1' : '0',
+        'mt', String(typeof FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM : -1),
+        'ami', String(typeof FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 === 'number' ? FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 : -1),
+        'n', String(a.length)
+      ];
+      for (var ii = 0; ii < a.length; ii++) {
+        var it = a[ii];
+        if (!it || !it.kind) { out.push('|?'); continue; }
+        if (it.kind === 'rings' && Array.isArray(it.rings)) {
+          out.push('|R', String(it.rings.length));
+          for (var rj = 0; rj < it.rings.length; rj++) {
+            var rr = it.rings[rj];
+            if (!Array.isArray(rr)) { out.push('|_'); continue; }
+            out.push('|r', String(rr.length));
+            for (var k = 0; k < rr.length; k++) {
+              var pt = rr[k] || {};
+              out.push(',', String(Math.round((Number(pt.x) || 0) * 10) / 10), ',', String(Math.round((Number(pt.y) || 0) * 10) / 10));
+            }
+          }
+        } else if (it.kind === 'poly' && Array.isArray(it.poly)) {
+          out.push('|P', String(it.poly.length));
+          for (var pj = 0; pj < it.poly.length; pj++) {
+            var pt2 = it.poly[pj] || {};
+            out.push(',', String(Math.round((Number(pt2.x) || 0) * 10) / 10), ',', String(Math.round((Number(pt2.y) || 0) * 10) / 10));
+          }
+        } else if (it.kind === 'sourceQuad' && Array.isArray(it.poly)) {
+          out.push('|SQ', String(it.groupIndex), '|', String(it.pieceIndex), '|', String(it.poly.length));
+          for (var pq = 0; pq < it.poly.length; pq++) {
+            var ptq = it.poly[pq] || {};
+            out.push(',', String(Math.round((Number(ptq.x) || 0) * 10) / 10), ',', String(Math.round((Number(ptq.y) || 0) * 10) / 10));
+          }
         }
       }
       return out.join('');
     }
-    var cacheKey = polySigForStep29(src);
+    var cacheKey = polySigForStep29Items(unionItems);
     var c29 = st.__debugStep2aStep29Cache;
     if (c29.key === cacheKey && c29.out && typeof c29.out === 'object') {
       if (c29.out.stat && typeof c29.out.stat === 'object') {
-        st.debugStep2aDualStep29Stat = Object.assign({}, c29.out.stat, { cached: true, ts: Date.now() });
+        var baseStat29 = c29.out.stat;
+        var _g28c = st.debugStep2aDualStep28Stat && typeof st.debugStep2aDualStep28Stat === 'object' ? st.debugStep2aDualStep28Stat : null;
+        var step28RefC = _g28c && isFinite(Number(_g28c.mergedAreaMm2)) ? Math.round(Number(_g28c.mergedAreaMm2) * 10) / 10 : null;
+        var srcAreaC = isFinite(Number(baseStat29.step29SourcePolysTotalAreaMm2)) ? Number(baseStat29.step29SourcePolysTotalAreaMm2) : null;
+        var deltaC = step28RefC != null && srcAreaC != null
+          ? Math.round((srcAreaC - step28RefC) * 10) / 10
+          : null;
+        var tol28c = typeof FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2 === 'number' ? Math.max(0, Number(FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2)) : 1.5;
+        var matchC = step28RefC == null ? null : (Math.abs(Number(deltaC) || 0) <= tol28c + 1e-9);
+        st.debugStep2aDualStep29Stat = Object.assign({}, baseStat29, {
+          cached: true,
+          ts: Date.now(),
+          step28MergedAreaRefMm2: step28RefC,
+          step29VsStep28InputDeltaMm2: deltaC,
+          step29InputAreaMatchesStep28: matchC
+        });
       }
+      st.debugStep2aStep29PartitionSegs = [];
       return c29.out;
     }
-    var stepTol = Math.max(1, Number(typeof FRAME_DEF_STEP11_JOIN_TOL_MM === 'number' ? FRAME_DEF_STEP11_JOIN_TOL_MM : 25));
+    var wallsOut = [];
     var step6RectsAll = [];
     var mergedRectsAll = [];
-    var wallsOut = [];
-    var mergePasses = 0;
-    var mergesTotal = 0;
-    var step5RawSegCount = 0;
-    var step5FinalSegCount = 0;
-    function polyBoundaryEdges(poly) {
-      var out = [];
-      var srcPoly = Array.isArray(poly) ? poly : [];
-      if (srcPoly.length < 3) return out;
-      for (var i = 0; i < srcPoly.length; i++) {
-        var a = srcPoly[i];
-        var b = srcPoly[(i + 1) % srcPoly.length];
-        if (!a || !b) continue;
-        var ax = Number(a.x) || 0, ay = Number(a.y) || 0;
-        var bx = Number(b.x) || 0, by = Number(b.y) || 0;
-        var ll = Math.hypot(bx - ax, by - ay);
-        if (!(ll > 1e-6)) continue;
-        out.push({ p1: { x: ax, y: ay }, p2: { x: bx, y: by }, len: ll });
-      }
-      return out;
-    }
-    function deriveStep5SegsForStep29(poly, tolMm) {
-      var tolUse = Math.max(1, Number(tolMm) || 25);
-      var rawPart = (typeof frameDefHatchInteriorPartitionCandidatesOrtho === 'function')
-        ? frameDefHatchInteriorPartitionCandidatesOrtho(poly, { tolMm: tolUse, orthoTolRat: 0.08 })
-        : { segs: [] };
-      var rawSegs = Array.isArray(rawPart && rawPart.segs) ? rawPart.segs : [];
-      var work = (typeof frameDefInteriorPartitionEnrichedWorkFromRaw === 'function')
-        ? frameDefInteriorPartitionEnrichedWorkFromRaw(rawSegs)
-        : rawSegs;
-      var parRes = (typeof frameDefInteriorParallelPairCullFromWork === 'function')
-        ? frameDefInteriorParallelPairCullFromWork(work, { tolMm: tolUse, parallelCullMode: 'centerConnectOnly' })
-        : { work: work };
-      var afterParallel = Array.isArray(parRes && parRes.work) ? parRes.work : [];
-      var coreRes = (typeof frameDefFilterInteriorPartitionSegsStep2Core === 'function')
-        ? frameDefFilterInteriorPartitionSegsStep2Core(afterParallel, {
-          maxChordMm: typeof FRAME_DEF_STEP124_INTERIOR_PARTITION_MAX_MM === 'number' ? FRAME_DEF_STEP124_INTERIOR_PARTITION_MAX_MM : 800,
-          tolMm: tolUse,
-          crossLenRatioMin: 1.42
-        })
-        : { segs: afterParallel };
-      var coreSegs = Array.isArray(coreRes && coreRes.segs) ? coreRes.segs : [];
-      var step4Res = (typeof frameDefFilterInteriorPartitionSegsStep4 === 'function')
-        ? frameDefFilterInteriorPartitionSegsStep4(coreSegs, polyBoundaryEdges(poly), { tolMm: tolUse, minOverlapRatio: 0.34 })
-        : { segs: coreSegs };
-      var step4Segs = Array.isArray(step4Res && step4Res.segs) ? step4Res.segs : [];
-      var step5Res = (typeof frameDefFilterInteriorPartitionSegsStep3LShape === 'function')
-        ? frameDefFilterInteriorPartitionSegsStep3LShape(step4Segs, { tolMm: tolUse })
-        : { segs: step4Segs };
-      var step5Segs = Array.isArray(step5Res && step5Res.segs) ? step5Res.segs : [];
-      return { rawCount: rawSegs.length, step5Count: step5Segs.length, segs: step5Segs };
-    }
-    for (var pi = 0; pi < src.length; pi++) {
-      var poly = src[pi];
-      if (!Array.isArray(poly) || poly.length < 3) continue;
-      var step5 = deriveStep5SegsForStep29(poly, stepTol);
-      step5RawSegCount += Number(step5.rawCount) || 0;
-      step5FinalSegCount += Number(step5.step5Count) || 0;
-      var step6Rects = [];
-      if (typeof frameDefInteriorStep6VerticalSlabRects114FromStep5 === 'function') {
-        var s6 = frameDefInteriorStep6VerticalSlabRects114FromStep5(poly, step5.segs || [], {
-          tolMm: stepTol,
-          idBase: 'wall-step2a-29-' + String(pi),
-          chainIndex: pi,
-          entityIds: []
-        });
-        var s6Walls = s6 && Array.isArray(s6.walls) ? s6.walls : [];
-        for (var si = 0; si < s6Walls.length; si++) {
-          var w6 = s6Walls[si];
-          if (!w6 || w6.__step6Grid114HV_axis === 'v') continue;
-          var xa = [Number(w6.seg_a.p1.x) || 0, Number(w6.seg_a.p2.x) || 0, Number(w6.seg_b.p1.x) || 0, Number(w6.seg_b.p2.x) || 0];
-          var ya = [Number(w6.seg_a.p1.y) || 0, Number(w6.seg_a.p2.y) || 0, Number(w6.seg_b.p1.y) || 0, Number(w6.seg_b.p2.y) || 0];
-          var mx0 = Math.min(xa[0], xa[1], xa[2], xa[3]);
-          var mx1 = Math.max(xa[0], xa[1], xa[2], xa[3]);
-          var my0 = Math.min(ya[0], ya[1], ya[2], ya[3]);
-          var my1 = Math.max(ya[0], ya[1], ya[2], ya[3]);
-          if (!(mx1 > mx0 + 1e-6 && my1 > my0 + 1e-6)) continue;
-          step6Rects.push({
-            x0: mx0, y0: my0, x1: mx1, y1: my1,
-            area: Math.round((mx1 - mx0) * (my1 - my0) * 100) / 100,
-            vertCount: 0
-          });
+    var step29FaceAreaSumMm2 = 0;
+
+    for (var pi = 0; pi < unionItems.length; pi++) {
+      var uItem = unionItems[pi];
+      if (!uItem) continue;
+      var itemAreaInput = typeof frameDefStep29UnionItemAreaMm2 === 'function' ? frameDefStep29UnionItemAreaMm2(uItem) : 0;
+
+      if (uItem.kind === 'sourceQuad' && Array.isArray(uItem.poly) && uItem.poly.length >= 3) {
+        var srcPoly = uItem.poly;
+        var gix = isFinite(Number(uItem.groupIndex)) ? Math.floor(Number(uItem.groupIndex)) : -1;
+        var fbSrc = typeof frameDefPolygonBbox === 'function' ? frameDefPolygonBbox(srcPoly) : null;
+        if (!fbSrc || !isFinite(fbSrc.minX) || !isFinite(fbSrc.maxX) || !isFinite(fbSrc.minY) || !isFinite(fbSrc.maxY)) continue;
+        var fsx0 = fbSrc.minX, fsy0 = fbSrc.minY, fsx1 = fbSrc.maxX, fsy1 = fbSrc.maxY;
+        var fww = fsx1 - fsx0, fhh = fsy1 - fsy0;
+        if (!(fww > 1e-6 && fhh > 1e-6)) continue;
+        var slabASrc = fww * fhh;
+        step29FaceAreaSumMm2 += slabASrc;
+        var thkSrc = Math.max(FRAME_DEF_WALL_MIN_THICKNESS_MM, Math.min(Math.min(fww, fhh), FRAME_DEF_WALL_MAX_THICKNESS_MM));
+        var widSrc = 'wall-step2a-29-src-' + String(pi);
+        var quadFaceSrc = [
+          { x: fsx0, y: fsy0 },
+          { x: fsx1, y: fsy0 },
+          { x: fsx1, y: fsy1 },
+          { x: fsx0, y: fsy1 }
+        ];
+        var hatchLayerKeySrc = 'u' + String(pi);
+        var hatchRingsRefSrc = null;
+        var hatchPolyRefSrc = null;
+        if (gix >= 0 && step28Merged && Array.isArray(step28Merged.mergedGroups) && step28Merged.mergedGroups[gix] && step28Merged.mergedGroups[gix].length && typeof frameDefCopyRings2d === 'function') {
+          hatchRingsRefSrc = frameDefCopyRings2d(step28Merged.mergedGroups[gix]);
+          hatchLayerKeySrc = 'mg' + String(gix);
+        } else if (step28Merged) {
+          if (Array.isArray(step28Merged.mergedGroups) && step28Merged.mergedGroups.length === 1 && step28Merged.mergedGroups[0] && step28Merged.mergedGroups[0].length && typeof frameDefCopyRings2d === 'function') {
+            hatchRingsRefSrc = frameDefCopyRings2d(step28Merged.mergedGroups[0]);
+            hatchLayerKeySrc = 'mg0';
+          } else if (Array.isArray(step28Merged.polys) && step28Merged.polys.length === 1 && step28Merged.polys[0] && step28Merged.polys[0].length >= 3) {
+            hatchPolyRefSrc = frameDefCopyPolyline2d(step28Merged.polys[0]);
+            hatchLayerKeySrc = 'mp0';
+          }
         }
-      }
-      if (!step6Rects.length) {
-        var bb = frameDef2aV2QuadBBox(poly);
-        if (bb && bb.maxx > bb.minx + 1e-6 && bb.maxy > bb.miny + 1e-6) {
-          step6Rects.push({
-            x0: bb.minx, y0: bb.miny, x1: bb.maxx, y1: bb.maxy,
-            area: Math.round((bb.maxx - bb.minx) * (bb.maxy - bb.miny) * 100) / 100,
-            vertCount: 0
-          });
-        }
-      }
-      for (var s6i = 0; s6i < step6Rects.length; s6i++) step6RectsAll.push(step6Rects[s6i]);
-      var mergedRects = step6Rects.slice();
-      if (mergedRects.length && typeof frameDefMergeStep6OrthoRectsToSimple === 'function') {
-        var m7 = frameDefMergeStep6OrthoRectsToSimple(mergedRects, poly, stepTol);
-        var m7Rects = m7 && Array.isArray(m7.rects) ? m7.rects : [];
-        if (m7Rects.length) mergedRects = m7Rects;
-        var m7s = m7 && m7.stats ? m7.stats : null;
-        if (m7s) {
-          mergePasses += Number(m7s.mergePasses) || 0;
-          mergesTotal += Number(m7s.mergesTotal) || 0;
-        }
-      }
-      for (var mi = 0; mi < mergedRects.length; mi++) {
-        var mr = mergedRects[mi];
-        if (!mr) continue;
-        var rx0 = Number(mr.x0) || 0, ry0 = Number(mr.y0) || 0;
-        var rx1 = Number(mr.x1) || 0, ry1 = Number(mr.y1) || 0;
-        if (!(rx1 > rx0 + 1e-6 && ry1 > ry0 + 1e-6)) continue;
-        mergedRectsAll.push({
-          x0: rx0, y0: ry0, x1: rx1, y1: ry1,
-          area: Math.round((rx1 - rx0) * (ry1 - ry0) * 100) / 100,
-          vertCount: 0
-        });
-        var ww = rx1 - rx0;
-        var hh = ry1 - ry0;
-        var th = Math.max(FRAME_DEF_WALL_MIN_THICKNESS_MM, Math.min(Math.min(ww, hh), FRAME_DEF_WALL_MAX_THICKNESS_MM));
-        var wid = 'wall-step2a-29-' + String(pi) + '-' + String(mi);
-        wallsOut.push({
-          wall_id: wid,
+        var wallSrc = {
+          wall_id: widSrc,
           kind: 'wall',
-          source: 'step2a-step29-hatch7-final',
-          seg_a: { id: wid + '-a', ent_id: 0, source_type: 'STEP2A-STEP29-SPLIT7', p1: { x: rx0, y: ry0 }, p2: { x: rx1, y: ry0 }, len: ww, axis_angle: frameDefNormAxis(0) },
-          seg_b: { id: wid + '-b', ent_id: 0, source_type: 'STEP2A-STEP29-SPLIT7', p1: { x: rx0, y: ry1 }, p2: { x: rx1, y: ry1 }, len: ww, axis_angle: frameDefNormAxis(0) },
-          thickness_mm: Number(th.toFixed(1)),
+          source: 'step2a-step29-sourceQuad',
+          seg_a: { id: widSrc + '-a', ent_id: 0, source_type: 'STEP2A-STEP29-SRC', p1: { x: fsx0, y: fsy0 }, p2: { x: fsx1, y: fsy0 }, len: fww, axis_angle: frameDefNormAxis(0) },
+          seg_b: { id: widSrc + '-b', ent_id: 0, source_type: 'STEP2A-STEP29-SRC', p1: { x: fsx0, y: fsy1 }, p2: { x: fsx1, y: fsy1 }, len: fww, axis_angle: frameDefNormAxis(0) },
+          thickness_mm: Number(thkSrc.toFixed(1)),
           entity_ids: [],
           from_step12: false,
           __step29Wall: true,
           __interiorSplit7Debug: true,
-          __step7ClipPoly: [{ x: rx0, y: ry0 }, { x: rx1, y: ry0 }, { x: rx1, y: ry1 }, { x: rx0, y: ry1 }]
+          __step29FacePoly: quadFaceSrc,
+          __step29ClipPoly: frameDefCopyPolyline2d(srcPoly),
+          __step29ArchSlab: true,
+          __step29SourceUnionQuad: true,
+          __step29UnionItemIndex: pi,
+          __step29ArchSlabIndex: 0,
+          __step29HatchLayerKey: hatchLayerKeySrc,
+          __step29UnionItemAreaMm2: Math.round(slabASrc * 10) / 10,
+          __step29UnionSourceItemAreaMm2: Math.round(itemAreaInput * 10) / 10
+        };
+        if (hatchRingsRefSrc && hatchRingsRefSrc.length) wallSrc.__step29HatchRingsEvenOdd = hatchRingsRefSrc;
+        else if (hatchPolyRefSrc && hatchPolyRefSrc.length >= 3) wallSrc.__step29HatchPolyOuter = hatchPolyRefSrc;
+        wallsOut.push(wallSrc);
+        step6RectsAll.push({
+          x0: fsx0, y0: fsy0, x1: fsx1, y1: fsy1,
+          area: Math.round(slabASrc * 100) / 100,
+          vertCount: srcPoly.length,
+          __step29SourceQuad: true,
+          unionItemIndex: pi,
+          groupIndex: gix
         });
+        mergedRectsAll.push(step6RectsAll[step6RectsAll.length - 1]);
+        continue;
+      }
+
+      var outerForGrid = null;
+      var ringsForHit = null;
+
+      if (uItem.kind === 'rings' && Array.isArray(uItem.rings) && uItem.rings.length) {
+        outerForGrid = uItem.rings[0];
+        ringsForHit = uItem.rings.length >= 2 && typeof frameDefCopyRings2d === 'function' ? frameDefCopyRings2d(uItem.rings) : null;
+      } else if (uItem.kind === 'poly' && Array.isArray(uItem.poly) && uItem.poly.length >= 3) {
+        outerForGrid = uItem.poly;
+      } else continue;
+
+      if (!outerForGrid || outerForGrid.length < 3) continue;
+
+      var partModeWall = typeof FRAME_DEF_STEP2A_STEP29_PARTITION_MODE === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_MODE : 'unionWallStrips';
+      var slabs = typeof frameDefStep29ArchitecturalSlabRectsFromOuterPoly === 'function'
+        ? frameDefStep29ArchitecturalSlabRectsFromOuterPoly(outerForGrid, ringsForHit, null)
+        : [];
+      if (!slabs.length) {
+        var fb = typeof frameDefPolygonBbox === 'function'
+          ? frameDefPolygonBbox(frameDefCopyPolyline2d(outerForGrid))
+          : null;
+        var allowFb = true;
+        if (ringsForHit && ringsForHit.length >= 2 && fb && typeof frameDefPointInRingsEvenOddFill === 'function') {
+          var fcx = (Number(fb.minX) + Number(fb.maxX)) * 0.5;
+          var fcy = (Number(fb.minY) + Number(fb.maxY)) * 0.5;
+          allowFb = !!frameDefPointInRingsEvenOddFill({ x: fcx, y: fcy }, ringsForHit);
+        }
+        if (allowFb && fb && isFinite(fb.minX) && isFinite(fb.maxX) && isFinite(fb.minY) && isFinite(fb.maxY)
+          && fb.maxX > fb.minX + 1e-6 && fb.maxY > fb.minY + 1e-6) {
+          var fq = [
+            { x: fb.minX, y: fb.minY },
+            { x: fb.maxX, y: fb.minY },
+            { x: fb.maxX, y: fb.maxY },
+            { x: fb.minX, y: fb.maxY }
+          ];
+          slabs = [{ x0: fb.minX, y0: fb.minY, x1: fb.maxX, y1: fb.maxY, clipPoly: frameDefCopyPolyline2d(outerForGrid), faceQuad: fq, cellAreaMm2: itemAreaInput }];
+        }
+      }
+      if (!slabs.length) continue;
+
+      var hatchRingsRef = null;
+      var hatchPolyRef = null;
+      if (uItem.kind === 'rings' && Array.isArray(uItem.rings) && uItem.rings.length && typeof frameDefCopyRings2d === 'function') {
+        hatchRingsRef = frameDefCopyRings2d(uItem.rings);
+      } else if (outerForGrid && outerForGrid.length >= 3) {
+        hatchPolyRef = frameDefCopyPolyline2d(outerForGrid);
+      }
+
+      var si, sl, slabArea, fx0, fy0, fx1, fy1, ww, hh, thk, wid, wallObj, quadFace;
+      var src29 = 'step2a-step29-wallStrip';
+      var st29a = 'STEP2A-STEP29-WSTRIP';
+      for (si = 0; si < slabs.length; si++) {
+        sl = slabs[si];
+        if (!sl) continue;
+        fx0 = sl.x0;
+        fy0 = sl.y0;
+        fx1 = sl.x1;
+        fy1 = sl.y1;
+        ww = fx1 - fx0;
+        hh = fy1 - fy0;
+        if (!(ww > 1e-6 && hh > 1e-6)) continue;
+        slabArea = ww * hh;
+        step29FaceAreaSumMm2 += slabArea;
+        thk = Math.max(FRAME_DEF_WALL_MIN_THICKNESS_MM, Math.min(Math.min(ww, hh), FRAME_DEF_WALL_MAX_THICKNESS_MM));
+        wid = 'wall-step2a-29-strip-' + String(pi) + '-' + String(si);
+        quadFace = sl.faceQuad || [
+          { x: fx0, y: fy0 },
+          { x: fx1, y: fy0 },
+          { x: fx1, y: fy1 },
+          { x: fx0, y: fy1 }
+        ];
+        wallObj = {
+          wall_id: wid,
+          kind: 'wall',
+          source: src29,
+          seg_a: { id: wid + '-a', ent_id: 0, source_type: st29a, p1: { x: fx0, y: fy0 }, p2: { x: fx1, y: fy0 }, len: ww, axis_angle: frameDefNormAxis(0) },
+          seg_b: { id: wid + '-b', ent_id: 0, source_type: st29a, p1: { x: fx0, y: fy1 }, p2: { x: fx1, y: fy1 }, len: ww, axis_angle: frameDefNormAxis(0) },
+          thickness_mm: Number(thk.toFixed(1)),
+          entity_ids: [],
+          from_step12: false,
+          __step29Wall: true,
+          __interiorSplit7Debug: true,
+          __step29FacePoly: quadFace,
+          __step29ClipPoly: sl.clipPoly && sl.clipPoly.length >= 3 ? sl.clipPoly : undefined,
+          __step29ArchSlab: true,
+          __step29UnionWallStrip: true,
+          __step29UnionItemIndex: pi,
+          __step29ArchSlabIndex: si,
+          __step29UnionItemAreaMm2: Math.round(slabArea * 10) / 10,
+          __step29UnionSourceItemAreaMm2: Math.round(itemAreaInput * 10) / 10,
+          __step29HatchLayerKey: 'u' + String(pi)
+        };
+        if (hatchRingsRef && hatchRingsRef.length) wallObj.__step29HatchRingsEvenOdd = hatchRingsRef;
+        else if (hatchPolyRef && hatchPolyRef.length >= 3) wallObj.__step29HatchPolyOuter = hatchPolyRef;
+        wallsOut.push(wallObj);
+        step6RectsAll.push({
+          x0: fx0, y0: fy0, x1: fx1, y1: fy1,
+          area: Math.round(slabArea * 100) / 100,
+          vertCount: 4,
+          __step29WallStripGrid: true,
+          unionItemIndex: pi,
+          archSlabIndex: si
+        });
+        mergedRectsAll.push(step6RectsAll[step6RectsAll.length - 1]);
       }
     }
+
+    var wallCountPreCull = wallsOut.length;
+    if (typeof frameDefStep29CullWallOutputsSlivers === 'function') {
+      wallsOut = frameDefStep29CullWallOutputsSlivers(wallsOut);
+    }
+    var wallAfterSliver = wallsOut.length;
+    if (typeof frameDefStep29CullWallFacesTooLargeVsClip === 'function') {
+      wallsOut = frameDefStep29CullWallFacesTooLargeVsClip(wallsOut);
+    }
+    var step29EmittedFacesAreaSumMm2 = 0;
+    for (var _wai = 0; _wai < wallsOut.length; _wai++) {
+      var _ww = wallsOut[_wai];
+      if (!_ww) continue;
+      if (isFinite(Number(_ww.__step29UnionItemAreaMm2))) {
+        step29EmittedFacesAreaSumMm2 += Number(_ww.__step29UnionItemAreaMm2);
+      } else if (_ww.__step29FacePoly && _ww.__step29FacePoly.length >= 3) {
+        step29EmittedFacesAreaSumMm2 += polygonAreaAbs(_ww.__step29FacePoly);
+      }
+    }
+    step29EmittedFacesAreaSumMm2 = Math.round(step29EmittedFacesAreaSumMm2 * 10) / 10;
+    var sourcePolysForStat = [];
+    for (var _spi = 0; _spi < unionItems.length; _spi++) {
+      var _sit = unionItems[_spi];
+      if (!_sit) continue;
+      if (_sit.kind === 'rings' && Array.isArray(_sit.rings) && _sit.rings[0] && _sit.rings[0].length >= 3) {
+        sourcePolysForStat.push(_sit.rings[0]);
+      } else if (_sit.kind === 'poly' && Array.isArray(_sit.poly) && _sit.poly.length >= 3) {
+        sourcePolysForStat.push(_sit.poly);
+      } else if (_sit.kind === 'sourceQuad' && Array.isArray(_sit.poly) && _sit.poly.length >= 3) {
+        sourcePolysForStat.push(_sit.poly);
+      }
+    }
+    var _g28st = st.debugStep2aDualStep28Stat && typeof st.debugStep2aDualStep28Stat === 'object' ? st.debugStep2aDualStep28Stat : null;
+    var step28MergedAreaRefMm2 = _g28st && isFinite(Number(_g28st.mergedAreaMm2)) ? Math.round(Number(_g28st.mergedAreaMm2) * 10) / 10 : null;
+    var step29VsStep28InputDeltaMm2 = step28MergedAreaRefMm2 != null
+      ? Math.round((step29SourcePolysTotalAreaMm2 - step28MergedAreaRefMm2) * 10) / 10
+      : null;
+    var tol28 = typeof FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2 === 'number' ? Math.max(0, Number(FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2)) : 1.5;
+    var step29InputAreaMatchesStep28 = step28MergedAreaRefMm2 == null
+      ? null
+      : (Math.abs(Number(step29VsStep28InputDeltaMm2) || 0) <= tol28 + 1e-9);
+    var step29FaceAreaVsSourceDeltaMm2 = Math.round((Math.round(step29FaceAreaSumMm2 * 10) / 10 - step29SourcePolysTotalAreaMm2) * 10) / 10;
     var stat = {
-      sourceCount: src.length,
+      sourceCount: unionItems.length,
       step6RectCount: step6RectsAll.length,
       mergedCount: mergedRectsAll.length,
       wallCount: wallsOut.length,
-      step7MergePasses: mergePasses,
-      step7MergesTotal: mergesTotal,
-      step5RawSegCount: step5RawSegCount,
-      step5FinalSegCount: step5FinalSegCount,
+      step29WallPreCull: wallCountPreCull,
+      step29PostCullRemoved: Math.max(0, wallCountPreCull - wallAfterSliver),
+      step29PostCullDominatingRemoved: Math.max(0, wallAfterSliver - wallsOut.length),
+      step29SourcePolysTotalAreaMm2: step29SourcePolysTotalAreaMm2,
+      step28MergedAreaRefMm2: step28MergedAreaRefMm2,
+      step29VsStep28InputDeltaMm2: step29VsStep28InputDeltaMm2,
+      step29InputAreaMatchesStep28: step29InputAreaMatchesStep28,
+      step29EmittedFacesAreaSumMm2: step29EmittedFacesAreaSumMm2,
+      step29FaceAreaSumMm2: Math.round(step29FaceAreaSumMm2 * 10) / 10,
+      step29FaceAreaVsSourceDeltaMm2: step29FaceAreaVsSourceDeltaMm2,
+      step29FaceFromStep6Clip: false,
+      step29Pipeline: typeof FRAME_DEF_STEP2A_STEP29_PIPELINE === 'string' ? FRAME_DEF_STEP2A_STEP29_PIPELINE : 'step28Union',
       cached: false,
       ts: Date.now()
     };
     st.debugStep2aDualStep29Stat = stat;
+    st.debugStep2aStep29PartitionSegs = [];
     var outRes = {
-      sourcePolys: src,
+      sourcePolys: sourcePolysForStat,
       step6Rects: step6RectsAll,
       mergedRects: mergedRectsAll,
       walls: wallsOut,
-      stat: stat
+      stat: stat,
+      partitionSegsOverlay: []
     };
     c29.key = cacheKey;
     c29.out = outRes;
     return outRes;
   }
+
   function drawStep29Walls(walls) {
     if (forceComputeOnly) return;
     var rows = Array.isArray(walls) ? walls : [];
     if (!rows.length) return;
     var useFast = rows.length > 260;
-    var veryHeavy = rows.length > 1200;
     var drawSplitGuides = rows.length <= 1800;
+    var noFaceHatch = FRAME_DEF_STEP2A_STEP29_DEBUG_NO_FACE_HATCH === true;
+    var distinctStripColors = FRAME_DEF_STEP2A_STEP29_DEBUG_DISTINCT_STRIP_COLORS !== false;
+    var underlay28 = FRAME_DEF_STEP2A_STEP29_UNDERLAY_STEP28_HATCH !== false;
+    var hatchUnionDone = {};
+    var guideBuckets = {};
     for (var i = 0; i < rows.length; i++) {
       var w = rows[i];
       if (!w || !w.seg_a || !w.seg_b || !w.seg_a.p1 || !w.seg_a.p2 || !w.seg_b.p1 || !w.seg_b.p2) continue;
-      var quad = [
-        { x: Number(w.seg_a.p1.x) || 0, y: Number(w.seg_a.p1.y) || 0 },
-        { x: Number(w.seg_a.p2.x) || 0, y: Number(w.seg_a.p2.y) || 0 },
-        { x: Number(w.seg_b.p2.x) || 0, y: Number(w.seg_b.p2.y) || 0 },
-        { x: Number(w.seg_b.p1.x) || 0, y: Number(w.seg_b.p1.y) || 0 }
-      ];
-      drawWorldPoly(quad, '#1e3a8a', {
-        fillAlpha: useFast ? 0.30 : 0.44,
-        hatchAlpha: veryHeavy ? 0.00 : (useFast ? 0.34 : 0.64),
-        noHatch: veryHeavy,
-        step: FRAME_DEF_DEBUG_HATCH_STEP_PX,
-        strokeWidth: useFast ? 1.6 : 2.2
-      }, useFast ? 0.78 : 0.96);
-      if (!drawSplitGuides || typeof toScreen !== 'function' || typeof ctx === 'undefined' || !ctx) continue;
-      var a1 = toScreen(Number(w.seg_a.p1.x) || 0, Number(w.seg_a.p1.y) || 0);
-      var a2 = toScreen(Number(w.seg_a.p2.x) || 0, Number(w.seg_a.p2.y) || 0);
-      var b1 = toScreen(Number(w.seg_b.p1.x) || 0, Number(w.seg_b.p1.y) || 0);
-      var b2 = toScreen(Number(w.seg_b.p2.x) || 0, Number(w.seg_b.p2.y) || 0);
-      if (!a1 || !a2 || !b1 || !b2) continue;
-      ctx.save();
-      ctx.setLineDash([]);
-      // 분절 경계(외곽) 강조
-      ctx.strokeStyle = useFast ? 'rgba(191,219,254,0.85)' : 'rgba(224,231,255,0.96)';
-      ctx.lineWidth = useFast ? 1.2 : 1.8;
-      ctx.beginPath();
-      ctx.moveTo(a1.x, a1.y); ctx.lineTo(a2.x, a2.y);
-      ctx.lineTo(b2.x, b2.y); ctx.lineTo(b1.x, b1.y);
-      ctx.closePath();
-      ctx.stroke();
-      // 나누는 선(양쪽 기준선) 강조
-      ctx.strokeStyle = useFast ? 'rgba(56,189,248,0.78)' : 'rgba(34,211,238,0.94)';
-      ctx.lineWidth = useFast ? 1.0 : 1.5;
-      ctx.beginPath();
-      ctx.moveTo(a1.x, a1.y); ctx.lineTo(a2.x, a2.y);
-      ctx.moveTo(b1.x, b1.y); ctx.lineTo(b2.x, b2.y);
-      ctx.stroke();
-      // 횡단 분할선(끝단 연결선)
-      ctx.strokeStyle = useFast ? 'rgba(125,211,252,0.65)' : 'rgba(147,197,253,0.88)';
-      ctx.lineWidth = useFast ? 0.9 : 1.2;
-      ctx.beginPath();
-      ctx.moveTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y);
-      ctx.moveTo(a2.x, a2.y); ctx.lineTo(b2.x, b2.y);
-      ctx.stroke();
-      ctx.restore();
+      var veryHeavy = rows.length > 1200;
+      var hatchStep29 = typeof FRAME_DEF_DEBUG_HATCH_STEP_PX === 'number' ? FRAME_DEF_DEBUG_HATCH_STEP_PX * 2.2 : 18;
+      var piU = w.__step29UnionItemIndex;
+      var siSlab = w.__step29ArchSlabIndex != null && isFinite(Number(w.__step29ArchSlabIndex)) ? Math.floor(Number(w.__step29ArchSlabIndex)) : i;
+      var uBase = piU != null && isFinite(Number(piU)) ? Math.floor(Number(piU)) : 0;
+      var stripPaletteIdx = uBase * 1009 + siSlab;
+      var faceTint = distinctStripColors && typeof frameDefStep29DebugStripPaletteColor === 'function'
+        ? frameDefStep29DebugStripPaletteColor(stripPaletteIdx) : '#0369a1';
+      var hatchKey = (w.__step29HatchLayerKey != null && String(w.__step29HatchLayerKey) !== '')
+        ? String(w.__step29HatchLayerKey)
+        : (piU != null ? ('u' + String(piU)) : '');
+      if (underlay28 && hatchKey && w.__step29ArchSlab === true && hatchUnionDone[hatchKey] !== true) {
+        if (Array.isArray(w.__step29HatchRingsEvenOdd) && w.__step29HatchRingsEvenOdd.length && typeof drawWorldPolyRingsEvenOdd === 'function') {
+          hatchUnionDone[hatchKey] = true;
+          drawWorldPolyRingsEvenOdd(w.__step29HatchRingsEvenOdd, '#0284c7', {
+            fillAlpha: useFast ? 0.20 : 0.36,
+            hatchAlpha: veryHeavy ? 0.00 : (useFast ? 0.14 : 0.48),
+            noHatch: veryHeavy,
+            step: hatchStep29,
+            strokeWidth: useFast ? 1.1 : 1.65
+          }, 0.85);
+        } else if (Array.isArray(w.__step29HatchPolyOuter) && w.__step29HatchPolyOuter.length >= 3) {
+          hatchUnionDone[hatchKey] = true;
+          drawWorldPoly(w.__step29HatchPolyOuter, '#0284c7', {
+            fillAlpha: useFast ? 0.20 : 0.36,
+            hatchAlpha: veryHeavy ? 0.00 : (useFast ? 0.14 : 0.48),
+            noHatch: veryHeavy,
+            step: hatchStep29,
+            strokeWidth: useFast ? 1.1 : 1.65
+          }, 0.85);
+        }
+      }
+      var ringEO = Array.isArray(w.__step29RingEvenOdd) && w.__step29RingEvenOdd.length >= 2 ? w.__step29RingEvenOdd : null;
+      var clip29pl = Array.isArray(w.__step29ClipPoly) && w.__step29ClipPoly.length >= 3 ? w.__step29ClipPoly : null;
+      var clipped29 = false;
+      if (clip29pl && !ringEO && typeof frameDefInterior124DebugHatchClip === 'function') {
+        clipped29 = !!frameDefInterior124DebugHatchClip(clip29pl);
+      }
+      if (!noFaceHatch) {
+        var quad = [
+          { x: Number(w.seg_a.p1.x) || 0, y: Number(w.seg_a.p1.y) || 0 },
+          { x: Number(w.seg_a.p2.x) || 0, y: Number(w.seg_a.p2.y) || 0 },
+          { x: Number(w.seg_b.p2.x) || 0, y: Number(w.seg_b.p2.y) || 0 },
+          { x: Number(w.seg_b.p1.x) || 0, y: Number(w.seg_b.p1.y) || 0 }
+        ];
+        var fp29 = Array.isArray(w.__step29FacePoly) && w.__step29FacePoly.length >= 3 ? w.__step29FacePoly : null;
+        var polyDraw = fp29 || quad;
+        if (underlay28 && w.__step29ArchSlab === true) {
+          var faSlab = distinctStripColors ? (useFast ? 0.22 : 0.34) : 0;
+          var haSlab = distinctStripColors && !veryHeavy ? (useFast ? 0.12 : 0.22) : 0;
+          drawWorldPoly(polyDraw, faceTint, {
+            fillAlpha: faSlab,
+            hatchAlpha: haSlab,
+            noHatch: veryHeavy || (!distinctStripColors),
+            strokeWidth: useFast ? 1.12 : 1.52,
+            step: hatchStep29
+          }, 0.78);
+        } else if (ringEO && typeof drawWorldPolyRingsEvenOdd === 'function') {
+          drawWorldPolyRingsEvenOdd(ringEO, '#1e3a8a', {
+            fillAlpha: useFast ? 0.30 : 0.44,
+            hatchAlpha: veryHeavy ? 0.00 : (useFast ? 0.22 : 0.42),
+            noHatch: veryHeavy,
+            step: hatchStep29,
+            strokeWidth: useFast ? 1.6 : 2.2
+          }, useFast ? 0.42 : 0.58);
+          if (!veryHeavy && !useFast) {
+            for (var _rstroke = 0; _rstroke < ringEO.length; _rstroke++) {
+              if (ringEO[_rstroke] && ringEO[_rstroke].length >= 3) {
+                drawWorldPoly(ringEO[_rstroke], '#1e3a8a', {
+                  fillAlpha: 0.00,
+                  hatchAlpha: 0.00,
+                  noHatch: true,
+                  strokeWidth: 1.25,
+                  step: FRAME_DEF_DEBUG_HATCH_STEP_PX
+                }, 0.72);
+              }
+            }
+          }
+        } else {
+          var polyC = (w.__step29Wall === true && distinctStripColors) ? faceTint : '#1e3a8a';
+          drawWorldPoly(polyDraw, polyC, {
+            fillAlpha: useFast ? 0.30 : 0.44,
+            hatchAlpha: veryHeavy ? 0.00 : (useFast ? 0.22 : 0.42),
+            noHatch: veryHeavy,
+            step: hatchStep29,
+            strokeWidth: useFast ? 1.6 : 2.2
+          }, useFast ? 0.42 : 0.58);
+        }
+      }
+      if (!drawSplitGuides || typeof toScreen !== 'function' || typeof ctx === 'undefined' || !ctx) {
+        if (clipped29) ctx.restore();
+        continue;
+      }
+      var sax1 = Number(w.seg_a.p1.x) || 0, sax2 = Number(w.seg_a.p2.x) || 0;
+      var sbx1 = Number(w.seg_b.p1.x) || 0, sbx2 = Number(w.seg_b.p2.x) || 0;
+      var rxLo = Math.min(sax1, sax2, sbx1, sbx2);
+      var rxHi = Math.max(sax1, sax2, sbx1, sbx2);
+      var yTop = Number(w.seg_a.p1.y) || 0;
+      var yBot = Number(w.seg_b.p1.y) || 0;
+      var faceG = Array.isArray(w.__step29FacePoly) && w.__step29FacePoly.length >= 3 ? w.__step29FacePoly : null;
+      var polyForLine = faceG || clip29pl;
+      var topDraw = [];
+      var botDraw = [];
+      if (faceG && typeof frameDefStep29HorizGuideSegsFromFacePoly === 'function') {
+        topDraw = frameDefStep29HorizGuideSegsFromFacePoly(faceG, yTop, rxLo, rxHi, 3.5);
+        botDraw = frameDefStep29HorizGuideSegsFromFacePoly(faceG, yBot, rxLo, rxHi, 3.5);
+      }
+      if ((!topDraw.length || !botDraw.length) && polyForLine && typeof frameDefHorizSegIntervalsInPolygon === 'function') {
+        if (!topDraw.length) {
+          var topIv2 = frameDefHorizSegIntervalsInPolygon(yTop, rxLo, rxHi, polyForLine);
+          for (var t2 = 0; t2 < topIv2.length; t2++) {
+            var iv2 = topIv2[t2];
+            if (iv2 && iv2.x1 > iv2.x0 + 1e-4) topDraw.push({ x0: iv2.x0, x1: iv2.x1, y: yTop });
+          }
+        }
+        if (!botDraw.length) {
+          var botIv2 = frameDefHorizSegIntervalsInPolygon(yBot, rxLo, rxHi, polyForLine);
+          for (var b2 = 0; b2 < botIv2.length; b2++) {
+            var ib2 = botIv2[b2];
+            if (ib2 && ib2.x1 > ib2.x0 + 1e-4) botDraw.push({ x0: ib2.x0, x1: ib2.x1, y: yBot });
+          }
+        }
+      }
+      var bk = (typeof frameDefStep29ClipPolyKey === 'function') ? frameDefStep29ClipPolyKey(clip29pl) : '';
+      if (!bk) bk = 'w:' + String(w.wall_id != null ? w.wall_id : i);
+      if (!guideBuckets[bk]) guideBuckets[bk] = { top: [], bot: [], clip: clip29pl };
+      for (var sdi = 0; sdi < topDraw.length; sdi++) {
+        var ts = topDraw[sdi];
+        if (!ts || !(ts.x1 > ts.x0 + 1e-4)) continue;
+        guideBuckets[bk].top.push({
+          x0: ts.x0,
+          x1: ts.x1,
+          y: (ts.y != null && isFinite(Number(ts.y))) ? Number(ts.y) : yTop
+        });
+      }
+      for (var sdb = 0; sdb < botDraw.length; sdb++) {
+        var bs = botDraw[sdb];
+        if (!bs || !(bs.x1 > bs.x0 + 1e-4)) continue;
+        guideBuckets[bk].bot.push({
+          x0: bs.x0,
+          x1: bs.x1,
+          y: (bs.y != null && isFinite(Number(bs.y))) ? Number(bs.y) : yBot
+        });
+      }
+      if (!guideBuckets[bk].top.length && !guideBuckets[bk].bot.length && !faceG && !clip29pl) {
+        var nlk = 'nl:' + String(i);
+        var tx0 = Math.min(sax1, sax2), tx1 = Math.max(sax1, sax2);
+        var bx0 = Math.min(sbx1, sbx2), bx1 = Math.max(sbx1, sbx2);
+        guideBuckets[nlk] = { top: [], bot: [], clip: null };
+        if (tx1 > tx0 + 1e-4) guideBuckets[nlk].top.push({ x0: tx0, x1: tx1, y: yTop });
+        if (bx1 > bx0 + 1e-4) guideBuckets[nlk].bot.push({ x0: bx0, x1: bx1, y: yBot });
+      }
+      if (clipped29) ctx.restore();
+    }
+    if (drawSplitGuides && typeof toScreen === 'function' && typeof ctx !== 'undefined' && ctx) {
+      for (var gk in guideBuckets) {
+        var GB = guideBuckets[gk];
+        if (!GB) continue;
+        var mTop = (typeof frameDefStep29MergeColinearHorizSegs === 'function')
+          ? frameDefStep29MergeColinearHorizSegs(GB.top, 0.55) : GB.top.slice();
+        var mBot = (typeof frameDefStep29MergeColinearHorizSegs === 'function')
+          ? frameDefStep29MergeColinearHorizSegs(GB.bot, 0.55) : GB.bot.slice();
+        ctx.save();
+        if (GB.clip && typeof frameDefInterior124DebugHatchClip === 'function') frameDefInterior124DebugHatchClip(GB.clip);
+        ctx.setLineDash([]);
+        ctx.strokeStyle = useFast ? 'rgba(56,189,248,0.88)' : 'rgba(34,211,238,0.95)';
+        ctx.lineWidth = useFast ? 1.05 : 1.55;
+        ctx.beginPath();
+        var drewAny = false;
+        for (var si = 0; si < mTop.length; si++) {
+          var stSeg = mTop[si];
+          if (!stSeg || !(stSeg.x1 > stSeg.x0 + 1e-4)) continue;
+          var yu = Number(stSeg.y) || 0;
+          var cSt = (typeof frameDefStep29ClipGuideSpanCenter === 'function') ? frameDefStep29ClipGuideSpanCenter(stSeg.x0, stSeg.x1) : null;
+          if (!cSt || !(cSt.x1 > cSt.x0 + 1e-4)) continue;
+          var pAt = toScreen(cSt.x0, yu), pBt = toScreen(cSt.x1, yu);
+          if (!pAt || !pBt) continue;
+          ctx.moveTo(pAt.x, pAt.y); ctx.lineTo(pBt.x, pBt.y);
+          drewAny = true;
+        }
+        for (var sj = 0; sj < mBot.length; sj++) {
+          var sb = mBot[sj];
+          if (!sb || !(sb.x1 > sb.x0 + 1e-4)) continue;
+          var yd = Number(sb.y) || 0;
+          var cSb = (typeof frameDefStep29ClipGuideSpanCenter === 'function') ? frameDefStep29ClipGuideSpanCenter(sb.x0, sb.x1) : null;
+          if (!cSb || !(cSb.x1 > cSb.x0 + 1e-4)) continue;
+          var pAb = toScreen(cSb.x0, yd), pBb = toScreen(cSb.x1, yd);
+          if (!pAb || !pBb) continue;
+          ctx.moveTo(pAb.x, pAb.y); ctx.lineTo(pBb.x, pBb.y);
+          drewAny = true;
+        }
+        if (drewAny) ctx.stroke();
+        ctx.restore();
+      }
+    }
+    var partOv = (st && Array.isArray(st.debugStep2aStep29PartitionSegs)) ? st.debugStep2aStep29PartitionSegs : null;
+    if (partOv && partOv.length && typeof toScreen === 'function' && typeof ctx !== 'undefined' && ctx) {
+      for (var pv = 0; pv < partOv.length; pv++) {
+        var Pck = partOv[pv];
+        var clipPv = Pck && Pck.clip;
+        var segL = Pck && Array.isArray(Pck.segs) ? Pck.segs : [];
+        if (!segL.length) continue;
+        ctx.save();
+        if (clipPv && typeof frameDefInterior124DebugHatchClip === 'function') frameDefInterior124DebugHatchClip(clipPv);
+        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = 'rgba(234, 179, 8, 0.9)';
+        ctx.lineWidth = useFast ? 0.9 : 1.25;
+        ctx.beginPath();
+        var prD = false;
+        for (var ps = 0; ps < segL.length; ps++) {
+          var sg = segL[ps];
+          if (!sg || !sg.p1 || !sg.p2) continue;
+          var p1s = toScreen(Number(sg.p1.x) || 0, Number(sg.p1.y) || 0);
+          var p2s = toScreen(Number(sg.p2.x) || 0, Number(sg.p2.y) || 0);
+          if (!p1s || !p2s) continue;
+          ctx.moveTo(p1s.x, p1s.y); ctx.lineTo(p2s.x, p2s.y);
+          prD = true;
+        }
+        if (prD) ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
@@ -28178,8 +29927,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
         });
       }
       if (showStep29) {
-        var step29PolysC = step29ExtractStep28Polys(step28ResultC);
-        var s29c = buildStep29WallsFromStep28Polys(step29PolysC);
+        var s29c = buildStep29WallsFromStep28Merged(step28ResultC);
         drawStep29Walls(s29c && Array.isArray(s29c.walls) ? s29c.walls : []);
       }
     }
@@ -28852,8 +30600,7 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
       });
     }
     if (showStep29) {
-      var step29PolysF = step29ExtractStep28Polys(step28ResultF);
-      var s29f = buildStep29WallsFromStep28Polys(step29PolysF);
+      var s29f = buildStep29WallsFromStep28Merged(step28ResultF);
       drawStep29Walls(s29f && Array.isArray(s29f.walls) ? s29f.walls : []);
     }
   }

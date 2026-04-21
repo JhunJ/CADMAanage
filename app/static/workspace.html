@@ -6336,6 +6336,97 @@
         updateCadPropsPanel();
       }
 
+      /** ML5 workbench / 3D 매니저와 동일 postMessage 채널 (ml5-cadmanage) */
+      (function setupParentPostMessageBridge() {
+        var PARENT_CHANNELS = ['ml5-cadmanage', '3dmanager-cadmanage'];
+        function originAllowed(ev) {
+          try {
+            if (window.location.ancestorOrigins && window.location.ancestorOrigins.length)
+              return ev.origin === window.location.ancestorOrigins[0];
+          } catch (e) {}
+          try {
+            if (document.referrer) return ev.origin === new URL(document.referrer).origin;
+          } catch (e2) {}
+          return true;
+        }
+        function buildSelectionImportPayload() {
+          var cid = viewCommitSelect && viewCommitSelect.value ? String(viewCommitSelect.value) : '';
+          var entities = [];
+          for (var i = 0; i < selectedEntityIds.length; i++) {
+            var raw = entityById[String(selectedEntityIds[i])];
+            if (!raw) continue;
+            entities.push({
+              id: raw.id,
+              entity_type: raw.entity_type,
+              layer: raw.layer,
+              geom: raw.geom,
+              props: raw.props
+            });
+          }
+          return {
+            schema_version: 'cad_selection_import/v1',
+            commit_id: cid ? parseInt(cid, 10) : null,
+            entity_ids: selectedEntityIds.slice(),
+            entities: entities
+          };
+        }
+        function notifyParentBridgeSelection() {
+          if (window.parent === window) return;
+          var to = '*';
+          try {
+            if (window.location.ancestorOrigins && window.location.ancestorOrigins.length)
+              to = window.location.ancestorOrigins[0];
+            else if (document.referrer) to = new URL(document.referrer).origin;
+          } catch (e) {}
+          var cid = viewCommitSelect && viewCommitSelect.value ? String(viewCommitSelect.value) : '';
+          var msg = {
+            channel: 'ml5-cadmanage',
+            type: 'selection',
+            count: selectedEntityIds.length,
+            entityIds: selectedEntityIds.slice(),
+            commitId: cid || null,
+            label: selectedEntityIds.length ? (selectedEntityIds.length + '개 선택') : '선택 없음'
+          };
+          if (selectedEntityIds.length === 1) {
+            var raw = entityById[String(selectedEntityIds[0])];
+            if (raw) {
+              msg.entityId = raw.id;
+              msg.layer = raw.layer || null;
+              msg.objectKind = raw.entity_type || null;
+            }
+          }
+          try { window.parent.postMessage(msg, to); } catch (e2) {}
+        }
+        var __updateRightDetailBeforeBridge = updateRightDetail;
+        updateRightDetail = function() {
+          __updateRightDetailBeforeBridge();
+          try { notifyParentBridgeSelection(); } catch (e) {}
+        };
+        window.addEventListener('message', function(ev) {
+          var d = ev.data;
+          if (!d || typeof d !== 'object') return;
+          if (PARENT_CHANNELS.indexOf(d.channel) < 0) return;
+          if (!originAllowed(ev)) return;
+          if (d.type === 'ping') {
+            try {
+              if (ev.source && ev.source.postMessage)
+                ev.source.postMessage({ channel: d.channel, type: 'pong', ts: Date.now() }, ev.origin);
+            } catch (e) {}
+            return;
+          }
+          if (d.type === 'requestSelectionPayload') {
+            try {
+              var payload = buildSelectionImportPayload();
+              if (ev.source && ev.source.postMessage)
+                ev.source.postMessage({ channel: d.channel, type: 'selectionImportPayload', payload: payload }, ev.origin);
+            } catch (err) {
+              if (ev.source && ev.source.postMessage)
+                ev.source.postMessage({ channel: d.channel, type: 'selectionImportError', message: String(err && err.message ? err.message : err) }, ev.origin);
+            }
+          }
+        });
+      })();
+
       function cadPropRow(label, value) {
         if (value === undefined || value === null || value === '') return '';
         return '<tr><th>' + (label || '') + '</th><td>' + String(value) + '</td></tr>';
@@ -10717,7 +10808,42 @@
       favoriteState = getFavoriteState();
       updateFavoriteButtons();
       renderFavoriteLists();
+      /** 3D 매니저 등 /cad-embed/?project=&commit= 로 열릴 때 동일 프로젝트·커밋 선택 */
+      async function applyEmbedQueryFromUrl() {
+        try {
+          var sp = new URLSearchParams(window.location.search);
+          var pid = sp.get('project') || sp.get('project_id');
+          var cid = sp.get('commit') || sp.get('commit_id');
+          if (!pid || !viewProjectSelect) return;
+          var hasP = false;
+          for (var i = 0; i < viewProjectSelect.options.length; i++) {
+            if (String(viewProjectSelect.options[i].value) === String(pid)) { hasP = true; break; }
+          }
+          if (!hasP) return;
+          viewProjectSelect.value = String(pid);
+          if (typeof versionManageResetState === 'function') versionManageResetState();
+          if (typeof versionManageSetStatus === 'function') versionManageSetStatus('세션 없음', 'info');
+          if (typeof doorDefResetState === 'function') doorDefResetState({ keepLabel: true });
+          if (typeof frameDefResetState === 'function') frameDefResetState({ keepLabel: true });
+          await Promise.all([loadViewCommits(), loadCompareCommits()]).catch(function() {});
+          loadAttrManage();
+          loadQueryAttrKeys();
+          updateFavoriteButtons();
+          if (typeof selectedFeatureId !== 'undefined' && selectedFeatureId === 'cad-edit-manage' && typeof loadCadEditManageList === 'function') {
+            loadCadEditManageList(true).catch(function() {});
+          }
+          if (!cid || !viewCommitSelect) return;
+          var hasC = false;
+          for (var j = 0; j < viewCommitSelect.options.length; j++) {
+            if (String(viewCommitSelect.options[j].value) === String(cid)) { hasC = true; break; }
+          }
+          if (!hasC) return;
+          viewCommitSelect.value = String(cid);
+          viewCommitSelect.dispatchEvent(new Event('change'));
+        } catch (err) {}
+      }
       loadProjects().then(async function() {
+        await applyEmbedQueryFromUrl();
         versionManageSetStatus('세션 없음', 'info');
         versionManageRefreshButtons();
         await versionManageSyncCommitSelect().catch(function() {});

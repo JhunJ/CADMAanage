@@ -374,6 +374,12 @@ var FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO = 'scanline';
  * (얇은 띠·짧은 해치 조각이 긴변 양쪽 모두 검사에 걸리지 않는 경우 보정)
  */
 var FRAME_DEF_STEP2A_STEP26_THIN_QUAD_SHORT_EDGE_MAX_MM = 52;
+/** ②-9: 얇은 띠 + 긴변 한쪽만 원천선에 닿은 띠를 같은 유니온 면에서 폭 병합할 때 AABB 간 허용 간격(mm) */
+var FRAME_DEF_STEP2A_STEP29_MERGE_PAIR_MAX_GAP_MM = 200;
+/** false면 ②-9 폭 병합(얇은 띠+한쪽 긴변) 비활성 */
+var FRAME_DEF_STEP2A_STEP29_MERGE_THIN_ONE_LONG = true;
+/** ②-9 폭 병합: 벽 띠 개수가 이 값을 넘으면 병합 패스 생략(체감 지연 방지) */
+var FRAME_DEF_STEP2A_STEP29_MERGE_THIN_MAX_WALLS = 1200;
 /** 114→124 내부 2→3: 길이≥INTERIOR_PARTITION_MAX(800mm)인 chord(긴선)과 평행·투영 맞닿음/겹침일 때 수직(수평) 거리≤이 값이면 짧은쪽만 제거(mm) */
 var FRAME_DEF_STEP124_INTERIOR_NEAR_LONG_PARALLEL_MAX_MM = 60;
 /** 6: 격자 셀 단위 디버그. true면 동일 두께 공선까지 병합(s6m). */
@@ -1047,6 +1053,7 @@ function frameDefRenderDebugPanel() {
   var dualStep29Wall = dualStep29Stat && isFinite(Number(dualStep29Stat.wallCount)) ? Math.max(0, Math.floor(Number(dualStep29Stat.wallCount))) : 0;
   var dualStep29Cull = dualStep29Stat && isFinite(Number(dualStep29Stat.step29PostCullRemoved)) ? Math.max(0, Math.floor(Number(dualStep29Stat.step29PostCullRemoved))) : 0;
   var dualStep29Dom = dualStep29Stat && isFinite(Number(dualStep29Stat.step29PostCullDominatingRemoved)) ? Math.max(0, Math.floor(Number(dualStep29Stat.step29PostCullDominatingRemoved))) : 0;
+  var dualStep29MergePairs = dualStep29Stat && isFinite(Number(dualStep29Stat.step29MergedThinOneLongPairs)) ? Math.max(0, Math.floor(Number(dualStep29Stat.step29MergedThinOneLongPairs))) : 0;
   var dualStep29InArea = dualStep29Stat && isFinite(Number(dualStep29Stat.step29SourcePolysTotalAreaMm2)) ? Number(dualStep29Stat.step29SourcePolysTotalAreaMm2) : null;
   var dualStep28RefArea = dualStep29Stat && isFinite(Number(dualStep29Stat.step28MergedAreaRefMm2)) ? Number(dualStep29Stat.step28MergedAreaRefMm2) : null;
   var dualStep29Vs28Delta = dualStep29Stat && dualStep29Stat.step29VsStep28InputDeltaMm2 != null && isFinite(Number(dualStep29Stat.step29VsStep28InputDeltaMm2)) ? Number(dualStep29Stat.step29VsStep28InputDeltaMm2) : null;
@@ -1062,7 +1069,7 @@ function frameDefRenderDebugPanel() {
       dualStep29AreaTxt += ' <span style="color:#9a6700;">Δ' + String(dualStep29Vs28Delta) + 'mm²</span>';
     }
   }
-  var dualStep29StatTxt = ' <code style="font-size:0.60rem;">②-8면 ' + String(dualStep29Src) + '개 · 분절직사각 ' + String(dualStep29Cell6) + '개 · 벽체 ' + String(dualStep29Wall) + '개' + (dualStep29Cull > 0 ? ' · 극소제거 ' + String(dualStep29Cull) : '') + (dualStep29Dom > 0 ? ' · 대면적제거 ' + String(dualStep29Dom) : '') + dualStep29AreaTxt + '</code>';
+  var dualStep29StatTxt = ' <code style="font-size:0.60rem;">②-8면 ' + String(dualStep29Src) + '개 · 분절직사각 ' + String(dualStep29Cell6) + '개 · 벽체 ' + String(dualStep29Wall) + '개' + (dualStep29MergePairs > 0 ? ' · 얇은+한쪽긴변 폭병합 ' + String(dualStep29MergePairs) + '쌍' : '') + (dualStep29Cull > 0 ? ' · 극소제거 ' + String(dualStep29Cull) : '') + (dualStep29Dom > 0 ? ' · 대면적제거 ' + String(dualStep29Dom) : '') + dualStep29AreaTxt + '</code>';
   var n2aLoop = Array.isArray(st.wallStep2aClosedLoopChains) ? st.wallStep2aClosedLoopChains.length : 0;
   var n2aSrcSeg = Array.isArray(st.wallStep2aSourceSegs) ? st.wallStep2aSourceSegs.length : 0;
   var sc2a = st.wallStep2aSplitChainCounts && typeof st.wallStep2aSplitChainCounts === 'object' ? st.wallStep2aSplitChainCounts : null;
@@ -28855,6 +28862,183 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       pass: pass
     };
   }
+  /**
+   * ②-9 출력 벽체 띠: 짧은 폭(②-6과 동일 기준) 얇은 직사각 + 긴변 한쪽만 원천 벽체선에 닿은 띠 →
+   * 동일 유니온 면(__step29UnionItemIndex)이면 월드 AABB로 폭 병합.
+   */
+  function step29MergeThinAndOneLongWallStrips(wallsArr) {
+    if (FRAME_DEF_STEP2A_STEP29_MERGE_THIN_ONE_LONG === false) return wallsArr;
+    if (!Array.isArray(wallsArr) || wallsArr.length < 2) return wallsArr;
+    var mergeMaxW = (typeof FRAME_DEF_STEP2A_STEP29_MERGE_THIN_MAX_WALLS === 'number' && isFinite(FRAME_DEF_STEP2A_STEP29_MERGE_THIN_MAX_WALLS))
+      ? Math.max(80, Math.floor(Number(FRAME_DEF_STEP2A_STEP29_MERGE_THIN_MAX_WALLS))) : 1200;
+    if (wallsArr.length > mergeMaxW) return wallsArr;
+    var segs = step26CheckBuildGuideSegments();
+    var gapMax = (typeof FRAME_DEF_STEP2A_STEP29_MERGE_PAIR_MAX_GAP_MM === 'number' && isFinite(FRAME_DEF_STEP2A_STEP29_MERGE_PAIR_MAX_GAP_MM))
+      ? Math.max(30, Number(FRAME_DEF_STEP2A_STEP29_MERGE_PAIR_MAX_GAP_MM)) : 200;
+    var thinMax = (typeof FRAME_DEF_STEP2A_STEP26_THIN_QUAD_SHORT_EDGE_MAX_MM === 'number' && isFinite(FRAME_DEF_STEP2A_STEP26_THIN_QUAD_SHORT_EDGE_MAX_MM))
+      ? Math.max(40, Number(FRAME_DEF_STEP2A_STEP26_THIN_QUAD_SHORT_EDGE_MAX_MM)) : 52;
+    function quadAabb29(quad) {
+      if (!Array.isArray(quad) || quad.length < 4) return null;
+      var minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+      for (var ai = 0; ai < quad.length; ai++) {
+        var p = quad[ai];
+        if (!p) continue;
+        var x = Number(p.x) || 0, y = Number(p.y) || 0;
+        if (x < minx) minx = x;
+        if (x > maxx) maxx = x;
+        if (y < miny) miny = y;
+        if (y > maxy) maxy = y;
+      }
+      if (!isFinite(minx) || !isFinite(maxx)) return null;
+      return { minx: minx, miny: miny, maxx: maxx, maxy: maxy };
+    }
+    function aabbGap29(a, b) {
+      if (!a || !b) return Infinity;
+      var dx = 0;
+      if (a.maxx < b.minx) dx = b.minx - a.maxx;
+      else if (b.maxx < a.minx) dx = a.minx - b.maxx;
+      var dy = 0;
+      if (a.maxy < b.miny) dy = b.miny - a.maxy;
+      else if (b.maxy < a.miny) dy = a.miny - b.maxy;
+      return Math.hypot(dx, dy);
+    }
+    function unionAabb29(a, b) {
+      return {
+        minx: Math.min(a.minx, b.minx),
+        miny: Math.min(a.miny, b.miny),
+        maxx: Math.max(a.maxx, b.maxx),
+        maxy: Math.max(a.maxy, b.maxy)
+      };
+    }
+    function quadFromAabb29(bb) {
+      return [
+        { x: bb.minx, y: bb.miny },
+        { x: bb.maxx, y: bb.miny },
+        { x: bb.maxx, y: bb.maxy },
+        { x: bb.minx, y: bb.maxy }
+      ];
+    }
+    function classify29Face(quad) {
+      var longEdges = step26CheckLongEdgesFromQuad(quad);
+      if (!longEdges || longEdges.length < 2) return null;
+      var m0 = step26CheckEdgeOverlap(longEdges[0], segs);
+      var m1 = step26CheckEdgeOverlap(longEdges[1], segs);
+      var both = !!(m0.pass && m1.pass);
+      var oneLongHits = !!(m0.pass || m1.pass);
+      var exactlyOneLongHit = oneLongHits && !both;
+      var edgeStats = step26CheckQuadEdgeLengthStats(quad);
+      var shortEdgeMm = edgeStats && isFinite(edgeStats.min) ? edgeStats.min : Infinity;
+      var thinWidth = isFinite(shortEdgeMm) && shortEdgeMm <= thinMax + 1e-6;
+      return { thin: thinWidth, oneLong: exactlyOneLongHit, both: both };
+    }
+    var list = [];
+    for (var li = 0; li < wallsArr.length; li++) list.push(wallsArr[li]);
+    var mergeSerial = 0;
+    var guard = 0;
+    while (guard < 5000) {
+      guard++;
+      var nList = list.length;
+      var clsArr = new Array(nList);
+      var bbArr = new Array(nList);
+      var bucket = {};
+      for (var xi = 0; xi < nList; xi++) {
+        var wx = list[xi];
+        var pax = wx && wx.__step29FacePoly;
+        if (!wx || !wx.__step29Wall || !Array.isArray(pax) || pax.length < 4) {
+          clsArr[xi] = null;
+          bbArr[xi] = null;
+          continue;
+        }
+        clsArr[xi] = classify29Face(pax);
+        bbArr[xi] = quadAabb29(pax);
+        if (wx.__step29UnionItemIndex == null) continue;
+        var uk = Math.floor(Number(wx.__step29UnionItemIndex));
+        if (!bucket[uk]) bucket[uk] = [];
+        bucket[uk].push(xi);
+      }
+      var did = false;
+      outer: for (var bk in bucket) {
+        var idxs = bucket[bk];
+        if (!idxs || idxs.length < 2) continue;
+        for (var aii = 0; aii < idxs.length; aii++) {
+          var gi = idxs[aii];
+          var a = list[gi];
+          if (!a) continue;
+          var ca = clsArr[gi];
+          if (!ca) continue;
+          var ta = !!ca.thin, oa = !!ca.oneLong;
+          if (!ta && !oa) continue;
+          var pa = a.__step29FacePoly;
+          var bba = bbArr[gi];
+          for (var ajj = aii + 1; ajj < idxs.length; ajj++) {
+            var gj = idxs[ajj];
+            var b = list[gj];
+            if (!b) continue;
+            var cb = clsArr[gj];
+            if (!cb) continue;
+            var tb = !!cb.thin, ob = !!cb.oneLong;
+            if (!((ta && ob) || (tb && oa))) continue;
+            var pb = b.__step29FacePoly;
+            var bbb = bbArr[gj];
+            if (!bba || !bbb) continue;
+            if (aabbGap29(bba, bbb) > gapMax) continue;
+            var uu = unionAabb29(bba, bbb);
+            var uw = uu.maxx - uu.minx, uh = uu.maxy - uu.miny;
+            if (!(uw > 1e-3 && uh > 1e-3)) continue;
+            var qNew = quadFromAabb29(uu);
+            var le = step26CheckLongEdgesFromQuad(qNew);
+            if (!le || le.length < 2) continue;
+            var uia = Math.floor(Number(a.__step29UnionItemIndex));
+            var fx0 = uu.minx, fy0 = uu.miny, fx1 = uu.maxx, fy1 = uu.maxy;
+            var ww = fx1 - fx0, hh = fy1 - fy0;
+            var thk = Math.max(FRAME_DEF_WALL_MIN_THICKNESS_MM, Math.min(Math.min(ww, hh), FRAME_DEF_WALL_MAX_THICKNESS_MM));
+            mergeSerial++;
+            var wid = 'wall-step2a-29-merged-' + String(uia) + '-' + String(mergeSerial);
+            var src29 = 'step2a-step29-wallStripMerged';
+            var st29a = 'STEP2A-STEP29-WMRG';
+            var newWall = {
+              wall_id: wid,
+              kind: 'wall',
+              source: src29,
+              seg_a: { id: wid + '-a', ent_id: 0, source_type: st29a, p1: { x: fx0, y: fy0 }, p2: { x: fx1, y: fy0 }, len: ww, axis_angle: frameDefNormAxis(0) },
+              seg_b: { id: wid + '-b', ent_id: 0, source_type: st29a, p1: { x: fx0, y: fy1 }, p2: { x: fx1, y: fy1 }, len: ww, axis_angle: frameDefNormAxis(0) },
+              thickness_mm: Number(thk.toFixed(1)),
+              entity_ids: [],
+              from_step12: false,
+              __step29Wall: true,
+              __interiorSplit7Debug: true,
+              __step29FacePoly: qNew,
+              __step29ClipPoly: (a.__step29ClipPoly && a.__step29ClipPoly.length >= 3) ? a.__step29ClipPoly : (b.__step29ClipPoly && b.__step29ClipPoly.length >= 3 ? b.__step29ClipPoly : undefined),
+              __step29ArchSlab: true,
+              __step29MergedThinOneLongPair: true,
+              __step29UnionItemIndex: uia,
+              __step29ArchSlabIndex: -1,
+              __step29UnionItemAreaMm2: Math.round(ww * hh * 10) / 10,
+              __step29UnionSourceItemAreaMm2: Math.max(Number(a.__step29UnionSourceItemAreaMm2) || 0, Number(b.__step29UnionSourceItemAreaMm2) || 0),
+              __step29HatchLayerKey: (a.__step29HatchLayerKey != null ? a.__step29HatchLayerKey : b.__step29HatchLayerKey)
+            };
+            if (a.__step29HatchRingsEvenOdd && a.__step29HatchRingsEvenOdd.length) newWall.__step29HatchRingsEvenOdd = a.__step29HatchRingsEvenOdd;
+            else if (b.__step29HatchRingsEvenOdd && b.__step29HatchRingsEvenOdd.length) newWall.__step29HatchRingsEvenOdd = b.__step29HatchRingsEvenOdd;
+            if (a.__step29HatchPolyOuter && a.__step29HatchPolyOuter.length >= 3) newWall.__step29HatchPolyOuter = a.__step29HatchPolyOuter;
+            else if (b.__step29HatchPolyOuter && b.__step29HatchPolyOuter.length >= 3) newWall.__step29HatchPolyOuter = b.__step29HatchPolyOuter;
+            if (a.__step29SourceUnionQuad) newWall.__step29SourceUnionQuad = true;
+            if (gj > gi) {
+              list.splice(gj, 1);
+              list.splice(gi, 1);
+            } else {
+              list.splice(gi, 1);
+              list.splice(gj, 1);
+            }
+            list.push(newWall);
+            did = true;
+            break outer;
+          }
+        }
+      }
+      if (!did) break;
+    }
+    return list;
+  }
   function deriveStep26CheckCandidates(step25Plus, step25Minus) {
     var srcPlus = Array.isArray(step25Plus) ? step25Plus : [];
     var srcMinus = Array.isArray(step25Minus) ? step25Minus : [];
@@ -28981,58 +29165,89 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
     }
     step29SourcePolysTotalAreaMm2 = Math.round(step29SourcePolysTotalAreaMm2 * 10) / 10;
     if (!st.__debugStep2aStep29Cache || typeof st.__debugStep2aStep29Cache !== 'object') {
-      st.__debugStep2aStep29Cache = { key: '', out: null };
+      st.__debugStep2aStep29Cache = { key: '', out: null, fastMergeKey: '' };
+    }
+    var step29OptSig = [
+      'pfe', 'v21geomLight',
+      'pl', String(typeof FRAME_DEF_STEP2A_STEP29_PIPELINE === 'string' ? FRAME_DEF_STEP2A_STEP29_PIPELINE : ''),
+      'pm', String(typeof FRAME_DEF_STEP2A_STEP29_PARTITION_MODE === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_MODE : ''),
+      'palgo', String(typeof FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO : ''),
+      'pc', FRAME_DEF_STEP2A_STEP29_POST_CULL_SLIVERS !== false ? '1' : '0',
+      'pa', String(typeof FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 === 'number' ? FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 : -1),
+      'ps', String(typeof FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM : -1),
+      't28', String(typeof FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2 === 'number' ? FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2 : -1),
+      'ax', String(typeof FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS === 'string' ? FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS : ''),
+      'sp', String(typeof FRAME_DEF_STEP2A_STEP29_STRIP_LONG_SPAN_SPLIT_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_STRIP_LONG_SPAN_SPLIT_MM : -1),
+      'uh', FRAME_DEF_STEP2A_STEP29_UNDERLAY_STEP28_HATCH !== false ? '1' : '0',
+      'mt', String(typeof FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM : -1),
+      'ami', String(typeof FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 === 'number' ? FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 : -1),
+      'ams', String(typeof FRAME_DEF_STEP2A_STEP29_ARCH_MIN_SLAB_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_ARCH_MIN_SLAB_MM : -1),
+      'm29', FRAME_DEF_STEP2A_STEP29_MERGE_THIN_ONE_LONG !== false ? '1' : '0',
+      'mgp', String(typeof FRAME_DEF_STEP2A_STEP29_MERGE_PAIR_MAX_GAP_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_MERGE_PAIR_MAX_GAP_MM : -1),
+      'mwc', String(typeof FRAME_DEF_STEP2A_STEP29_MERGE_THIN_MAX_WALLS === 'number' ? FRAME_DEF_STEP2A_STEP29_MERGE_THIN_MAX_WALLS : -1),
+      't26w', String(typeof FRAME_DEF_STEP2A_STEP26_THIN_QUAD_SHORT_EDGE_MAX_MM === 'number' ? FRAME_DEF_STEP2A_STEP26_THIN_QUAD_SHORT_EDGE_MAX_MM : -1)
+    ].join('|');
+    var c29 = st.__debugStep2aStep29Cache;
+    var m27For29 = st.__debugStep2aStep27MergeCache;
+    var fastMergeKey29 = '';
+    if (m27For29 && m27For29.merged === step28Merged && typeof m27For29.key === 'string' && m27For29.key) {
+      fastMergeKey29 = m27For29.key + '||step29||' + step29OptSig;
+    }
+    if (fastMergeKey29 && c29.fastMergeKey === fastMergeKey29 && c29.out && typeof c29.out === 'object') {
+      if (c29.out.stat && typeof c29.out.stat === 'object') {
+        var baseStatFm = c29.out.stat;
+        var _g28fm = st.debugStep2aDualStep28Stat && typeof st.debugStep2aDualStep28Stat === 'object' ? st.debugStep2aDualStep28Stat : null;
+        var step28RefFm = _g28fm && isFinite(Number(_g28fm.mergedAreaMm2)) ? Math.round(Number(_g28fm.mergedAreaMm2) * 10) / 10 : null;
+        var srcAreaFm = isFinite(Number(baseStatFm.step29SourcePolysTotalAreaMm2)) ? Number(baseStatFm.step29SourcePolysTotalAreaMm2) : null;
+        var deltaFm = step28RefFm != null && srcAreaFm != null
+          ? Math.round((srcAreaFm - step28RefFm) * 10) / 10
+          : null;
+        var tol28fm = typeof FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2 === 'number' ? Math.max(0, Number(FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2)) : 1.5;
+        var matchFm = step28RefFm == null ? null : (Math.abs(Number(deltaFm) || 0) <= tol28fm + 1e-9);
+        st.debugStep2aDualStep29Stat = Object.assign({}, baseStatFm, {
+          cached: true,
+          ts: Date.now(),
+          step28MergedAreaRefMm2: step28RefFm,
+          step29VsStep28InputDeltaMm2: deltaFm,
+          step29InputAreaMatchesStep28: matchFm,
+          cacheTier: 'm27ref'
+        });
+      }
+      st.debugStep2aStep29PartitionSegs = [];
+      return c29.out;
+    }
+    function step29PolyRingFingerprint(poly) {
+      if (!Array.isArray(poly) || poly.length < 3) return '_';
+      var bb = typeof frameDefPolygonBbox === 'function' ? frameDefPolygonBbox(poly) : null;
+      var ar = typeof polygonAreaAbs === 'function' ? polygonAreaAbs(poly) : 0;
+      var bx0 = bb && isFinite(bb.minX) ? Math.round(bb.minX * 10) / 10 : 0;
+      var by0 = bb && isFinite(bb.minY) ? Math.round(bb.minY * 10) / 10 : 0;
+      var bx1 = bb && isFinite(bb.maxX) ? Math.round(bb.maxX * 10) / 10 : 0;
+      var by1 = bb && isFinite(bb.maxY) ? Math.round(bb.maxY * 10) / 10 : 0;
+      return String(poly.length) + ';' + bx0 + ',' + by0 + ',' + bx1 + ',' + by1 + ';' + (Math.round(ar * 10) / 10);
     }
     function polySigForStep29Items(items) {
       var a = Array.isArray(items) ? items : [];
-      var out = [
-        'pfe', 'v20scanline',
-        'pl', String(typeof FRAME_DEF_STEP2A_STEP29_PIPELINE === 'string' ? FRAME_DEF_STEP2A_STEP29_PIPELINE : ''),
-        'pm', String(typeof FRAME_DEF_STEP2A_STEP29_PARTITION_MODE === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_MODE : ''),
-        'palgo', String(typeof FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO : ''),
-        'pc', FRAME_DEF_STEP2A_STEP29_POST_CULL_SLIVERS !== false ? '1' : '0',
-        'pa', String(typeof FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 === 'number' ? FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 : -1),
-        'ps', String(typeof FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM : -1),
-        't28', String(typeof FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2 === 'number' ? FRAME_DEF_STEP2A_STEP29_STEP28_AREA_MATCH_TOLERANCE_MM2 : -1),
-        'ax', String(typeof FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS === 'string' ? FRAME_DEF_STEP2A_STEP29_STRIP_SLICE_AXIS : ''),
-        'sp', String(typeof FRAME_DEF_STEP2A_STEP29_STRIP_LONG_SPAN_SPLIT_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_STRIP_LONG_SPAN_SPLIT_MM : -1),
-        'uh', FRAME_DEF_STEP2A_STEP29_UNDERLAY_STEP28_HATCH !== false ? '1' : '0',
-        'mt', String(typeof FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_SLAB_MERGE_TOL_MM : -1),
-        'ami', String(typeof FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 === 'number' ? FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 : -1),
-        'n', String(a.length)
-      ];
+      var parts = [step29OptSig, 'n', String(a.length)];
       for (var ii = 0; ii < a.length; ii++) {
         var it = a[ii];
-        if (!it || !it.kind) { out.push('|?'); continue; }
+        if (!it || !it.kind) { parts.push('|?'); continue; }
         if (it.kind === 'rings' && Array.isArray(it.rings)) {
-          out.push('|R', String(it.rings.length));
+          parts.push('|R', String(it.rings.length));
           for (var rj = 0; rj < it.rings.length; rj++) {
             var rr = it.rings[rj];
-            if (!Array.isArray(rr)) { out.push('|_'); continue; }
-            out.push('|r', String(rr.length));
-            for (var k = 0; k < rr.length; k++) {
-              var pt = rr[k] || {};
-              out.push(',', String(Math.round((Number(pt.x) || 0) * 10) / 10), ',', String(Math.round((Number(pt.y) || 0) * 10) / 10));
-            }
+            if (!Array.isArray(rr)) { parts.push('|_'); continue; }
+            parts.push('|r', step29PolyRingFingerprint(rr));
           }
         } else if (it.kind === 'poly' && Array.isArray(it.poly)) {
-          out.push('|P', String(it.poly.length));
-          for (var pj = 0; pj < it.poly.length; pj++) {
-            var pt2 = it.poly[pj] || {};
-            out.push(',', String(Math.round((Number(pt2.x) || 0) * 10) / 10), ',', String(Math.round((Number(pt2.y) || 0) * 10) / 10));
-          }
+          parts.push('|P', step29PolyRingFingerprint(it.poly));
         } else if (it.kind === 'sourceQuad' && Array.isArray(it.poly)) {
-          out.push('|SQ', String(it.groupIndex), '|', String(it.pieceIndex), '|', String(it.poly.length));
-          for (var pq = 0; pq < it.poly.length; pq++) {
-            var ptq = it.poly[pq] || {};
-            out.push(',', String(Math.round((Number(ptq.x) || 0) * 10) / 10), ',', String(Math.round((Number(ptq.y) || 0) * 10) / 10));
-          }
+          parts.push('|SQ', String(it.groupIndex), '|', String(it.pieceIndex), '|', step29PolyRingFingerprint(it.poly));
         }
       }
-      return out.join('');
+      return parts.join('|');
     }
     var cacheKey = polySigForStep29Items(unionItems);
-    var c29 = st.__debugStep2aStep29Cache;
     if (c29.key === cacheKey && c29.out && typeof c29.out === 'object') {
       if (c29.out.stat && typeof c29.out.stat === 'object') {
         var baseStat29 = c29.out.stat;
@@ -29240,6 +29455,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       }
     }
 
+    var wallsBeforeThinLongMerge = wallsOut.length;
+    wallsOut = step29MergeThinAndOneLongWallStrips(wallsOut);
+    var step29MergedThinOneLongPairs = Math.max(0, wallsBeforeThinLongMerge - wallsOut.length);
     var wallCountPreCull = wallsOut.length;
     if (typeof frameDefStep29CullWallOutputsSlivers === 'function') {
       wallsOut = frameDefStep29CullWallOutputsSlivers(wallsOut);
@@ -29286,6 +29504,8 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       step6RectCount: step6RectsAll.length,
       mergedCount: mergedRectsAll.length,
       wallCount: wallsOut.length,
+      step29MergedThinOneLongPairs: step29MergedThinOneLongPairs,
+      wallsBeforeThinLongMerge: wallsBeforeThinLongMerge,
       step29WallPreCull: wallCountPreCull,
       step29PostCullRemoved: Math.max(0, wallCountPreCull - wallAfterSliver),
       step29PostCullDominatingRemoved: Math.max(0, wallAfterSliver - wallsOut.length),
@@ -29312,6 +29532,9 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       partitionSegsOverlay: []
     };
     c29.key = cacheKey;
+    var m27After29 = st.__debugStep2aStep27MergeCache;
+    c29.fastMergeKey = (m27After29 && m27After29.merged === step28Merged && typeof m27After29.key === 'string' && m27After29.key)
+      ? (m27After29.key + '||step29||' + step29OptSig) : '';
     c29.out = outRes;
     return outRes;
   }
@@ -30785,7 +31008,8 @@ function drawStep27MergedAreas(step25Plus, step25Minus, optsUnion) {
         inputAreaKey: 'debugStep2aStep28InputAreaMm2',
         mergedAreaKey: 'debugStep2aStep28MergedAreaMm2',
         fillColor: '#0284c7',
-        strokeColor: '#0369a1'
+        strokeColor: '#0369a1',
+        mergedAreasCacheKey: cacheKey + '|dm27|v1'
       });
     }
     if (showStep29) {

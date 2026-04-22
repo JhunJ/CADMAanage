@@ -370,6 +370,10 @@ var FRAME_DEF_STEP2A_STEP29_STRICT_SUBDIV_MAX_DEPTH = 16;
  */
 var FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO = 'scanline';
 /**
+ * scanline ②-9: 꼭짓점 x/y 스냅에 tolMm×이 값을 씀. 크면 띠(슬라이스) 개수가 줄어 계산이 빨라짐(기본 0.12, 예전 고정값 ~0.08).
+ */
+var FRAME_DEF_STEP2A_STEP29_SCANLINE_VERTEX_SNAP_MUL = 0.12;
+/**
  * ②-6→②-8 유니온 입력: 쿼드 **짧은 변(폭)** 이 이 값(mm) 이하면, 긴변 한쪽만 원천 벽체선에 닿아도 동일 벽체 조각으로 본다.
  * (얇은 띠·짧은 해치 조각이 긴변 양쪽 모두 검사에 걸리지 않는 경우 보정)
  */
@@ -1102,6 +1106,7 @@ function frameDefRenderDebugPanel() {
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aHatchOvLblChk" style="margin-top:2px;" ' + (st.debugStep2aShowHatchOverlapLabels ? 'checked' : '') + ' /><span><b>방향 비교 ±겹침(mm²) 라벨</b> — 현재 최종 방향은 <b>2-1 양방향 후보끼리의 겹침 점수</b>로 재선택되며, 라벨은 참고용 수치(최대/합계)를 함께 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualCandidatesChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualCandidates ? 'checked' : '') + ' /><span><b>②-1 방향 비교 후보 해치(+/-) 표시</b> — +후보(파랑), -후보(주황)를 동시에 표시하고, 선택 방향은 진하게/비선택은 옅게 그립니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualOverlapChk" style="margin-top:2px;" ' + (st.debugStep2aShowDualOverlapPatches ? 'checked' : '') + ' /><span><b>②-2 방향 비교 후보끼리 겹침면 표시</b>' + dualOvStatTxt + ' — 후보 벽체 해치끼리 겹침을 비교해 <b>남길 ±후보를 선택</b>한 결과만 벽체 쿼드 전체로 표시합니다(교집합 조각을 따로 덧그리지 않음). +선택(청록), -선택(주황).</span></label>');
+  html.push(typeof frameDefFormatStep2aDualOverlapProbeBlock === 'function' ? frameDefFormatStep2aDualOverlapProbeBlock(st) : '');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep23Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep23FilteredPatches ? 'checked' : '') + ' /><span><b>②-3 내부 관통 선 필터(제외분)</b>' + dualStep23StatTxt + ' — ②-2 해치 내부를 <b>다른 벽체 후보 중심선</b>이 지나가면 해당 해치를 ②-2에서 제외하고 ②-3으로 분리 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep24Chk" style="margin-top:2px;" ' + (st.debugStep2aDualStep24ExcludeIsolated !== false ? 'checked' : '') + ' /><span><b>②-4 가운데 두꺼운 층만(샌드위치)</b>' + dualStep24StatTxt + ' — <b>장축 평행 그룹</b>마다 참조 축에서 <b>법선 n 순 정렬</b> 후 <b>연속 세 장</b>만 삼중 후보로 보고, u겹침·인접 맞닿음·가운데 두께&gt;양끝이면 <b>가운데 벽 쿼드만</b> ②-4로 표시합니다.</span></label>');
   html.push('<label style="display:flex; align-items:flex-start; gap:6px; font-size:0.72rem; color:#24292f; margin-bottom:4px; cursor:pointer; line-height:1.35;"><input type="checkbox" id="frameDefDebugStep2aDualStep25Chk" style="margin-top:2px;" ' + (st.debugStep2aShowDualStep25Remainder ? 'checked' : '') + ' /><span><b>②-5 ②-2 원본에서 ②-4 대상 제외분</b>' + dualStep25StatTxt + ' — ②-2 원본 후보를 유지한 상태에서, ②-4로 분리된 가운데 두꺼운 층을 제외한 나머지(+/-)만 별도로 표시합니다.</span></label>');
@@ -1633,6 +1638,19 @@ function frameDefRenderDebugPanel() {
       if (typeof draw === 'function') draw();
     };
   }
+  var step2aDualOvProbeBtn = document.getElementById('frameDefDebugStep2aDualOvProbeBtn');
+  var step2aDualOvProbeEntId = document.getElementById('frameDefDebugStep2aDualOvProbeEntId');
+  if (step2aDualOvProbeBtn) {
+    step2aDualOvProbeBtn.onclick = function() {
+      var s = frameDefGetState();
+      var raw = step2aDualOvProbeEntId && step2aDualOvProbeEntId.value != null ? String(step2aDualOvProbeEntId.value).trim() : '';
+      s.debugStep2aDualOverlapProbeEntityId = raw || '23622687';
+      if (typeof frameDefBuildStep2aDualOverlapProbeReport === 'function') {
+        s.debugStep2aDualOverlapProbeReportText = frameDefBuildStep2aDualOverlapProbeReport(s, s.debugStep2aDualOverlapProbeEntityId);
+      }
+      if (typeof frameDefRenderDebugPanel === 'function') frameDefRenderDebugPanel();
+    };
+  }
   var step2aDualStep24Chk = document.getElementById('frameDefDebugStep2aDualStep24Chk');
   if (step2aDualStep24Chk) {
     step2aDualStep24Chk.onchange = function() {
@@ -1861,6 +1879,7 @@ function frameDefStateDefaults() {
     debugStep1240Show114Hatch: false,
     debugStep2aUserHatchTraceEnabled: false,
     debugStep2aUserTraceEntityIds: [], debugStep2aUiFlowWatchEntityIds: [], debugStep2aUserTraceSlab: null, debugStep2aUserTraceSummary: '', debugStep2aStep25LineProbeText: '', debugStep2aStep26AreaProbeText: '',
+    debugStep2aDualOverlapProbeEntityId: '23622687', debugStep2aDualOverlapProbeReportText: '',
     debugStep2aEntityFlowReport: null, debugStep2aSourceDropReasonsByEntity: {},
     wallStep2bByBackend: { cnn: [], xgb: [], rf: [], mlp: [], gnn: [] },
     debugStep2bShowCnn: false, debugStep2bShowXgb: false, debugStep2bShowRf: false, debugStep2bShowMlp: false, debugStep2bShowGnn: false,
@@ -1921,6 +1940,8 @@ function frameDefGetState() {
   if (window.frameDefState.debugStep2aShowHatchOverlapLabels !== true && window.frameDefState.debugStep2aShowHatchOverlapLabels !== false) window.frameDefState.debugStep2aShowHatchOverlapLabels = false;
   if (window.frameDefState.debugStep2aShowDualCandidates !== true && window.frameDefState.debugStep2aShowDualCandidates !== false) window.frameDefState.debugStep2aShowDualCandidates = false;
   if (window.frameDefState.debugStep2aShowDualOverlapPatches !== true && window.frameDefState.debugStep2aShowDualOverlapPatches !== false) window.frameDefState.debugStep2aShowDualOverlapPatches = false;
+  if (window.frameDefState.debugStep2aDualOverlapProbeEntityId == null) window.frameDefState.debugStep2aDualOverlapProbeEntityId = '23622687';
+  if (typeof window.frameDefState.debugStep2aDualOverlapProbeReportText !== 'string') window.frameDefState.debugStep2aDualOverlapProbeReportText = '';
   if (window.frameDefState.debugStep2aDualStep24ExcludeIsolated !== true && window.frameDefState.debugStep2aDualStep24ExcludeIsolated !== false) window.frameDefState.debugStep2aDualStep24ExcludeIsolated = false;
   if (window.frameDefState.debugStep2aShowDualStep23FilteredPatches !== true && window.frameDefState.debugStep2aShowDualStep23FilteredPatches !== false) window.frameDefState.debugStep2aShowDualStep23FilteredPatches = false;
   if (window.frameDefState.debugStep2aShowDualStep25Remainder !== true && window.frameDefState.debugStep2aShowDualStep25Remainder !== false) window.frameDefState.debugStep2aShowDualStep25Remainder = false;
@@ -3217,6 +3238,242 @@ function frameDefFormatStep2aFocusEntityDebugBlock(st) {
   var txt = lines.join('\n');
   return '<details style="margin:8px 0 0 0;"><summary style="font-size:0.72rem; color:#0f766e; cursor:pointer; font-weight:600;">2a 포커스 선분 디버그 (ent ' + esc(ids.join(' · ')) + ')</summary>'
     + '<pre style="margin:6px 0 0 0;padding:8px;background:#0d1117;color:#c9d1d9;border-radius:6px;font-size:0.62rem;white-space:pre-wrap;word-break:break-all;max-height:320px;overflow:auto;line-height:1.35;">' + esc(txt) + '</pre></details>';
+}
+
+/** `wallStep2aHatchWalls` 항목에서 객체 ID 수집(②-2 프로브용). */
+function frameDefWallEntityIdsFor2aProbe(w) {
+  var out = [];
+  if (w && Array.isArray(w.entity_ids)) {
+    for (var i = 0; i < w.entity_ids.length; i++) {
+      var e = Number(w.entity_ids[i]);
+      if (e > 0) out.push(e);
+    }
+  }
+  if (w && w.seg_a && w.seg_a.ent_id) {
+    var e1 = Number(w.seg_a.ent_id);
+    if (e1 > 0) out.push(e1);
+  }
+  if (w && w.seg_b && w.seg_b.ent_id) {
+    var e2 = Number(w.seg_b.ent_id);
+    if (e2 > 0) out.push(e2);
+  }
+  return typeof frameDefUniqueEntityIds === 'function' ? frameDefUniqueEntityIds(out) : out;
+}
+
+/**
+ * ②-2와 동일한 ±쿼드·평행쌍·4조합 교집합 면적으로 단일 ent 벽의 겹침 합계를 텍스트로 반환.
+ */
+function frameDefBuildStep2aDualOverlapProbeReport(st, rawEntId) {
+  var lines = [];
+  var entNum = parseInt(String(rawEntId || '').trim(), 10);
+  if (!isFinite(entNum) || entNum <= 0) {
+    lines.push('객체 ID가 올바르지 않습니다.');
+    return lines.join('\n');
+  }
+  if (typeof frameDefSegToWallBodyQuadOutlineWorld !== 'function' || typeof frameDef2aV2QuadBBox !== 'function'
+    || typeof frameDef2aV2BBoxIntersects2d !== 'function' || typeof frameDef2aV2QuadQuadOverlapPoly !== 'function'
+    || typeof frameDefPolygonAreaAbs !== 'function') {
+    lines.push('필요 기하 함수가 없습니다.');
+    return lines.join('\n');
+  }
+  var list = st && Array.isArray(st.wallStep2aHatchWalls) ? st.wallStep2aHatchWalls : [];
+  var focusIdx = -1;
+  for (var wi = 0; wi < list.length; wi++) {
+    var ids = frameDefWallEntityIdsFor2aProbe(list[wi]);
+    if (ids.indexOf(entNum) >= 0) {
+      focusIdx = wi;
+      break;
+    }
+  }
+  if (focusIdx < 0) {
+    lines.push('wallStep2aHatchWalls에서 entity_ids / seg.ent_id 가 ' + String(entNum) + ' 인 벽을 찾지 못했습니다.');
+    lines.push('(2a 재계산 후 벽 목록에 포함되는지 확인하세요.)');
+    return lines.join('\n');
+  }
+  var minMm2 = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2 === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2))
+    ? Math.max(0, FRAME_DEF_STEP2A_V2_DUAL_CAND_OVERLAP_MIN_MM2) : 1;
+  var parDotMin = (typeof FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN === 'number' && isFinite(FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN))
+    ? Math.max(0.90, Math.min(0.99999, FRAME_DEF_STEP2A_V2_DUAL_CAND_PARALLEL_DOT_MIN)) : 0.988;
+  function mk(w, signVal) {
+    if (!w || !w.seg_a || !w.seg_a.p1 || !w.seg_a.p2) return null;
+    var p1 = (w.__step2aDualBaseOuterP1 && isFinite(Number(w.__step2aDualBaseOuterP1.x)) && isFinite(Number(w.__step2aDualBaseOuterP1.y)))
+      ? w.__step2aDualBaseOuterP1 : w.seg_a.p1;
+    var p2 = (w.__step2aDualBaseOuterP2 && isFinite(Number(w.__step2aDualBaseOuterP2.x)) && isFinite(Number(w.__step2aDualBaseOuterP2.y)))
+      ? w.__step2aDualBaseOuterP2 : w.seg_a.p2;
+    var th = Number(w.__step2aDualBaseThicknessMm);
+    if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = Number(w.thickness_mm);
+    if (!isFinite(th) || th < FRAME_DEF_WALL_MIN_THICKNESS_MM) th = 170;
+    var q = frameDefSegToWallBodyQuadOutlineWorld(p1, p2, th, signVal);
+    if (!q || q.length < 4) return null;
+    var b = frameDef2aV2QuadBBox(q);
+    if (!b) return null;
+    var dx = (Number(p2.x) || 0) - (Number(p1.x) || 0), dy = (Number(p2.y) || 0) - (Number(p1.y) || 0);
+    var len = Math.hypot(dx, dy);
+    return { q: q, b: b, ux: len > 1e-9 ? dx / len : 0, uy: len > 1e-9 ? dy / len : 0 };
+  }
+  function unionBBox(b1, b2) {
+    if (!b1 && !b2) return null;
+    if (!b1) return b2;
+    if (!b2) return b1;
+    return { minx: Math.min(b1.minx, b2.minx), miny: Math.min(b1.miny, b2.miny), maxx: Math.max(b1.maxx, b2.maxx), maxy: Math.max(b1.maxy, b2.maxy) };
+  }
+  function ovArea(ca, cb) {
+    if (!ca || !cb || !ca.q || !cb.q || !ca.b || !cb.b) return 0;
+    if (!frameDef2aV2BBoxIntersects2d(ca.b, cb.b)) return 0;
+    var ov = frameDef2aV2QuadQuadOverlapPoly(ca.q, cb.q, ca.b, cb.b);
+    if (!ov) return 0;
+    var ar = Number(frameDefPolygonAreaAbs(ov)) || 0;
+    return ar >= minMm2 ? ar : 0;
+  }
+  function quadAreaAbs(q) {
+    if (!q || q.length < 3) return 0;
+    return Math.abs(Number(frameDefPolygonAreaAbs(q)) || 0);
+  }
+  function quadsNearlyEqual(qa, qb) {
+    if (!qa || !qb || qa.length !== qb.length) return false;
+    var a = [], b = [];
+    for (var i = 0; i < qa.length; i++) {
+      a.push({ x: Math.round((Number(qa[i].x) || 0) * 1000) / 1000, y: Math.round((Number(qa[i].y) || 0) * 1000) / 1000 });
+      b.push({ x: Math.round((Number(qb[i].x) || 0) * 1000) / 1000, y: Math.round((Number(qb[i].y) || 0) * 1000) / 1000 });
+    }
+    function keyRing(ring) {
+      var k = [];
+      for (var r = 0; r < ring.length; r++) k.push(String(ring[r].x) + ',' + String(ring[r].y));
+      k.sort();
+      return k.join('|');
+    }
+    return keyRing(a) === keyRing(b);
+  }
+  var meta = [];
+  for (var i = 0; i < list.length; i++) {
+    var w0 = list[i];
+    var cp = mk(w0, 1), cn = mk(w0, -1);
+    if (!cp && !cn) {
+      meta[i] = null;
+      continue;
+    }
+    meta[i] = {
+      plus: cp, minus: cn,
+      ux: cp ? cp.ux : (cn ? cn.ux : 0),
+      uy: cp ? cp.uy : (cn ? cn.uy : 0),
+      bbox: unionBBox(cp ? cp.b : null, cn ? cn.b : null)
+    };
+  }
+  var mf = meta[focusIdx];
+  if (!mf) {
+    lines.push('포커스 벽 인덱스 ' + focusIdx + ': ±쿼드 생성 실패');
+    return lines.join('\n');
+  }
+  var wF = list[focusIdx];
+  var curSign = Number(wF.__step2aOutlineInwardSign) < 0 ? -1 : 1;
+  lines.push('=== ②-2 단일 객체 프로브 (ent ' + entNum + ', wallIdx ' + focusIdx + ') ===');
+  lines.push('현재 최종 inwardSign: ' + curSign + ' | 두께(mm): ' + String(Math.round((Number(wF.__step2aDualBaseThicknessMm || wF.thickness_mm) || 0) * 10) / 10));
+  var aP = mf.plus ? quadAreaAbs(mf.plus.q) : 0;
+  var aN = mf.minus ? quadAreaAbs(mf.minus.q) : 0;
+  lines.push('+1 쿼드 면적(mm²): ' + Math.round(aP) + ' | -1 쿼드 면적(mm²): ' + Math.round(aN));
+  if (mf.plus && mf.minus) {
+    var selfOv = ovArea(mf.plus, mf.minus);
+    lines.push('+/- 쿼드 서로 교집합(mm², 이웃 없이 자기겹침): ' + Math.round(selfOv) + (selfOv < minMm2 ? ' (무시 하한 ' + minMm2 + ' 미만이면 0 처리와 동일)' : ''));
+    lines.push('두 쿼드 꼭짓점 집합 동일(반올림): ' + (quadsNearlyEqual(mf.plus.q, mf.minus.q) ? '예 → 방향만 바뀌고 동일 폴리곤일 수 있음' : '아니오 → ±로 서로 다른 덩어리'));
+  }
+  var plusSum = 0, plusMax = 0, minusSum = 0, minusMax = 0;
+  var pairRows = [];
+  var parallelSkips = 0, bboxSkips = 0;
+  for (var j = 0; j < list.length; j++) {
+    if (j === focusIdx) continue;
+    var mOther = meta[j];
+    if (!mOther) continue;
+    var iLo = Math.min(focusIdx, j);
+    var iHi = Math.max(focusIdx, j);
+    var mi = meta[iLo];
+    var mj2 = meta[iHi];
+    if (!mi || !mj2) continue;
+    var dot = Math.abs((Number(mi.ux) || 0) * (Number(mj2.ux) || 0) + (Number(mi.uy) || 0) * (Number(mj2.uy) || 0));
+    if (dot < parDotMin) {
+      parallelSkips++;
+      continue;
+    }
+    var bboxU = unionBBox(mi.bbox, mj2.bbox);
+    if (mi.bbox && mj2.bbox && !frameDef2aV2BBoxIntersects2d(mi.bbox, mj2.bbox)) {
+      bboxSkips++;
+      continue;
+    }
+    var app = ovArea(mi.plus, mj2.plus), apn = ovArea(mi.plus, mj2.minus), anp = ovArea(mi.minus, mj2.plus), ann = ovArea(mi.minus, mj2.minus);
+    if (focusIdx === iLo) {
+      if (app >= minMm2) {
+        plusSum += app;
+        if (app > plusMax) plusMax = app;
+      }
+      if (apn >= minMm2) {
+        plusSum += apn;
+        if (apn > plusMax) plusMax = apn;
+      }
+      if (anp >= minMm2) {
+        minusSum += anp;
+        if (anp > minusMax) minusMax = anp;
+      }
+      if (ann >= minMm2) {
+        minusSum += ann;
+        if (ann > minusMax) minusMax = ann;
+      }
+    } else {
+      if (app >= minMm2) {
+        plusSum += app;
+        if (app > plusMax) plusMax = app;
+      }
+      if (anp >= minMm2) {
+        plusSum += anp;
+        if (anp > plusMax) plusMax = anp;
+      }
+      if (apn >= minMm2) {
+        minusSum += apn;
+        if (apn > minusMax) minusMax = apn;
+      }
+      if (ann >= minMm2) {
+        minusSum += ann;
+        if (ann > minusMax) minusMax = ann;
+      }
+    }
+    var tot4 = app + apn + anp + ann;
+    if (tot4 >= minMm2 * 0.5) {
+      pairRows.push({
+        j: j, app: app, apn: apn, anp: anp, ann: ann, tot: tot4,
+        ents: frameDefWallEntityIdsFor2aProbe(list[j]).slice(0, 4)
+      });
+    }
+  }
+  pairRows.sort(function(a, b) { return b.tot - a.tot; });
+  lines.push('--- 이웃과의 누적(②-2 `collectPairOverlapsDual` 투표와 동일한 합산) ---');
+  lines.push('평행(|dot|≥' + parDotMin + ')·BBox 교차 쌍만. 비평행 스킵 대략 ' + parallelSkips + ' · BBox 분리 스킵 ' + bboxSkips);
+  lines.push('plusSum(mm²): ' + Math.round(plusSum) + ' | plusMax(mm²): ' + Math.round(plusMax));
+  lines.push('minusSum(mm²): ' + Math.round(minusSum) + ' | minusMax(mm²): ' + Math.round(minusMax));
+  var pScore = plusSum + plusMax * 0.25;
+  var nScore = minusSum + minusMax * 0.25;
+  lines.push('표시용 점수(②-2와 동일 가중): plusScore = sum + max*0.25 → ' + Math.round(pScore));
+  lines.push('                              minusScore = sum + max*0.25 → ' + Math.round(nScore));
+  lines.push('※ 둘 다 0이면 이웃과의 유효 겹침이 없거나, 모두 평행이 아님.');
+  lines.push('※ +와 - 모두 합이 크면: 평행 벽이 양쪽 방향 모두에서 겹쳐 보이는 것(②-2에서 부호 선택이 필요).');
+  lines.push('--- 겹침이 큰 이웃 벽(상위 ' + Math.min(12, pairRows.length) + '개, mm²) ---');
+  for (var pr = 0; pr < pairRows.length && pr < 12; pr++) {
+    var r = pairRows[pr];
+    lines.push('  wallIdx ' + r.j + ' ent ' + (r.ents.length ? r.ents.join(',') : '?')
+      + ' | ++' + Math.round(r.app) + ' +-' + Math.round(r.apn) + ' -+' + Math.round(r.anp) + ' --' + Math.round(r.ann) + ' (합 ' + Math.round(r.tot) + ')');
+  }
+  return lines.join('\n');
+}
+
+function frameDefFormatStep2aDualOverlapProbeBlock(st) {
+  var esc = typeof escapeHtml === 'function' ? escapeHtml : function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  var ent = st && st.debugStep2aDualOverlapProbeEntityId != null ? String(st.debugStep2aDualOverlapProbeEntityId) : '23622687';
+  var rep = st && typeof st.debugStep2aDualOverlapProbeReportText === 'string' ? st.debugStep2aDualOverlapProbeReportText : '';
+  return '<details style="margin:4px 0 8px 0; border-left:3px solid #06b6d4; padding:4px 0 4px 10px;"><summary style="font-size:0.70rem; color:#0369a1; cursor:pointer; font-weight:600;">②-2 단일 객체 겹침 디버그 (±쿼드 · 이웃 4조합)</summary>'
+    + '<div style="font-size:0.68rem; color:#57606a; margin:6px 0 4px;">`wallStep2aHatchWalls`에서 객체 ID가 들어 있는 벽 1개를 찾아, ②-2와 같은 방식으로 이웃(평행·BBox)과의 ++/+-/-+/-- 교집합 면적 합·최대를 적습니다.</div>'
+    + '<div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:0.72rem; margin-bottom:6px;">'
+    + '<label>객체 ID <input type="text" id="frameDefDebugStep2aDualOvProbeEntId" value="' + esc(ent) + '" style="width:120px; font-size:0.72rem; padding:2px 6px; border:1px solid #d0d7de; border-radius:4px;" /></label>'
+    + '<button type="button" id="frameDefDebugStep2aDualOvProbeBtn" style="padding:4px 10px; font-size:0.72rem; border:1px solid #0891b2; border-radius:6px; background:#ecfeff; color:#0e7490; cursor:pointer;">분석 실행</button>'
+    + '</div>'
+    + '<pre id="frameDefDebugStep2aDualOvProbePre" style="margin:0;padding:8px;background:#0d1117;color:#c9d1d9;border-radius:6px;font-size:0.60rem;white-space:pre-wrap;word-break:break-all;max-height:280px;overflow:auto;line-height:1.35;">' + esc(rep || '(「분석 실행」을 누르거나, 골조 탐지 후 다시 열어 갱신하세요.)') + '</pre>'
+    + '</details>';
 }
 
 /** ②-2와 동일 기준으로 최종 방향·두께 벽체 쿼드(디버그 전용). */
@@ -21817,56 +22074,107 @@ function frameDefStep29MergeAdjacentOrthoSlabs(rects, stripAxis, tolMm) {
   if (!Array.isArray(rects) || rects.length < 2) return rects;
   var tol = Math.max(0.4, Number(tolMm) || 2.5);
   function near(a, b) { return Math.abs(Number(a) - Number(b)) <= tol + 1e-9; }
-  var list = rects.slice();
-  var merged = true;
-  while (merged) {
-    merged = false;
-    outer:
-    for (var i = 0; i < list.length; i++) {
-      for (var j = i + 1; j < list.length; j++) {
-        var A = list[i], B = list[j];
-        if (!A || !B) continue;
-        var ax0 = Number(A.x0), ay0 = Number(A.y0), ax1 = Number(A.x1), ay1 = Number(A.y1);
-        var bx0 = Number(B.x0), by0 = Number(B.y0), bx1 = Number(B.x1), by1 = Number(B.y1);
-        var nx0, ny0, nx1, ny1, na;
-        if (stripAxis === 'vertical') {
-          if (near(ay0, by0) && near(ay1, by1) && ax0 <= bx1 + tol && bx0 <= ax1 + tol) {
-            nx0 = Math.min(ax0, bx0);
-            ny0 = ay0;
-            nx1 = Math.max(ax1, bx1);
-            ny1 = ay1;
-          } else continue;
-        } else {
-          if (near(ax0, bx0) && near(ax1, bx1) && ay0 <= by1 + tol && by0 <= ay1 + tol) {
-            nx0 = ax0;
-            ny0 = Math.min(ay0, by0);
-            nx1 = ax1;
-            ny1 = Math.max(ay1, by1);
-          } else continue;
-        }
-        na = (nx1 - nx0) * (ny1 - ny0);
-        var faceQuad = [
-          { x: nx0, y: ny0 },
-          { x: nx1, y: ny0 },
-          { x: nx1, y: ny1 },
-          { x: nx0, y: ny1 }
-        ];
-        var C = {
-          x0: nx0, y0: ny0, x1: nx1, y1: ny1,
-          clipPoly: faceQuad.slice(),
-          faceQuad: faceQuad,
-          cellAreaMm2: Math.round(na * 10) / 10,
-          __step29StripAxis: stripAxis,
-          __step29SlabMerged: true
-        };
-        list.splice(j, 1);
-        list.splice(i, 1, C);
-        merged = true;
-        break outer;
-      }
-    }
+  function pushMergedSlab(nx0, ny0, nx1, ny1, axis) {
+    var na = (nx1 - nx0) * (ny1 - ny0);
+    var faceQuad = [
+      { x: nx0, y: ny0 },
+      { x: nx1, y: ny0 },
+      { x: nx1, y: ny1 },
+      { x: nx0, y: ny1 }
+    ];
+    return {
+      x0: nx0, y0: ny0, x1: nx1, y1: ny1,
+      clipPoly: faceQuad.slice(),
+      faceQuad: faceQuad,
+      cellAreaMm2: Math.round(na * 10) / 10,
+      __step29StripAxis: axis,
+      __step29SlabMerged: true
+    };
   }
-  return list;
+  var list = rects.slice();
+  if (stripAxis === 'vertical') {
+    list.sort(function(a, b) {
+      var t = Number(a.y0) - Number(b.y0);
+      if (Math.abs(t) > tol) return t;
+      t = Number(a.y1) - Number(b.y1);
+      if (Math.abs(t) > tol) return t;
+      return Number(a.x0) - Number(b.x0);
+    });
+  } else {
+    list.sort(function(a, b) {
+      var t = Number(a.x0) - Number(b.x0);
+      if (Math.abs(t) > tol) return t;
+      t = Number(a.x1) - Number(b.x1);
+      if (Math.abs(t) > tol) return t;
+      return Number(a.y0) - Number(b.y0);
+    });
+  }
+  var out = [];
+  var ii = 0, nn = list.length;
+  while (ii < nn) {
+    var A0 = list[ii];
+    if (!A0) {
+      ii++;
+      continue;
+    }
+    var jj = ii + 1;
+    if (stripAxis === 'vertical') {
+      var ay0 = Number(A0.y0), ay1 = Number(A0.y1);
+      while (jj < nn) {
+        var Tv = list[jj];
+        if (!Tv) {
+          jj++;
+          continue;
+        }
+        if (!near(Number(Tv.y0), ay0) || !near(Number(Tv.y1), ay1)) break;
+        jj++;
+      }
+      var row = list.slice(ii, jj).sort(function(a, b) { return Number(a.x0) - Number(b.x0); });
+      var rx0 = Number(row[0].x0), rx1 = Number(row[0].x1);
+      var rk;
+      for (rk = 1; rk < row.length; rk++) {
+        var R = row[rk];
+        var qx0 = Number(R.x0), qx1 = Number(R.x1);
+        if (qx0 <= rx1 + tol) {
+          if (qx1 > rx1) rx1 = qx1;
+        } else {
+          out.push(pushMergedSlab(rx0, ay0, rx1, ay1, stripAxis));
+          rx0 = qx0;
+          rx1 = qx1;
+        }
+      }
+      out.push(pushMergedSlab(rx0, ay0, rx1, ay1, stripAxis));
+    } else {
+      var axL = Number(A0.x0), axR = Number(A0.x1);
+      while (jj < nn) {
+        var Th = list[jj];
+        if (!Th) {
+          jj++;
+          continue;
+        }
+        if (!near(Number(Th.x0), axL) || !near(Number(Th.x1), axR)) break;
+        jj++;
+      }
+      var rowH = list.slice(ii, jj).sort(function(a, b) { return Number(a.y0) - Number(b.y0); });
+      var ry0 = Number(rowH[0].y0), ry1 = Number(rowH[0].y1);
+      var hx0 = Number(rowH[0].x0), hx1 = Number(rowH[0].x1);
+      var rh;
+      for (rh = 1; rh < rowH.length; rh++) {
+        var H = rowH[rh];
+        var hy0 = Number(H.y0), hy1 = Number(H.y1);
+        if (hy0 <= ry1 + tol) {
+          if (hy1 > ry1) ry1 = hy1;
+        } else {
+          out.push(pushMergedSlab(hx0, ry0, hx1, ry1, stripAxis));
+          ry0 = hy0;
+          ry1 = hy1;
+        }
+      }
+      out.push(pushMergedSlab(hx0, ry0, hx1, ry1, stripAxis));
+    }
+    ii = jj;
+  }
+  return out;
 }
 /**
  * ②-8 유니온 **외곽** 직교 변: 수평·수직에 가까운 변의 길이 합(mm). guillotine 띠 축 선택(가로벽 위주면 수평 띠 권장).
@@ -22119,7 +22427,9 @@ function frameDefStep29ScanlineSlabRectsFromOuterPoly(outerPoly, ringsForHitTest
   if (base.length < 3) return out;
   var tolMm = Math.max(8, Number(opts.tolMm) || 25);
   var epsSc = Math.max(0.1, tolMm * 1e-3);
-  var snapGrid = Math.max(epsSc, tolMm * 0.08);
+  var snapMul = (typeof FRAME_DEF_STEP2A_STEP29_SCANLINE_VERTEX_SNAP_MUL === 'number' && isFinite(FRAME_DEF_STEP2A_STEP29_SCANLINE_VERTEX_SNAP_MUL))
+    ? Math.max(0.05, Math.min(0.22, Number(FRAME_DEF_STEP2A_STEP29_SCANLINE_VERTEX_SNAP_MUL))) : 0.12;
+  var snapGrid = Math.max(epsSc, tolMm * snapMul);
   var minArea = typeof FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2 === 'number' ? Math.max(0, Number(FRAME_DEF_STEP2A_STEP29_ARCH_MIN_CELL_AREA_MM2)) : 400;
   if (opts.minCellAreaMm2 != null && isFinite(Number(opts.minCellAreaMm2))) minArea = Number(opts.minCellAreaMm2);
   var minSlab = typeof FRAME_DEF_STEP2A_STEP29_ARCH_MIN_SLAB_MM === 'number' ? Math.max(1, Number(FRAME_DEF_STEP2A_STEP29_ARCH_MIN_SLAB_MM)) : 4;
@@ -29172,6 +29482,7 @@ function frameDefDrawDebugStep2aDualOverlapPatches(opts) {
       'pl', String(typeof FRAME_DEF_STEP2A_STEP29_PIPELINE === 'string' ? FRAME_DEF_STEP2A_STEP29_PIPELINE : ''),
       'pm', String(typeof FRAME_DEF_STEP2A_STEP29_PARTITION_MODE === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_MODE : ''),
       'palgo', String(typeof FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO === 'string' ? FRAME_DEF_STEP2A_STEP29_PARTITION_ALGO : ''),
+      'snap', String(typeof FRAME_DEF_STEP2A_STEP29_SCANLINE_VERTEX_SNAP_MUL === 'number' ? FRAME_DEF_STEP2A_STEP29_SCANLINE_VERTEX_SNAP_MUL : -1),
       'pc', FRAME_DEF_STEP2A_STEP29_POST_CULL_SLIVERS !== false ? '1' : '0',
       'pa', String(typeof FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 === 'number' ? FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_AREA_MM2 : -1),
       'ps', String(typeof FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM === 'number' ? FRAME_DEF_STEP2A_STEP29_POST_MIN_FACE_BBOX_SHORT_MM : -1),
